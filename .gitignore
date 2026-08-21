@@ -1,0 +1,23 @@
+# dependencies
+**/node_modules/
+
+# secrets
+**/.env
+**/.env.local
+
+# build output
+**/dist/
+**/build/
+
+# Android/Kotlin
+**/.gradle/
+**/local.properties
+**/*.apk
+**/*.aab
+**/.idea/
+**/*.iml
+**/captures/
+
+# misc
+**/*.log
+**/.DS_Store
