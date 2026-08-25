@@ -1,0 +1,105 @@
+import { useState } from 'react';
+import { Plus, Edit2, Trash2, Music, Play } from 'lucide-react';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { Input, Select } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
+
+interface Track {
+    id: number;
+    titleAm: string;
+    titleOr: string;
+    category: string;
+    duration: string;
+    url: string;
+    active: boolean;
+}
+
+const initial: Track[] = [
+    { id: 1, titleAm: 'እናቶች ዝምታ', titleOr: 'Nagaa Haadhaa', category: 'Meditation', duration: '10:00', url: 'https://youtube.com/watch?v=example', active: true },
+    { id: 2, titleAm: 'የፅንስ ዘፈን', titleOr: 'Faaruu Daa\'ima', category: 'Lullaby', duration: '5:30', url: '', active: true },
+    { id: 3, titleAm: 'ሰላም', titleOr: 'Tasgabbii', category: 'Relaxation', duration: '15:00', url: '', active: false },
+];
+const empty: Omit<Track, 'id'> = { titleAm: '', titleOr: '', category: 'Relaxation', duration: '', url: '', active: true };
+const categoryColors: Record<string, 'pink' | 'purple' | 'blue'> = { Relaxation: 'pink', Meditation: 'purple', Lullaby: 'blue' };
+
+export default function MusicLibraryManager() {
+    const [tracks, setTracks] = useState(initial);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editing, setEditing] = useState<Track | null>(null);
+    const [form, setForm] = useState<Omit<Track, 'id'>>(empty);
+
+    function openCreate() { setEditing(null); setForm(empty); setModalOpen(true); }
+    function openEdit(t: Track) { setEditing(t); setForm(t); setModalOpen(true); }
+    function handleDelete(id: number) { setTracks(prev => prev.filter(t => t.id !== id)); }
+    function toggleActive(id: number) { setTracks(prev => prev.map(t => t.id === id ? { ...t, active: !t.active } : t)); }
+    function handleSave() {
+        if (editing) { setTracks(prev => prev.map(t => t.id === editing.id ? { ...form, id: editing.id } : t)); }
+        else { setTracks(prev => [...prev, { ...form, id: Date.now() }]); }
+        setModalOpen(false);
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-[#61183e]">Music & Relaxation Library</h2>
+                    <p className="text-gray-500 text-sm mt-0.5">Manage audio tracks and relaxation content</p>
+                </div>
+                <Button icon={<Plus className="w-4 h-4" />} onClick={openCreate}>Add Track</Button>
+            </div>
+
+            <div className="grid gap-4">
+                {tracks.map(track => (
+                    <Card key={track.id} className="flex items-center gap-5">
+                        <div className="w-12 h-12 rounded-xl bg-[#fdf2f8] flex items-center justify-center shrink-0">
+                            <Music className="w-6 h-6 text-[#61183e]" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <h4 className="font-semibold text-gray-900">{track.titleAm}</h4>
+                                <span className="text-gray-400 text-sm">/ {track.titleOr}</span>
+                                <Badge variant={categoryColors[track.category] || 'gray'}>{track.category}</Badge>
+                                <Badge variant={track.active ? 'green' : 'gray'}>{track.active ? 'Active' : 'Inactive'}</Badge>
+                            </div>
+                            <p className="text-sm text-gray-500">Duration: {track.duration || '—'}</p>
+                            {track.url && <a href={track.url} target="_blank" rel="noopener noreferrer" className="text-sm text-[#61183e] hover:underline flex items-center gap-1 mt-0.5"><Play className="w-3 h-3" /> Play Link</a>}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                            <button onClick={() => toggleActive(track.id)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${track.active ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+                                {track.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                            <button onClick={() => openEdit(track)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleDelete(track.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                    </Card>
+                ))}
+            </div>
+
+            <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Track' : 'New Track'} size="lg">
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input label="Title (Amharic)" value={form.titleAm} onChange={e => setForm(f => ({ ...f, titleAm: e.target.value }))} placeholder="ዘፈን ስም..." />
+                        <Input label="Title (Afan Oromo)" value={form.titleOr} onChange={e => setForm(f => ({ ...f, titleOr: e.target.value }))} placeholder="Maqaa..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Select label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} options={['Relaxation', 'Meditation', 'Lullaby'].map(c => ({ value: c, label: c }))} />
+                        <Input label="Duration (e.g. '10:00')" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="mm:ss" />
+                    </div>
+                    <Input label="YouTube / Spotify URL" value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://..." />
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <div onClick={() => setForm(f => ({ ...f, active: !f.active }))} className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${form.active ? 'bg-[#61183e]' : 'bg-gray-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${form.active ? 'left-6' : 'left-1'}`} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">{form.active ? 'Active' : 'Inactive'}</span>
+                    </label>
+                    <div className="flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSave}>{editing ? 'Save Changes' : 'Add Track'}</Button>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+}
