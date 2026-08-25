@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: maternalink-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: maternalink
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: maternalink-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      JWT_SECRET: maternalink-dev-jwt-secret-2024
+      JWT_EXPIRES_IN: 30d
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: maternalink
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/maternalink
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+    command: >
+      sh -c "npx knex migrate:latest && npx knex seed:run && node server.js"
+
+volumes:
+  pgdata:
