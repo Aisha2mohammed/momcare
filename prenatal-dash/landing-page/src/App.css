@@ -1,0 +1,4 @@
+/* App-level overrides — component-level styles live in their own CSS files */
+main {
+  flex: 1;
+}
