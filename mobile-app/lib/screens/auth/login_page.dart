@@ -4,6 +4,8 @@ import 'package:pregnancy_appp/screens/auth/signup_page.dart';
 import 'package:pregnancy_appp/screens/auth/otp_verification_page.dart';
 import 'package:pregnancy_appp/screens/auth/forgot_password_page.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
+import 'package:pregnancy_appp/services/auth_service.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,6 +17,84 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _isEmail = true;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your phone number')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final password = _passwordController.text.trim();
+      await AuthService.login(phone: phone, password: password.isNotEmpty ? password : null);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MainScreen()),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleSendOtp() async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your phone number')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.sendOtp(phone: phone);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationPage(isLogin: true, phone: phone),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +106,6 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Logo Placeholder
               Center(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
@@ -71,7 +150,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 32),
 
-              // Method Toggle
               Container(
                 height: 44,
                 decoration: BoxDecoration(
@@ -93,7 +171,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Email',
+                            'Phone + Password',
                             style: TextStyle(
                               fontWeight: _isEmail ? FontWeight.bold : FontWeight.normal,
                               color: _isEmail ? AppColors.primary : Colors.black54,
@@ -115,7 +193,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Phone Number',
+                            'OTP Login',
                             style: TextStyle(
                               fontWeight: !_isEmail ? FontWeight.bold : FontWeight.normal,
                               color: !_isEmail ? AppColors.primary : Colors.black54,
@@ -129,13 +207,42 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 32),
 
+              const Text('Enter your phone number', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  hintText: '+251 911 234 567',
+                  hintStyle: const TextStyle(color: Colors.black38),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary),
+                  ),
+                  suffixIcon: const Icon(Icons.phone_outlined, color: Colors.black54),
+                ),
+              ),
+
               if (_isEmail) ...[
-                const Text('Enter your email', style: TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 20),
+                const Text('Enter your password', style: TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 TextField(
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    hintText: 'example@gmail.com',
+                    hintText: '************',
                     hintStyle: const TextStyle(color: Colors.black38),
                     filled: true,
                     fillColor: Colors.white,
@@ -151,28 +258,6 @@ class _LoginPageState extends State<LoginPage> {
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.primary),
-                    ),
-                    suffixIcon: const Icon(Icons.mail_outline, color: Colors.black54),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text('Enter your password', style: TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                TextField(
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    hintText: '************',
-                    hintStyle: const TextStyle(color: Colors.black38),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -202,46 +287,19 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-              ] else ...[
-                const Text('Enter your phone number', style: TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                TextField(
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    hintText: '+251 911 234 567',
-                    hintStyle: const TextStyle(color: Colors.black38),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    suffixIcon: const Icon(Icons.phone_outlined, color: Colors.black54),
-                  ),
-                ),
               ],
 
               const SizedBox(height: 32),
-              // Login Button
               ElevatedButton(
-                onPressed: () {
-                  if (_isEmail) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MainScreen()),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const OtpVerificationPage(isLogin: true)),
-                    );
-                  }
-                },
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        if (_isEmail) {
+                          _handleLogin();
+                        } else {
+                          _handleSendOtp();
+                        }
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -250,7 +308,16 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   elevation: 0,
                 ),
-                child: const Text('Login', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Login', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
 
@@ -286,7 +353,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 24),
 
-              // Google Button
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -339,10 +405,8 @@ class _GooglePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    // Background circle
     final bgPaint = Paint()..color = Colors.white;
     canvas.drawOval(rect, bgPaint);
-    // Draw 'G' text using TextPainter
     final textStyle = TextStyle(
       fontSize: size.width * 0.75,
       fontWeight: FontWeight.bold,
