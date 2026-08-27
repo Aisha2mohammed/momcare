@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/auth/login_page.dart';
-import 'package:pregnancy_appp/screens/auth/otp_verification_page.dart';
 import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
+import 'package:pregnancy_appp/services/auth_service.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -14,18 +15,81 @@ class SignupPage extends StatefulWidget {
 class _SignupPageState extends State<SignupPage> {
   bool _isEmail = true;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSignup() async {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your name')),
+      );
+      return;
+    }
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your phone number')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.register(
+        phone: phone,
+        name: name,
+        password: _passwordController.text.trim().isNotEmpty
+            ? _passwordController.text.trim()
+            : null,
+        email: _isEmail && _emailController.text.trim().isNotEmpty
+            ? _emailController.text.trim()
+            : null,
+      );
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9), // Slight off-white per design
+      backgroundColor: const Color(0xFFF9F9F9),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Logo Placeholder
               Center(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
@@ -50,7 +114,6 @@ class _SignupPageState extends State<SignupPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              // Enat Circle
               Center(
                 child: RichText(
                   text: const TextSpan(
@@ -71,7 +134,6 @@ class _SignupPageState extends State<SignupPage> {
               ),
               const SizedBox(height: 32),
 
-              // Method Toggle
               Container(
                 height: 44,
                 decoration: BoxDecoration(
@@ -93,7 +155,7 @@ class _SignupPageState extends State<SignupPage> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Email',
+                            'Phone + Password',
                             style: TextStyle(
                               fontWeight: _isEmail ? FontWeight.bold : FontWeight.normal,
                               color: _isEmail ? AppColors.primary : Colors.black54,
@@ -115,7 +177,7 @@ class _SignupPageState extends State<SignupPage> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'Phone Number',
+                            'Phone Only',
                             style: TextStyle(
                               fontWeight: !_isEmail ? FontWeight.bold : FontWeight.normal,
                               color: !_isEmail ? AppColors.primary : Colors.black54,
@@ -129,10 +191,11 @@ class _SignupPageState extends State<SignupPage> {
               ),
               const SizedBox(height: 32),
 
-              // Name Field
               const Text('Enter your name', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextField(
+                controller: _nameController,
+                textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   hintText: 'Enter here...',
                   hintStyle: const TextStyle(color: Colors.black38),
@@ -147,15 +210,48 @@ class _SignupPageState extends State<SignupPage> {
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: Colors.grey.shade300),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary),
+                  ),
                   suffixIcon: const Icon(Icons.person_outline, color: Colors.black54),
                 ),
               ),
               const SizedBox(height: 20),
 
+              const Text('Enter your phone number', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  hintText: '+251 911 234 567',
+                  hintStyle: const TextStyle(color: Colors.black38),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary),
+                  ),
+                  suffixIcon: const Icon(Icons.phone_outlined, color: Colors.black54),
+                ),
+              ),
+
               if (_isEmail) ...[
-                const Text('Enter your email', style: TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 20),
+                const Text('Enter your email (optional)', style: TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 TextField(
+                  controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     hintText: 'example@gmail.com',
@@ -182,6 +278,7 @@ class _SignupPageState extends State<SignupPage> {
                 const Text('Create your password', style: TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 TextField(
+                  controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     hintText: '************',
@@ -197,6 +294,10 @@ class _SignupPageState extends State<SignupPage> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary),
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -206,46 +307,11 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                 ),
-              ] else ...[
-                const Text('Enter your phone number', style: TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                TextField(
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    hintText: '+251 911 234 567',
-                    hintStyle: const TextStyle(color: Colors.black38),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    suffixIcon: const Icon(Icons.phone_outlined, color: Colors.black54),
-                  ),
-                ),
               ],
 
               const SizedBox(height: 32),
-              // Sign Up Button
               ElevatedButton(
-                onPressed: () {
-                  if (_isEmail) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const OtpVerificationPage(isLogin: false)),
-                    );
-                  }
-                },
+                onPressed: _isLoading ? null : _handleSignup,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -254,10 +320,19 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                   elevation: 0,
                 ),
-                child: const Text('Sign Up', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Sign Up', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -276,7 +351,7 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
               const Row(
                 children: [
@@ -289,8 +364,7 @@ class _SignupPageState extends State<SignupPage> {
                 ],
               ),
               const SizedBox(height: 24),
-              
-              // Google Button
+
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
