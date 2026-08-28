@@ -3,8 +3,9 @@ import { Plus, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Input, TextArea, Select } from '../components/ui/Input';
+import { Input, TextArea, Select, FileInput } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { useToast } from '../context/ToastContext';
 
 interface NutritionEntry {
     id: number;
@@ -12,29 +13,37 @@ interface NutritionEntry {
     titleOr: string;
     trimester: string;
     foodType: string;
-    published: boolean;
-    bodyAm: string;
     bodyOr: string;
+    videoUrl?: string; // Optional video or video ID
+    week?: string;     // Specific week mapped
+    videoFile?: File | null;
 }
 
 const initialEntries: NutritionEntry[] = [
-    { id: 1, titleAm: 'የብረት የበለፀጉ ምግቦች', titleOr: 'Nyaata Birrii Qabate', trimester: '1st', foodType: 'Legumes', published: true, bodyAm: 'ምስር፣ አተር እና ባቄላ ጥሩ የብረት ምንጮች ናቸው።', bodyOr: 'Miisiraa, atrii fi baaqela madda birrii gaarii dha.' },
-    { id: 2, titleAm: 'ካልሲየም ምግቦች', titleOr: 'Nyaata Kaalsiiyami', trimester: '2nd', foodType: 'Dairy', published: true, bodyAm: 'ወተት እና አይብ ጥሩ የካልሲዮም ምንጮች ናቸው።', bodyOr: 'Aannan fi cheezing madda kaalsiiyami gaarii dha.' },
-    { id: 3, titleAm: 'ፎሊክ አሲድ ምንጮች', titleOr: 'Madda Asidii Foolikii', trimester: '1st', foodType: 'Vegetables', published: false, bodyAm: 'አትክልቶች ፎሊክ አሲድ ይሰጣሉ።', bodyOr: 'Kuduraaleen asidii foolikii ni kennu.' },
+    { id: 1, titleAm: 'የብረት የበለፀጉ ምግቦች', titleOr: 'Nyaata Birrii Qabate', trimester: '1st', week: 'Week 4-8', foodType: 'Legumes', published: true, bodyAm: 'ምስር፣ አተር እና ባቄላ ጥሩ የብረት ምንጮች ናቸው።', bodyOr: 'Miisiraa, atrii fi baaqela madda birrii gaarii dha.', videoUrl: 'https://youtube.com/watch?v=mock' },
+    { id: 2, titleAm: 'ካልሲየም ምግቦች', titleOr: 'Nyaata Kaalsiiyami', trimester: '2nd', week: 'Week 14', foodType: 'Dairy', published: true, bodyAm: 'ወተት እና አይብ ጥሩ የካልሲዮም ምንጮች ናቸው።', bodyOr: 'Aannan fi cheezing madda kaalsiiyami gaarii dha.', videoUrl: '' },
+    { id: 3, titleAm: 'ፎሊክ አሲድ ምንጮች', titleOr: 'Madda Asidii Foolikii', trimester: '1st', week: 'Week 1-4', foodType: 'Vegetables', published: false, bodyAm: 'አትክልቶች ፎሊክ አሲድ ይሰጣሉ።', bodyOr: 'Kuduraaleen asidii foolikii ni kennu.' },
 ];
 
-const empty: Omit<NutritionEntry, 'id'> = { titleAm: '', titleOr: '', trimester: '1st', foodType: '', published: false, bodyAm: '', bodyOr: '' };
+const empty: Omit<NutritionEntry, 'id'> = { titleAm: '', titleOr: '', trimester: '1st', week: '', foodType: '', published: false, bodyAm: '', bodyOr: '', videoUrl: '', videoFile: null };
 
 export default function NutritionManager() {
+    const { showToast } = useToast();
     const [entries, setEntries] = useState(initialEntries);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<NutritionEntry | null>(null);
     const [form, setForm] = useState<Omit<NutritionEntry, 'id'>>(empty);
 
     function openCreate() { setEditing(null); setForm(empty); setModalOpen(true); }
-    function openEdit(e: NutritionEntry) { setEditing(e); setForm({ titleAm: e.titleAm, titleOr: e.titleOr, trimester: e.trimester, foodType: e.foodType, published: e.published, bodyAm: e.bodyAm, bodyOr: e.bodyOr }); setModalOpen(true); }
-    function handleDelete(id: number) { setEntries(prev => prev.filter(e => e.id !== id)); }
-    function togglePublish(id: number) { setEntries(prev => prev.map(e => e.id === id ? { ...e, published: !e.published } : e)); }
+    function openEdit(e: NutritionEntry) { setEditing(e); setForm({ ...e }); setModalOpen(true); }
+    function handleDelete(id: number) {
+        setEntries(prev => prev.filter(e => e.id !== id));
+        showToast('Nutrition entry deleted.', 'error');
+    }
+    function togglePublish(id: number) {
+        setEntries(prev => prev.map(e => e.id === id ? { ...e, published: !e.published } : e));
+        showToast('Visibility toggled.', 'success');
+    }
 
     function handleSave() {
         if (editing) {
@@ -42,6 +51,7 @@ export default function NutritionManager() {
         } else {
             setEntries(prev => [...prev, { ...form, id: Date.now() }]);
         }
+        showToast(editing ? 'Nutrition entry updated!' : 'New entry created!', 'success');
         setModalOpen(false);
     }
 
@@ -64,9 +74,15 @@ export default function NutritionManager() {
                                 <span className="text-gray-400 text-sm">/ {entry.titleOr}</span>
                                 <Badge variant={entry.published ? 'green' : 'gray'}>{entry.published ? 'Published' : 'Draft'}</Badge>
                                 <Badge variant="pink">{entry.trimester} Trimester</Badge>
+                                {entry.week && <Badge variant="yellow">{entry.week}</Badge>}
                                 <Badge variant="blue">{entry.foodType}</Badge>
                             </div>
                             <p className="text-sm text-gray-500 line-clamp-2">{entry.bodyAm}</p>
+                            {(entry.videoUrl || entry.videoFile) && (
+                                <p className="text-xs text-[#61183e] font-medium mt-1 font-mono truncate">
+                                    Video: {entry.videoFile ? entry.videoFile.name : entry.videoUrl}
+                                </p>
+                            )}
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <button onClick={() => togglePublish(entry.id)} className="p-2 rounded-lg hover:bg-[#fdf2f8] text-[#61183e] transition-colors" title={entry.published ? 'Unpublish' : 'Publish'}>
@@ -97,7 +113,14 @@ export default function NutritionManager() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Select label="Trimester" value={form.trimester} onChange={e => setForm(f => ({ ...f, trimester: e.target.value }))} options={[{ value: '1st', label: '1st Trimester' }, { value: '2nd', label: '2nd Trimester' }, { value: '3rd', label: '3rd Trimester' }]} />
-                        <Input label="Food Type / Category" value={form.foodType} onChange={e => setForm(f => ({ ...f, foodType: e.target.value }))} placeholder="e.g. Legumes, Vegetables..." />
+                        <Input label="Specific Week (Optional)" value={form.week || ''} onChange={e => setForm(f => ({ ...f, week: e.target.value }))} placeholder="e.g. Week 12" />
+                    </div>
+                    <div className="space-y-4 border-y border-gray-100 py-4 my-2">
+                        <p className="text-sm font-medium text-gray-700">Media Content</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input label="Video URL" value={form.videoUrl || ''} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://youtube.com/..." />
+                            <FileInput label="Or Upload Local File" onChange={e => setForm(f => ({ ...f, videoFile: e.target.files?.[0] || null }))} />
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <TextArea label="Body Content (Amharic)" value={form.bodyAm} onChange={e => setForm(f => ({ ...f, bodyAm: e.target.value }))} rows={4} placeholder="ዝርዝር መረጃ..." />
