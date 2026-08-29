@@ -3,8 +3,9 @@ import { Plus, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Input, TextArea } from '../components/ui/Input';
+import { Input, TextArea, FileInput } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { useToast } from '../context/ToastContext';
 
 interface ExerciseEntry {
     id: number;
@@ -16,18 +17,21 @@ interface ExerciseEntry {
     safetyAm: string;
     safetyOr: string;
     published: boolean;
+    week?: string;
+    videoFile?: File | null;
 }
 
 const initialEntries: ExerciseEntry[] = [
-    { id: 1, nameAm: 'ዕምቢ ወይ ዕርቅ እርምጃ', nameOr: 'Deemsa Laafaa', trimesters: ['1st', '2nd'], videoUrl: '', duration: '15 min', safetyAm: 'ቀስ ብሎ ይጀምሩ', safetyOr: 'Fooya fooya jalqabi', published: true },
-    { id: 2, nameAm: 'ዮጋ', nameOr: 'Yoga', trimesters: ['1st', '2nd', '3rd'], videoUrl: '', duration: '20 min', safetyAm: 'ሲቆሙ ይጠንቀቁ', safetyOr: 'Yeroo ka\'an of eeggadhu', published: true },
-    { id: 3, nameAm: 'ዋና', nameOr: 'Daakuu', trimesters: ['2nd', '3rd'], videoUrl: '', duration: '30 min', safetyAm: 'ቅዝቃዜ ከሌለ ብቻ', safetyOr: 'Qorra yoo hin jiraatin qofa', published: false },
+    { id: 1, nameAm: 'ዕምቢ ወይ ዕርቅ እርምጃ', nameOr: 'Deemsa Laafaa', trimesters: ['1st', '2nd'], week: 'Week 1-20', videoUrl: 'https://youtube.com/watch?v=exercise1', duration: '15 min', safetyAm: 'ቀስ ብሎ ይጀምሩ', safetyOr: 'Fooya fooya jalqabi', published: true },
+    { id: 2, nameAm: 'ዮጋ', nameOr: 'Yoga', trimesters: ['1st', '2nd', '3rd'], week: 'All weeks', videoUrl: 'https://youtube.com/watch?v=yoga', duration: '20 min', safetyAm: 'ሲቆሙ ይጠንቀቁ', safetyOr: 'Yeroo ka\'an of eeggadhu', published: true },
+    { id: 3, nameAm: 'ዋና', nameOr: 'Daakuu', trimesters: ['2nd', '3rd'], week: 'Week 14-30', videoUrl: '', duration: '30 min', safetyAm: 'ቅዝቃዜ ከሌለ ብቻ', safetyOr: 'Qorra yoo hin jiraatin qofa', published: false },
 ];
 
-const empty: Omit<ExerciseEntry, 'id'> = { nameAm: '', nameOr: '', trimesters: [], videoUrl: '', duration: '', safetyAm: '', safetyOr: '', published: false };
+const empty: Omit<ExerciseEntry, 'id'> = { nameAm: '', nameOr: '', trimesters: [], week: '', videoUrl: '', videoFile: null, duration: '', safetyAm: '', safetyOr: '', published: false };
 const allTrimesters = ['1st', '2nd', '3rd'];
 
 export default function ExerciseManager() {
+    const { showToast } = useToast();
     const [entries, setEntries] = useState(initialEntries);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<ExerciseEntry | null>(null);
@@ -38,11 +42,18 @@ export default function ExerciseManager() {
     }
     function openCreate() { setEditing(null); setForm(empty); setModalOpen(true); }
     function openEdit(e: ExerciseEntry) { setEditing(e); setForm(e); setModalOpen(true); }
-    function handleDelete(id: number) { setEntries(prev => prev.filter(e => e.id !== id)); }
-    function togglePublish(id: number) { setEntries(prev => prev.map(e => e.id === id ? { ...e, published: !e.published } : e)); }
+    function handleDelete(id: number) {
+        setEntries(prev => prev.filter(e => e.id !== id));
+        showToast('Exercise entry deleted.', 'error');
+    }
+    function togglePublish(id: number) {
+        setEntries(prev => prev.map(e => e.id === id ? { ...e, published: !e.published } : e));
+        showToast('Visibility toggled.', 'success');
+    }
     function handleSave() {
         if (editing) { setEntries(prev => prev.map(e => e.id === editing.id ? { ...form, id: editing.id } : e)); }
         else { setEntries(prev => [...prev, { ...form, id: Date.now() }]); }
+        showToast(editing ? 'Exercise updated!' : 'Exercise created!', 'success');
         setModalOpen(false);
     }
 
@@ -65,9 +76,15 @@ export default function ExerciseManager() {
                                 <span className="text-gray-400 text-sm">/ {entry.nameOr}</span>
                                 <Badge variant={entry.published ? 'green' : 'gray'}>{entry.published ? 'Published' : 'Draft'}</Badge>
                                 {entry.trimesters.map(t => <Badge key={t} variant="pink">{t} Tri</Badge>)}
+                                {entry.week && <Badge variant="yellow">{entry.week}</Badge>}
                                 <Badge variant="blue">{entry.duration}</Badge>
                             </div>
                             <p className="text-sm text-gray-500">⚠ {entry.safetyAm}</p>
+                            {(entry.videoUrl || entry.videoFile) && (
+                                <p className="text-xs text-[#61183e] font-medium mt-2 font-mono truncate">
+                                    Video: {entry.videoFile ? entry.videoFile.name : entry.videoUrl}
+                                </p>
+                            )}
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <button onClick={() => togglePublish(entry.id)} className="p-2 rounded-lg hover:bg-[#fdf2f8] text-[#61183e] transition-colors">{entry.published ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
@@ -99,8 +116,15 @@ export default function ExerciseManager() {
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
+                        <Input label="Specific Week (Optional)" value={form.week || ''} onChange={e => setForm(f => ({ ...f, week: e.target.value }))} placeholder="e.g. Week 14-30" />
                         <Input label="Duration (e.g. '20 min')" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="20 min" />
-                        <Input label="Video URL (optional)" value={form.videoUrl} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://youtube.com/..." />
+                    </div>
+                    <div className="space-y-4 border-y border-gray-100 py-4 my-2">
+                        <p className="text-sm font-medium text-gray-700">Media Content</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input label="Video URL" value={form.videoUrl} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://youtube.com/..." />
+                            <FileInput label="Or Upload Local File" onChange={e => setForm(f => ({ ...f, videoFile: e.target.files?.[0] || null }))} />
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <TextArea label="Safety Notes (Amharic)" value={form.safetyAm} onChange={e => setForm(f => ({ ...f, safetyAm: e.target.value }))} rows={3} placeholder="ጥንቃቄ..." />

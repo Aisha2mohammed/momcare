@@ -78,3 +78,31 @@ export function TextArea({ label, error, id, className, ...props }: TextAreaProp
         </div>
     );
 }
+
+interface FileInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+    label?: string;
+    error?: string;
+}
+
+export function FileInput({ label, error, id, className, ...props }: FileInputProps) {
+    return (
+        <div className="flex flex-col gap-1">
+            {label && <label htmlFor={id} className="text-sm font-medium text-gray-700">{label}</label>}
+            <input
+                id={id}
+                type="file"
+                {...props}
+                className={clsx(
+                    'w-full px-3 py-1.5 rounded-lg border text-sm bg-white cursor-pointer file:cursor-pointer transition',
+                    'file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold',
+                    'file:bg-[#fdf2f8] file:text-[#61183e] hover:file:bg-[#61183e] hover:file:text-white',
+                    'border-gray-200 text-gray-900',
+                    'focus:border-[#61183e] focus:ring-2 focus:ring-[#61183e]/20',
+                    error && 'border-red-400',
+                    className
+                )}
+            />
+            {error && <span className="text-xs text-red-500">{error}</span>}
+        </div>
+    );
+}
