@@ -70,8 +70,8 @@ const notificationRules = [
 ];
 
 const appointmentRules = [
-  body('doctor_id').notEmpty().withMessage('Doctor ID is required').isUUID(),
-  body('slot_datetime').notEmpty().withMessage('Slot datetime is required').isISO8601(),
+  body('doctorId').notEmpty().withMessage('Doctor ID is required').isUUID(),
+  body('slotDatetime').notEmpty().withMessage('Slot datetime is required').isISO8601(),
 ];
 
 const appointmentRespondRules = [
@@ -86,13 +86,13 @@ const clinicalRecordRules = [
 ];
 
 const doctorRegisterRules = [
-  body('license_number').notEmpty().withMessage('License number is required'),
+  body('licenseNumber').notEmpty().withMessage('License number is required'),
   body('specialization').notEmpty().withMessage('Specialization is required'),
   body('location').notEmpty().withMessage('Location is required'),
 ];
 
 const emergencyContactRules = [
-  body('contact_name').notEmpty().withMessage('Contact name is required'),
+  body('contactName').notEmpty().withMessage('Contact name is required'),
   body('phone').notEmpty().withMessage('Phone is required'),
 ];
 
