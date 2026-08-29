@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/services/mother_service.dart';
 
 class JournalPage extends StatefulWidget {
   const JournalPage({super.key});
@@ -9,142 +13,240 @@ class JournalPage extends StatefulWidget {
 }
 
 class _JournalPageState extends State<JournalPage> {
-  final List<Map<String, dynamic>> _entries = [
-    {
-      "title": "First Kick!",
-      "date": "Oct 12, 2026",
-      "content": "Felt the first little flutters today while resting on the couch. It was magical!",
-      "hasImage": false,
-    },
-    {
-      "title": "Cravings",
-      "date": "Oct 05, 2026",
-      "content": "I cannot get enough of spicy food and ice cream right now.",
-      "hasImage": false,
-    },
-    {
-      "title": "Ultrasound Day",
-      "date": "Sep 28, 2026",
-      "content": "Saw the baby's heartbeat. Everything looks healthy and perfect.",
-      "hasImage": true,
-    },
+  List<Map<String, dynamic>> _entries = [];
+  bool _isLoading = true;
+  String? _error;
+
+  static const List<String> _moods = [
+    'happy', 'normal', 'sad', 'anxious', 'tired', 'energetic',
   ];
 
-  void _showAddEntryDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    _loadLogs();
+  }
+
+  Future<void> _loadLogs() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final logs = await MotherService.getHealthLogs();
+      if (!mounted) return;
+      setState(() {
+        _entries = logs.map((e) => e as Map<String, dynamic>).toList();
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Network error. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _submitLog({
+    required double? weightKg,
+    required String? mood,
+    required List<dynamic> symptoms,
+    required int? severity,
+  }) async {
+    try {
+      await MotherService.createHealthLog(
+        weightKg: weightKg,
+        mood: mood,
+        symptoms: symptoms,
+        symptomSeverity: severity,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Health log saved')),
+      );
+      await _loadLogs();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error. Please try again.')),
+      );
+    }
+  }
+
+  void _showAddLogDialog(BuildContext context) {
+    final weightController = TextEditingController();
+    final symptomsController = TextEditingController();
+    String? selectedMood;
+    double severity = 0;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(28),
-              topRight: Radius.circular(28),
-            ),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(28),
+                topRight: Radius.circular(28),
               ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            ),
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                  const Text(
-                    "New Memory",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      if (titleController.text.isNotEmpty) {
-                        setState(() {
-                          _entries.insert(0, {
-                            "title": titleController.text,
-                            "date": "${_monthName(DateTime.now().month)} ${DateTime.now().day}, ${DateTime.now().year}",
-                            "content": contentController.text,
-                            "hasImage": false,
-                          });
-                        });
-                        Navigator.pop(ctx);
-                      }
-                    },
-                    child: const Text(
-                      "Save",
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                      const Text(
+                        "New Health Log",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final weight = double.tryParse(weightController.text.trim());
+                          final symptoms = symptomsController.text
+                              .trim()
+                              .split(',')
+                              .map((s) => s.trim())
+                              .where((s) => s.isNotEmpty)
+                              .toList();
+                          Navigator.pop(ctx);
+                          await _submitLog(
+                            weightKg: weight,
+                            mood: selectedMood,
+                            symptoms: symptoms,
+                            severity: severity > 0 ? severity.round() : null,
+                          );
+                        },
+                        child: const Text(
+                          "Save",
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: weightController,
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: "Weight (kg)",
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedMood,
+                    decoration: InputDecoration(
+                      labelText: "Mood",
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: _moods.map((m) {
+                      return DropdownMenuItem(value: m, child: Text(m));
+                    }).toList(),
+                    onChanged: (value) => setModalState(() => selectedMood = value),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: symptomsController,
+                    decoration: InputDecoration(
+                      labelText: "Symptoms (comma separated, e.g. headache, nausea)",
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    "Symptom severity: ${severity.round()}",
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Slider(
+                    value: severity,
+                    min: 0,
+                    max: 10,
+                    divisions: 10,
+                    activeColor: AppColors.primary,
+                    onChanged: (value) => setModalState(() => severity = value),
+                  ),
+                  const SizedBox(height: 10),
                 ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  hintText: "Title (e.g. First Kick!)",
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: contentController,
-                minLines: 4,
-                maxLines: 8,
-                decoration: InputDecoration(
-                  hintText: "Write about this memory...",
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  String _monthName(int month) {
-    const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return months[month];
+  String _formatDate(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[d.month]} ${d.day}, ${d.year}';
+  }
+
+  List<String> _parseSymptoms(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw.map((s) => s.toString()).toList();
+    }
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded.map((s) => s.toString()).toList();
+        }
+      } catch (_) {}
+    }
+    return [];
   }
 
   @override
@@ -152,39 +254,72 @@ class _JournalPageState extends State<JournalPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text("Journal & Memories"),
+        title: const Text("Health Log"),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
       ),
-      body: _entries.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.book_outlined, size: 64, color: AppColors.primary),
-                  SizedBox(height: 16),
-                  Text("No memories yet.\nTap + to add your first one!", textAlign: TextAlign.center),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: _entries.length,
-              itemBuilder: (context, index) {
-                final e = _entries[index];
-                return _buildJournalEntry(e['title'], e['date'], e['content'], isImage: e['hasImage'] ?? false);
-              },
-            ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 12),
+                      OutlinedButton(onPressed: _loadLogs, child: const Text('Retry')),
+                    ],
+                  ),
+                )
+              : _entries.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.book_outlined, size: 64, color: AppColors.primary),
+                          SizedBox(height: 16),
+                          Text("No health logs yet.\nTap + to log your first entry!", textAlign: TextAlign.center),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadLogs,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(20),
+                        itemCount: _entries.length,
+                        itemBuilder: (context, index) {
+                          final e = _entries[index];
+                          final weight = e['weight_kg'];
+                          final mood = e['mood'] as String?;
+                          final severity = e['symptom_severity'];
+                          final symptoms = _parseSymptoms(e['symptoms_json']);
+                          return _buildHealthLogEntry(
+                            date: e['log_date'] as String? ?? '',
+                            weight: weight != null ? '$weight kg' : null,
+                            mood: mood,
+                            severity: severity,
+                            symptoms: symptoms,
+                          );
+                        },
+                      ),
+                    ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddEntryDialog(context),
+        onPressed: () => _showAddLogDialog(context),
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add_rounded, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildJournalEntry(String title, String date, String content, {bool isImage = false}) {
+  Widget _buildHealthLogEntry({
+    required String date,
+    String? weight,
+    String? mood,
+    dynamic severity,
+    required List<String> symptoms,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
@@ -201,24 +336,66 @@ class _JournalPageState extends State<JournalPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
-              Text(date, style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+              Expanded(
+                child: Text(
+                  _formatDate(date),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              if (weight != null)
+                Text(weight, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
             ],
           ),
-          const SizedBox(height: 15),
-          if (isImage) ...[
-            Container(
-              height: 120,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.image_rounded, size: 50, color: AppColors.primary),
+          if (mood != null || severity != null) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (mood != null)
+                  _buildTag(Icons.mood_rounded, "Mood: $mood"),
+                if (severity != null)
+                  _buildTag(Icons.speed_rounded, "Severity: $severity/10"),
+              ],
             ),
-            const SizedBox(height: 15),
           ],
-          Text(content, style: TextStyle(color: Colors.grey[700], height: 1.5)),
+          if (symptoms.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text("Symptoms:", style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: symptoms.map((s) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(s, style: const TextStyle(fontSize: 12, color: AppColors.primary)),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTag(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey[700]),
+          const SizedBox(width: 6),
+          Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
         ],
       ),
     );
