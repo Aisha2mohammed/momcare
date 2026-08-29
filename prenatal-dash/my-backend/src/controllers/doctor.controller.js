@@ -64,35 +64,49 @@ exports.getDoctorPublicProfile = async (req, res, next) => {
 // ── POST /doctors/register (after user registration) ──────────────────
 exports.registerDoctor = async (req, res, next) => {
   try {
-    const { userId } = req.user;
+    const userId = req.userId;
     const {
       healthProviderId, licenseNumber, specialization,
       location, workingHoursJson, credentialDocsJson, photoUrl, bio,
     } = req.body;
 
-    // Check if profile already exists
-    const existing = await query(
-      'SELECT id FROM doctor_profiles WHERE user_id = $1',
-      [userId]
-    );
-
-    if (existing.rows.length > 0) {
-      return sendError(res, 409, 'Doctor profile already exists. Use PUT to update.');
-    }
-
+    // Upsert: /auth/register pre-creates a pending placeholder row, so fill it
+    // in with real data rather than rejecting with 409.
     const result = await query(
       `INSERT INTO doctor_profiles
        (user_id, health_provider_id, license_number, specialization, location,
         working_hours_json, credential_docs_json, photo_url, bio, approval_status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
-       RETURNING *`,
+       ON CONFLICT (user_id) DO UPDATE SET
+         health_provider_id = EXCLUDED.health_provider_id,
+         license_number = EXCLUDED.license_number,
+         specialization = EXCLUDED.specialization,
+         location = EXCLUDED.location,
+         working_hours_json = EXCLUDED.working_hours_json,
+         credential_docs_json = EXCLUDED.credential_docs_json,
+         photo_url = EXCLUDED.photo_url,
+         bio = EXCLUDED.bio,
+         approval_status = 'pending',
+         updated_at = NOW()
+       RETURNING *, (xmax = 0) AS inserted`,
       [userId, healthProviderId || null, licenseNumber, specialization, location,
         workingHoursJson ? JSON.stringify(workingHoursJson) : null,
         credentialDocsJson ? JSON.stringify(credentialDocsJson) : null,
         photoUrl || null, bio || null]
     );
 
-    return sendSuccess(res, 201, 'Doctor profile created. Awaiting admin approval.', result.rows[0]);
+    const inserted = result.rows[0].inserted === true;
+    const row = { ...result.rows[0] };
+    delete row.inserted;
+
+    return sendSuccess(
+      res,
+      inserted ? 201 : 200,
+      inserted
+        ? 'Doctor profile created. Awaiting admin approval.'
+        : 'Doctor profile updated. Awaiting admin approval.',
+      row
+    );
   } catch (err) {
     next(err);
   }
