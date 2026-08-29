@@ -3,7 +3,14 @@ import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/fetal_details_page.dart';
 
 class AmIPregnantCard extends StatelessWidget {
-  const AmIPregnantCard({super.key});
+  final int week;
+  final int daysRemaining;
+
+  const AmIPregnantCard({
+    super.key,
+    this.week = 12,
+    this.daysRemaining = 196,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +62,8 @@ class AmIPregnantCard extends StatelessWidget {
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    "Week 12",
+                  child: Text(
+                    "Week $week",
                     style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -77,7 +84,7 @@ class AmIPregnantCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 _buildListItem(Icons.favorite_rounded, "Heart rate: 160 bpm"),
                 const SizedBox(height: 10),
-                _buildListItem(Icons.calendar_month_rounded, "196 days remaining"),
+                _buildListItem(Icons.calendar_month_rounded, "$daysRemaining days remaining"),
                 
                 const SizedBox(height: 20),
                 
