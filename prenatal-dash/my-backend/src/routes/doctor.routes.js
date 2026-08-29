@@ -11,10 +11,11 @@ router.get('/health-providers/:id/doctors', doctorController.getDoctorsByProvide
 router.get('/public/:id', doctorController.getDoctorPublicProfile);
 
 // Doctor registration & self-service (JWT-protected, role=doctor)
-router.post('/register', auth, requireRole('doctor'), doctorRegisterRules, validate, doctorController.registerDoctor);
+router.post('/register', auth, doctorRegisterRules, validate, doctorController.registerDoctor);
 router.get('/:id/profile', auth, requireRole('doctor'), doctorController.getDoctorProfile);
 router.put('/:id/profile', auth, requireRole('doctor'), doctorController.updateDoctorProfile);
-router.get('/:id/availability-slots', auth, requireRole('doctor'), doctorController.getAvailabilitySlots);
+// Any authenticated user (including mothers) may view a doctor's availability slots
+router.get('/:id/availability-slots', auth, doctorController.getAvailabilitySlots);
 router.post('/:id/availability-slots', auth, requireRole('doctor'), doctorController.createAvailabilitySlot);
 router.put('/:id/availability-slots/:slotId', auth, requireRole('doctor'), doctorController.updateAvailabilitySlot);
 router.get('/:id/appointments', auth, requireRole('doctor'), paginationRules, validate, doctorController.getDoctorAppointments);
