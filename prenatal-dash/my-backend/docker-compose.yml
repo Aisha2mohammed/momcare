@@ -33,6 +33,7 @@ services:
       PORT: 5000
       JWT_SECRET: maternalink-dev-jwt-secret-2024
       JWT_EXPIRES_IN: 30d
+      ADMIN_REGISTRATION_SECRET: admin_secret_key_2024
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: maternalink
