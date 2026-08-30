@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
+import 'package:pregnancy_appp/screens/chat_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/doctor_service.dart';
 
@@ -105,6 +106,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     final status = (a['status'] as String?) ?? 'pending';
     final (bg, icon, label) = _statusStyle(status);
     final doctorName = (a['doctor_name'] as String?) ?? 'Doctor';
+    final doctorId = (a['doctor_id'] as String?) ?? '';
     final specialization = (a['specialization'] as String?) ?? '';
     final doctorPhone = (a['doctor_phone'] as String?) ?? '';
     final motherName = (a['mother_name'] as String?) ?? '';
@@ -191,6 +193,28 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
             ),
           ),
           const SizedBox(height: 20),
+          if (doctorId.isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatPage(
+                      doctorId: doctorId,
+                      doctorName: doctorName,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white),
+                label: const Text('Message Doctor', style: TextStyle(color: Colors.white, fontSize: 16)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
