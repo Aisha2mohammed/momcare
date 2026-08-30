@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/appointment_details_page.dart';
+import 'package:pregnancy_appp/screens/chat_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/doctor_service.dart';
 
@@ -189,6 +190,19 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
           if (!mounted) return;
           await _openBookingSheet(context, doc);
         },
+        onMessage: () {
+          Navigator.pop(ctx);
+          _openChat(doc);
+        },
+      ),
+    );
+  }
+
+  void _openChat(DoctorSummary doc) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatPage(doctorId: doc.id, doctorName: doc.name),
       ),
     );
   }
@@ -602,8 +616,9 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
 class _DoctorDetailSheet extends StatefulWidget {
   final DoctorSummary doc;
   final VoidCallback? onBook;
+  final VoidCallback? onMessage;
 
-  const _DoctorDetailSheet({required this.doc, this.onBook});
+  const _DoctorDetailSheet({required this.doc, this.onBook, this.onMessage});
 
   @override
   State<_DoctorDetailSheet> createState() => _DoctorDetailSheetState();
@@ -738,18 +753,39 @@ class _DoctorDetailSheetState extends State<_DoctorDetailSheet> {
               ),
             ],
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: widget.onBook,
-                icon: const Icon(Icons.event_available_rounded, color: Colors.white),
-                label: const Text('Book Appointment', style: TextStyle(color: Colors.white, fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            Row(
+              children: [
+                if (widget.onMessage != null) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onMessage,
+                      icon: const Icon(Icons.chat_bubble_outline_rounded),
+                      label: const Text('Message'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onBook,
+                    icon: const Icon(Icons.event_available_rounded, color: Colors.white),
+                    label: const Text('Book Appointment', style: TextStyle(color: Colors.white, fontSize: 16)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
             if (widget.onBook == null) const SizedBox(height: 8),
             const SizedBox(height: 24),
