@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/community/post_details_page.dart';
-import 'package:pregnancy_appp/screens/community/direct_message_page.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/services/community_service.dart';
+import 'package:pregnancy_appp/services/content_service.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -10,61 +12,27 @@ class CommunityPage extends StatefulWidget {
   State<CommunityPage> createState() => _CommunityPageState();
 }
 
-class _CommunityPageState extends State<CommunityPage> with SingleTickerProviderStateMixin {
+class _CommunityPageState extends State<CommunityPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String selectedCategory = "All Posts";
-  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
 
-  final List<Map<String, dynamic>> allPosts = [
-    {
-      "author": "Abeba T.",
-      "time": "2h ago",
-      "content": "Does anyone know if drinking Bulla during the first trimester is safe? I've heard mixed things.",
-      "likes": 12,
-      "comments": 5,
-      "category": "Nutrition",
-    },
-    {
-      "author": "Marta K.",
-      "time": "5h ago",
-      "content": "Just had my 20-week scan! Everything looks great. The baby was so active. ❤️",
-      "likes": 45,
-      "comments": 8,
-      "category": "Stories",
-    },
-    {
-      "author": "Selam W.",
-      "time": "Yesterday",
-      "content": "I'm feeling very tired lately. Any tips for boosting energy naturally?",
-      "likes": 28,
-      "comments": 15,
-      "category": "Health",
-    },
-    {
-      "author": "Tigest H.",
-      "time": "Yesterday",
-      "content": "Looking for recommendations for a good baby stroller in Addis Ababa. Any tips?",
-      "likes": 10,
-      "comments": 3,
-      "category": "Baby Gear",
-    },
-  ];
+  final List<Map<String, dynamic>> _groups = [];
+  final List<dynamic> _posts = [];
+  final Set<String> _likedPostIds = {};
+  String? _selectedGroupId;
 
-  final Set<int> _likedPosts = {};
-
-  final List<Map<String, dynamic>> _conversations = [
-    {"name": "Abeba T.", "initial": "A", "lastMessage": "Does anyone know if drinking Bulla...", "time": "2h ago", "unread": 2},
-    {"name": "Marta K.", "initial": "M", "lastMessage": "Yes, I had the same experience!", "time": "5h ago", "unread": 0},
-    {"name": "Selam W.", "initial": "S", "lastMessage": "Ginger tea helped me a lot 😊", "time": "Yesterday", "unread": 1},
-    {"name": "Tigest H.", "initial": "T", "lastMessage": "Let me know if you need more tips!", "time": "Yesterday", "unread": 0},
-    {"name": "Helen M.", "initial": "H", "lastMessage": "How are you feeling today?", "time": "Mon", "unread": 0},
-  ];
+  bool _loadingGroups = true;
+  bool _loadingPosts = false;
+  String? _groupsError;
+  String? _postsError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _init();
   }
 
   @override
@@ -74,19 +42,160 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     super.dispose();
   }
 
+  // ── Data loading ──────────────────────────────────────────────────────
+  String? _groupNameById(String? id) {
+    for (final g in _groups) {
+      if (g['id'] == id) return g['name'] as String?;
+    }
+    return null;
+  }
+
+  Future<void> _init() async {
+    setState(() {
+      _loadingGroups = true;
+      _groupsError = null;
+    });
+    try {
+      final rawGroups = await CommunityService.getGroups();
+      if (!mounted) return;
+      final groups = rawGroups.map((g) => g as Map<String, dynamic>).toList();
+
+      int trimester = 1;
+      try {
+        trimester = await ContentService.currentTrimester();
+      } catch (_) {}
+
+      String? preferred;
+      for (final g in groups) {
+        if (g['trimester_group'] == trimester) {
+          preferred = g['id'] as String?;
+          break;
+        }
+      }
+
+      setState(() {
+        _groups
+          ..clear()
+          ..addAll(groups);
+        _selectedGroupId =
+            preferred ?? (groups.isNotEmpty ? groups.first['id'] as String? : null);
+      });
+      if (_selectedGroupId != null) {
+        await _loadPosts(_selectedGroupId!);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _groupsError = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _groupsError = 'Network error. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loadingGroups = false);
+    }
+  }
+
+  Future<void> _loadPosts(String groupId, {bool showSpinner = true}) async {
+    if (showSpinner) {
+      setState(() {
+        _loadingPosts = true;
+        _postsError = null;
+      });
+    }
+    try {
+      final posts = await CommunityService.getGroupPosts(groupId);
+      if (!mounted) return;
+      setState(() {
+        _posts
+          ..clear()
+          ..addAll(posts);
+        // Persisted like state from the server (liked_by_me).
+        _likedPostIds
+          ..clear()
+          ..addAll({
+            for (final p in posts)
+              if (p['liked_by_me'] == true) p['id'] as String?,
+          }.whereType<String>());
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _postsError = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _postsError = 'Network error. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loadingPosts = false);
+    }
+  }
+
+  Future<void> _selectGroup(String id) async {
+    if (id == _selectedGroupId) return;
+    setState(() => _selectedGroupId = id);
+    await _loadPosts(id);
+  }
+
+  // ── Like ──────────────────────────────────────────────────────────────
+  // Optimistically toggles, then reconciles with the server's persisted
+  // state (likePost returns liked + like_count).
+  Future<void> _toggleLike(String postId) async {
+    final wasLiked = _likedPostIds.contains(postId);
+    final postIndex = _posts.indexWhere((p) => p['id'] == postId);
+
+    setState(() {
+      wasLiked ? _likedPostIds.remove(postId) : _likedPostIds.add(postId);
+      if (postIndex != -1) {
+        final count = _toInt(_posts[postIndex]['like_count']);
+        _posts[postIndex]['like_count'] = count + (wasLiked ? -1 : 1);
+      }
+    });
+    try {
+      final result = await CommunityService.likePost(postId);
+      final liked = result['liked'] == true;
+      final count = _toInt(result['like_count']);
+      if (!mounted) return;
+      setState(() {
+        liked ? _likedPostIds.add(postId) : _likedPostIds.remove(postId);
+        final i = _posts.indexWhere((p) => p['id'] == postId);
+        if (i != -1) _posts[i]['like_count'] = count;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        wasLiked ? _likedPostIds.add(postId) : _likedPostIds.remove(postId);
+        final i = _posts.indexWhere((p) => p['id'] == postId);
+        if (i != -1) {
+          final count = _toInt(_posts[i]['like_count']);
+          _posts[i]['like_count'] = count + (wasLiked ? 1 : -1);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update like. Please try again.')),
+      );
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+  // Backend COUNT()/bigint values arrive as strings; safe numeric parse.
+  int _toInt(Object? v) =>
+      v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
+
+  String _timeAgo(String iso) {
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> filteredPosts = allPosts.where((p) {
-      final matchCategory = selectedCategory == "All Posts" || p['category'] == selectedCategory;
-      final matchSearch = _searchQuery.isEmpty ||
-          (p['content'] as String).toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (p['author'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchCategory && matchSearch;
-    }).toList();
-
-    final filteredConversations = _conversations.where((c) {
-      return _searchQuery.isEmpty ||
-          (c['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
+    final filteredPosts = _posts.where((p) {
+      final content = (p['content'] as String? ?? '').toLowerCase();
+      final author = (p['author_name'] as String? ?? '').toLowerCase();
+      final q = _searchQuery.toLowerCase();
+      return q.isEmpty || content.contains(q) || author.contains(q);
     }).toList();
 
     return Scaffold(
@@ -114,7 +223,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                       label: const Text("Post"),
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.primary,
-                        backgroundColor: AppColors.primary.withOpacity(0.08),
+                        backgroundColor: AppColors.primary.withValues(alpha: 0.08),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       ),
@@ -130,7 +239,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
                     ],
                   ),
                   child: TextField(
@@ -216,65 +329,30 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 // ---- POSTS TAB ----
                 Column(
                   children: [
-                    // Category chips
-                    SizedBox(
-                      height: 38,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        children: [
-                          _buildCategoryBadge("All Posts"),
-                          _buildCategoryBadge("Health"),
-                          _buildCategoryBadge("Nutrition"),
-                          _buildCategoryBadge("Baby Gear"),
-                          _buildCategoryBadge("Stories"),
-                        ],
-                      ),
-                    ),
+                    SizedBox(height: 38, child: _buildGroupChips()),
                     const SizedBox(height: 12),
-                    Expanded(
-                      child: filteredPosts.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[300]),
-                                  const SizedBox(height: 12),
-                                  Text("No posts found.", style: TextStyle(color: Colors.grey[500])),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              itemCount: filteredPosts.length,
-                              itemBuilder: (context, index) {
-                                final post = filteredPosts[index];
-                                final originalIndex = allPosts.indexOf(post);
-                                return _buildFeedItem(context, originalIndex, post);
-                              },
-                            ),
-                    ),
+                    Expanded(child: _buildPostsArea(filteredPosts)),
                   ],
                 ),
 
                 // ---- MESSAGES TAB ----
-                filteredConversations.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[300]),
-                            const SizedBox(height: 12),
-                            Text("No people found.", style: TextStyle(color: Colors.grey[500])),
-                          ],
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.forum_outlined, size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Text(
+                          "Member-to-member direct messaging isn't available yet.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey[500], fontSize: 14, height: 1.5),
                         ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                        itemCount: filteredConversations.length,
-                        itemBuilder: (context, index) =>
-                            _buildConversationItem(context, filteredConversations[index]),
-                      ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -283,164 +361,45 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     );
   }
 
-  // ── Add Post Modal ─────────────────────────────────────────────────────────
-  void _showAddPostModal(BuildContext context) {
-    final textController = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
-                  const Text("Create New Post", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                  TextButton(
-                    onPressed: () {
-                      if (textController.text.isNotEmpty) {
-                        setState(() {
-                          allPosts.insert(0, {
-                            "author": "You",
-                            "time": "Just now",
-                            "content": textController.text,
-                            "likes": 0,
-                            "comments": 0,
-                            "category": "All Posts",
-                          });
-                        });
-                        Navigator.pop(ctx);
-                      }
-                    },
-                    child: const Text("Share", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 15)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: textController,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  hintText: "What's on your mind?",
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
-                  border: InputBorder.none,
-                ),
-                style: const TextStyle(fontSize: 15),
-              ),
-              const Divider(),
-              Row(
-                children: [
-                  IconButton(onPressed: () {}, icon: const Icon(Icons.image_rounded, color: AppColors.primary)),
-                  IconButton(onPressed: () {}, icon: const Icon(Icons.emoji_emotions_rounded, color: Colors.orange)),
-                  IconButton(onPressed: () {}, icon: const Icon(Icons.location_on_rounded, color: Colors.red)),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
+  // ── Group Chips ───────────────────────────────────────────────────────
+  Widget _buildGroupChips() {
+    if (_loadingGroups) {
+      return const Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
-      ),
+      );
+    }
+    if (_groupsError != null && _groups.isEmpty) {
+      return Center(
+        child: Text(_groupsError!, style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+      );
+    }
+    if (_groups.isEmpty) {
+      return Center(
+        child: Text("No community groups yet.", style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+      );
+    }
+    return ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        for (final group in _groups) _buildGroupBadge(group),
+      ],
     );
   }
 
-  // ── Conversation Item ──────────────────────────────────────────────────────
-  Widget _buildConversationItem(BuildContext context, Map<String, dynamic> conv) {
+  Widget _buildGroupBadge(Map<String, dynamic> group) {
+    final label = group['name'] as String? ?? 'Group';
+    final id = group['id'] as String?;
+    final isActive = id == _selectedGroupId;
     return GestureDetector(
       onTap: () {
-        setState(() => conv['unread'] = 0);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DirectMessagePage(personName: conv['name'], personInitial: conv['initial']),
-          ),
-        );
+        if (id == null) return;
+        _selectGroup(id);
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
-        ),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.primary.withOpacity(0.12),
-                  child: Text(conv['initial'],
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 18)),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 11,
-                    height: 11,
-                    decoration: BoxDecoration(
-                        color: Colors.green, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(conv['name'],
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  const SizedBox(height: 3),
-                  Text(conv['lastMessage'],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(conv['time'], style: TextStyle(color: Colors.grey[400], fontSize: 11)),
-                if ((conv['unread'] as int) > 0) ...[
-                  const SizedBox(height: 6),
-                  Container(
-                    width: 20,
-                    height: 20,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                    child: Text('${conv['unread']}',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Category Badge ─────────────────────────────────────────────────────────
-  Widget _buildCategoryBadge(String label) {
-    final isActive = selectedCategory == label;
-    return GestureDetector(
-      onTap: () => setState(() => selectedCategory = label),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(right: 8),
@@ -463,22 +422,87 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     );
   }
 
-  // ── Feed Item ──────────────────────────────────────────────────────────────
-  Widget _buildFeedItem(BuildContext context, int index, Map<String, dynamic> post) {
-    final name = post['author'] as String;
-    final isLiked = _likedPosts.contains(index);
-    final displayedLikes = (post['likes'] as int) + (isLiked ? 1 : 0);
+  // ── Posts area ────────────────────────────────────────────────────────
+  Widget _buildPostsArea(List<dynamic> filteredPosts) {
+    if (_loadingPosts) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_postsError != null && _posts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _postsError!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[500]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _selectedGroupId != null ? () => _loadPosts(_selectedGroupId!) : null,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text("Retry"),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_posts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.forum_outlined, size: 48, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Text("No posts in this group yet.", style: TextStyle(color: Colors.grey[500])),
+          ],
+        ),
+      );
+    }
+    if (filteredPosts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Text("No posts found.", style: TextStyle(color: Colors.grey[500])),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: filteredPosts.length,
+      itemBuilder: (context, index) => _buildFeedItem(context, filteredPosts[index]),
+    );
+  }
+
+  // ── Feed Item ─────────────────────────────────────────────────────────
+  Widget _buildFeedItem(BuildContext context, Map<String, dynamic> post) {
+    final id = post['id'] as String? ?? '';
+    final name = post['author_name'] as String? ?? 'Anonymous';
+    final content = post['content'] as String? ?? '';
+    final time = _timeAgo(post['created_at'] as String? ?? '');
+    final commentCount = _toInt(post['comment_count']);
+    // Server like_count already reflects this user's like (persisted).
+    final displayedLikes = _toInt(post['like_count']);
+    final isLiked = _likedPostIds.contains(id);
+    final groupName = _groupNameById(_selectedGroupId) ?? '';
 
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => PostDetailsPage(
-            author: post['author'],
-            time: post['time'],
-            content: post['content'],
-            likes: post['likes'],
-            comments: post['comments'],
+            post: post,
+            groupName: groupName,
+            initiallyLiked: isLiked,
           ),
         ),
       ),
@@ -488,7 +512,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,8 +522,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: Text(name[0], style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  child: Text(name.isEmpty ? 'A' : name[0],
+                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -507,26 +532,26 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text(post['time'],
-                          style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                      Text(time, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
                     ],
                   ),
                 ),
-                // Category chip
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
+                // Group chip
+                if (groupName.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(groupName,
+                        style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
                   ),
-                  child: Text(post['category'],
-                      style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
-                ),
               ],
             ),
             const SizedBox(height: 12),
             // Post content
-            Text(post['content'],
+            Text(content,
                 style: TextStyle(color: Colors.grey[800], height: 1.45, fontSize: 14),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis),
@@ -538,11 +563,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               children: [
                 // Like
                 GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      isLiked ? _likedPosts.remove(index) : _likedPosts.add(index);
-                    });
-                  },
+                  onTap: () => _toggleLike(id),
                   child: Row(
                     children: [
                       Icon(
@@ -565,7 +586,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   children: [
                     Icon(Icons.chat_bubble_outline_rounded, size: 17, color: Colors.grey[500]),
                     const SizedBox(width: 5),
-                    Text("${post['comments']}",
+                    Text("$commentCount",
                         style: TextStyle(color: Colors.grey[500], fontSize: 13)),
                   ],
                 ),
@@ -575,6 +596,148 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Add Post Modal ────────────────────────────────────────────────────
+  void _showAddPostModal(BuildContext context) {
+    final textController = TextEditingController();
+    final groupId = _selectedGroupId;
+    final groupName = _groupNameById(groupId) ?? 'the selected group';
+    var isAnonymous = false;
+    var submitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> submit() async {
+            final content = textController.text.trim();
+            if (content.isEmpty) return;
+            if (groupId == null) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('No community group selected yet.')),
+              );
+              return;
+            }
+            setModalState(() => submitting = true);
+            try {
+              await CommunityService.createPost(
+                groupId: groupId,
+                content: content,
+                isAnonymous: isAnonymous,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              await _loadPosts(groupId, showSpinner: false);
+            } on ApiException catch (e) {
+              if (!ctx.mounted) return;
+              setModalState(() => submitting = false);
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.message)));
+            } catch (_) {
+              if (!ctx.mounted) return;
+              setModalState(() => submitting = false);
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Could not create post. Please try again.')),
+              );
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(onPressed: submitting ? null : () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                      const Text("Create New Post", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                      TextButton(
+                        onPressed: submitting ? null : submit,
+                        child: submitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                              )
+                            : const Text("Share",
+                                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.groups_rounded, size: 16, color: Colors.grey[500]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Posting to $groupName",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: textController,
+                    maxLines: 5,
+                    decoration: InputDecoration(
+                      hintText: "What's on your mind?",
+                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+                      border: InputBorder.none,
+                    ),
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                  const Divider(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Icons.visibility_off_rounded, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            const Text("Post anonymously", style: TextStyle(fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: isAnonymous,
+                        onChanged: submitting
+                            ? null
+                            : (val) => setModalState(() => isAnonymous = val),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
