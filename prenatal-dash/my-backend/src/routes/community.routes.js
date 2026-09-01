@@ -3,11 +3,13 @@ const router = express.Router();
 const communityController = require('../controllers/community.controller');
 const { validate, paginationRules } = require('../utils/validators');
 const auth = require('../middlewares/auth');
+const optionalAuth = require('../middlewares/optionalAuth');
 const { requireAdmin } = require('../middlewares/roleGuard');
 
-// Public routes
+// Public routes (optional auth enriches liked_by_me for signed-in users)
 router.get('/groups', communityController.getGroups);
-router.get('/groups/:id/posts', paginationRules, validate, communityController.getGroupPosts);
+router.get('/groups/:id/posts', optionalAuth, paginationRules, validate, communityController.getGroupPosts);
+router.get('/posts/:id/comments', paginationRules, validate, communityController.getPostComments);
 
 // Authenticated user routes
 router.post('/posts', auth, communityController.createPost);
