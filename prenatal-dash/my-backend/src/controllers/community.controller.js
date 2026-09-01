@@ -29,13 +29,17 @@ exports.getGroupPosts = async (req, res, next) => {
     const result = await query(
       `SELECT cp.id, cp.content, cp.is_anonymous, cp.created_at,
               u.name as author_name,
-              (SELECT COUNT(*) FROM community_comments WHERE post_id = cp.id AND is_deleted = false) as comment_count
+              (SELECT COUNT(*) FROM community_comments WHERE post_id = cp.id AND is_deleted = false) as comment_count,
+              (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id) as like_count,
+              COALESCE(EXISTS(
+                SELECT 1 FROM community_post_likes WHERE post_id = cp.id AND user_id = $2
+              ), false) as liked_by_me
        FROM community_posts cp
        JOIN users u ON cp.user_id = u.id
        WHERE cp.group_id = $1 AND cp.is_deleted = false
        ORDER BY cp.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [id, Number(limit), offset]
+       LIMIT $3 OFFSET $4`,
+      [id, req.user ? req.user.id : null, Number(limit), offset]
     );
 
     // Anonymize if requested
@@ -95,10 +99,72 @@ exports.createComment = async (req, res, next) => {
   }
 };
 
+// ── GET /api/v1/community/posts/:id/comments ──────────────────────────
+exports.getPostComments = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const post = await query('SELECT id FROM community_posts WHERE id = $1 AND is_deleted = false', [id]);
+    if (post.rows.length === 0) return sendError(res, 404, 'Post not found.');
+
+    const countResult = await query(
+      'SELECT COUNT(*) FROM community_comments WHERE post_id = $1 AND is_deleted = false',
+      [id]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const result = await query(
+      `SELECT c.id, c.content, c.created_at,
+              u.name as author_name
+       FROM community_comments c
+       JOIN users u ON c.user_id = u.id
+       WHERE c.post_id = $1 AND c.is_deleted = false
+       ORDER BY c.created_at ASC
+       LIMIT $2 OFFSET $3`,
+      [id, Number(limit), offset]
+    );
+
+    // Mirror the posts anonymization pattern (commenter name from users).
+    const sanitized = result.rows.map(comment => ({
+      ...comment,
+      author_name: comment.author_name || 'Anonymous',
+    }));
+
+    return sendPaginated(res, sanitized, page, limit, total);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── PUT /api/v1/community/posts/:id/like ──────────────────────────────
 exports.likePost = async (req, res, next) => {
   try {
-    return sendSuccess(res, 200, 'Post liked (acknowledged)');
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Verify post exists
+    const post = await query('SELECT id FROM community_posts WHERE id = $1 AND is_deleted = false', [id]);
+    if (post.rows.length === 0) return sendError(res, 404, 'Post not found.');
+
+    // Upsert: a user can only like a post once (unique post_id + user_id).
+    await query(
+      `INSERT INTO community_post_likes (post_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT (post_id, user_id) DO NOTHING`,
+      [id, userId]
+    );
+
+    const likeCount = await query(
+      'SELECT COUNT(*) FROM community_post_likes WHERE post_id = $1',
+      [id]
+    );
+
+    return sendSuccess(res, 200, 'Post liked', {
+      liked: true,
+      like_count: parseInt(likeCount.rows[0].count, 10),
+    });
   } catch (err) {
     next(err);
   }
