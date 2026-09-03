@@ -281,6 +281,50 @@ exports.forgotPassword = async (req, res, next) => {
   }
 };
 
+// ── POST /api/v1/auth/reset-password ───────────────────────────────────
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { phone, otp, password } = req.body;
+
+    if (!phone || !otp || !password) {
+      return sendError(res, 400, 'Phone, OTP and new password are required.');
+    }
+
+    if (!global.otpStore) global.otpStore = new Map();
+    const stored = global.otpStore.get(`reset:${phone}`);
+
+    if (!stored) {
+      return sendError(res, 400, 'No reset OTP found. Please request a new one.');
+    }
+
+    if (Date.now() > stored.expiresAt) {
+      global.otpStore.delete(`reset:${phone}`);
+      return sendError(res, 400, 'Reset OTP has expired. Please request a new one.');
+    }
+
+    if (stored.otp !== otp) {
+      return sendError(res, 400, 'Invalid OTP.');
+    }
+
+    global.otpStore.delete(`reset:${phone}`);
+
+    const userResult = await query('SELECT id FROM users WHERE phone = $1', [phone]);
+    if (userResult.rows.length === 0) {
+      return sendError(res, 404, 'No account found with this phone number.');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+      passwordHash,
+      userResult.rows[0].id,
+    ]);
+
+    return sendSuccess(res, 200, 'Password reset successfully. Please login with your new password.');
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── PUT /api/v1/auth/fcm-token ─────────────────────────────────────────
 exports.updateFcmToken = async (req, res, next) => {
   try {
