@@ -43,6 +43,12 @@ const forgotPasswordRules = [
   body('phone').notEmpty().withMessage('Phone is required').trim(),
 ];
 
+const resetPasswordRules = [
+  body('phone').notEmpty().withMessage('Phone is required').trim(),
+  body('otp').notEmpty().withMessage('OTP is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+];
+
 // Content validators
 const contentRules = [
   body('title_am').optional().notEmpty(),
@@ -136,6 +142,7 @@ module.exports = {
   otpSendRules,
   otpVerifyRules,
   forgotPasswordRules,
+  resetPasswordRules,
   contentRules,
   nutritionRules,
   fetalRules,
