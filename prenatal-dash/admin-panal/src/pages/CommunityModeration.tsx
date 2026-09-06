@@ -39,8 +39,6 @@ export default function CommunityModeration() {
     const flaggedPosts = useCommunity(undefined, true);
     const allPosts = useCommunity(trimesterFilter === 'All' ? undefined : trimesterFilter, false);
 
-    const posts = activeTab === 'Flagged Posts' ? flaggedPosts : allPosts;
-
     const filteredAllPosts = allPosts.posts.filter(p =>
         p.content.toLowerCase().includes(search.toLowerCase()) ||
         p.author.toLowerCase().includes(search.toLowerCase())

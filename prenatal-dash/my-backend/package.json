@@ -9,7 +9,8 @@
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
-    "seed": "node src/seeds/run.js",
+    "seed": "node src/scripts/run.js",
+    "seed:cms": "node src/scripts/seed_cms.js",
     "seed:make": "knex seed:make",
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit"

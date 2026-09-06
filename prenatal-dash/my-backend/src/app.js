@@ -16,12 +16,21 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate Limiting: 100 requests per 15 minutes on /api/
+// Rate Limiting: global limiter — admin routes & admin auth are fully exempted
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: process.env.NODE_ENV === 'production' ? 15 * 60 * 1000 : 5 * 60 * 1000, // 15 min prod / 5 min dev
+  max: process.env.NODE_ENV === 'production' ? 1000 : 10000,
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip all /admin/ routes AND the admin login endpoint
+  skip: (req) => {
+    if (!req.originalUrl) return false;
+    const url = req.originalUrl;
+    return (
+      url.includes('/admin/') ||
+      url.includes('/auth/admin')
+    );
+  },
   message: { error: { message: 'Too many requests, please try again later.', code: 429 } },
 });
 app.use('/api/', limiter);

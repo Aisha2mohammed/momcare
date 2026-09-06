@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String _baseUrl = 'http://localhost:5000/api/v1';
+  // static const String _baseUrl = 'http://localhost:5000/api/v1';
+  static const String _baseUrl = 'http://192.168.1.49:5000/api/v1';
   static const String _tokenKey = 'jwt_token';
   static const String _userIdKey = 'user_id';
 

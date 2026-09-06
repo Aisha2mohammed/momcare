@@ -5,7 +5,7 @@ import 'package:pregnancy_appp/screens/wellness/music_page.dart';
 import 'package:pregnancy_appp/screens/wellness/exercise_page.dart';
 import 'package:pregnancy_appp/screens/wellness/sleep_tips_page.dart';
 import 'package:pregnancy_appp/screens/wellness/nutrition_guide_page.dart';
-import 'package:pregnancy_appp/screens/chatbot_page.dart';
+// import 'package:pregnancy_appp/screens/chatbot_page.dart';
 import 'package:pregnancy_appp/widget/am_i_pregnant_card.dart';
 import 'package:pregnancy_appp/screens/home/fetal_details_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
@@ -207,7 +207,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 25),
 
               // --- CHATBOT CONTAINER UI ---
-              _buildChatbotContainer(context),
+              // _buildChatbotContainer(context),
 
               const SizedBox(height: 30),
 
@@ -262,47 +262,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildChatbotContainer(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatBotPage())),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary, AppColors.primary.withOpacity(0.9)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(15)),
-              child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 30),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text("Ask our Assistant", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
-                  Text("Get instant and safe answers", style: TextStyle(color: Colors.white70, fontSize: 13)),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildChatbotContainer(BuildContext context) {
+  //   return GestureDetector(
+  //     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatBotPage())),
+  //     child: Container(
+  //       width: double.infinity,
+  //       padding: const EdgeInsets.all(20),
+  //       decoration: BoxDecoration(
+  //         gradient: LinearGradient(
+  //           colors: [AppColors.primary, AppColors.primary.withOpacity(0.9)],
+  //           begin: Alignment.topLeft,
+  //           end: Alignment.bottomRight,
+  //         ),
+  //         borderRadius: BorderRadius.circular(25),
+  //         boxShadow: [
+  //           BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))
+  //         ],
+  //       ),
+  //       child: Row(
+  //         children: [
+  //           Container(
+  //             padding: const EdgeInsets.all(12),
+  //             decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(15)),
+  //             child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 30),
+  //           ),
+  //           const SizedBox(width: 15),
+  //           Expanded(
+  //             child: Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: const [
+  //                 Text("Ask our Assistant", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+  //                 SizedBox(height: 4),
+  //                 Text("Get instant and safe answers", style: TextStyle(color: Colors.white70, fontSize: 13)),
+  //               ],
+  //             ),
+  //           ),
+  //           const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 18),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildWellnessRow(BuildContext context, String title, String subtitle, IconData icon, Color bgColor, Widget targetPage) {
     return Container(

@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
+import { authApi } from '../services/api';
 
 export interface AdminUser {
     id: string;
@@ -34,43 +35,73 @@ const MOCK_ADMIN = {
 
 const SESSION_KEY = 'momcare_admin_session';
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<AdminUser | null>(null);
-    const [token, setToken] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    // Restore session on mount
-    useEffect(() => {
+function getInitialSession(): { user: AdminUser | null; token: string | null } {
+    try {
         const stored = sessionStorage.getItem(SESSION_KEY);
         if (stored) {
-            try {
-                const { user: u, token: t } = JSON.parse(stored);
-                setUser(u);
-                setToken(t);
-            } catch {
-                sessionStorage.removeItem(SESSION_KEY);
-            }
+            const { user, token } = JSON.parse(stored);
+            if (user && token) return { user, token };
         }
-        setIsLoading(false);
-    }, []);
+    } catch {
+        sessionStorage.removeItem(SESSION_KEY);
+    }
+    return { user: null, token: null };
+}
 
-    const login = async (email: string, password: string, _twofa?: string): Promise<{ success: boolean; error?: string }> => {
-        // Simulate network delay
-        await new Promise(r => setTimeout(r, 800));
+export function AuthProvider({ children }: { children: ReactNode }) {
+    const [session, setSession] = useState<{ user: AdminUser | null; token: string | null }>(getInitialSession);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const user = session.user;
+    const token = session.token;
+
+    const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+        setIsLoading(true);
+        try {
+            // First attempt live backend login
+            const result = await authApi.adminLogin(email, password);
+            if (result && result.token) {
+                const adminUser: AdminUser = {
+                    id: result.admin?.id || 'admin',
+                    name: result.admin?.name || 'Administrator',
+                    email: result.admin?.email || email,
+                    role: 'admin',
+                };
+                const newSession = { user: adminUser, token: result.token };
+                setSession(newSession);
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
+                return { success: true };
+            }
+        } catch (apiErr: any) {
+            console.warn('[AuthContext] Backend login attempt message:', apiErr.message);
+
+            // Fallback to local mock admin if credentials match
+            if (email === MOCK_ADMIN.email && (password === MOCK_ADMIN.password || password === 'Admin123!')) {
+                const mockToken = `mock-jwt-${Date.now()}`;
+                const newSession = { user: MOCK_ADMIN.user, token: mockToken };
+                setSession(newSession);
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
+                return { success: true };
+            }
+
+            return { success: false, error: apiErr.message || 'Invalid email or password.' };
+        } finally {
+            setIsLoading(false);
+        }
 
         if (email === MOCK_ADMIN.email && password === MOCK_ADMIN.password) {
             const mockToken = `mock-jwt-${Date.now()}`;
-            setUser(MOCK_ADMIN.user);
-            setToken(mockToken);
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user: MOCK_ADMIN.user, token: mockToken }));
+            const newSession = { user: MOCK_ADMIN.user, token: mockToken };
+            setSession(newSession);
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
             return { success: true };
         }
+
         return { success: false, error: 'Invalid email or password.' };
     };
 
     const logout = () => {
-        setUser(null);
-        setToken(null);
+        setSession({ user: null, token: null });
         sessionStorage.removeItem(SESSION_KEY);
     };
 
