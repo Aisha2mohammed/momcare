@@ -68,6 +68,24 @@ class AuthService {
     await ApiService.post('/auth/otp/send', body: {'phone': phone});
   }
 
+  // ── Password reset (2-step OTP flow) ─────────────────────────────────
+  // Step 1: request a reset OTP for the account phone number.
+  static Future<void> forgotPassword({required String phone}) async {
+    await ApiService.post('/auth/forgot-password', body: {'phone': phone});
+  }
+
+  // Step 2: verify the reset OTP and set a new password.
+  static Future<void> resetPassword({
+    required String phone,
+    required String otp,
+    required String password,
+  }) async {
+    await ApiService.post(
+      '/auth/reset-password',
+      body: {'phone': phone, 'otp': otp, 'password': password},
+    );
+  }
+
   static Future<AuthResult> verifyOtp({
     required String phone,
     required String otp,
