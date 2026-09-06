@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/services/chatbot_service.dart';
 
 class ChatBotPage extends StatefulWidget {
   const ChatBotPage({super.key});
@@ -10,26 +12,58 @@ class ChatBotPage extends StatefulWidget {
 
 class _ChatBotPageState extends State<ChatBotPage> {
   final List<Map<String, dynamic>> _messages = [
-    {"text": "Hello Sarah! How can I help you today?", "isUser": false},
-    {"text": "I'm your pregnancy assistant. I can answer questions about health, nutrition, and more.", "isUser": false},
+    {"text": "Hello! I'm your pregnancy assistant. How can I help you today?", "isUser": false},
   ];
 
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
-  void _sendMessage() {
-    if (_controller.text.trim().isEmpty) return;
-    setState(() {
-      _messages.add({"text": _controller.text, "isUser": true});
-      _controller.clear();
-      // Mock response
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          setState(() {
-            _messages.add({"text": "That's a great question. I'll search that for you...", "isUser": false});
-          });
-        }
-      });
+  bool _sending = false;
+  String? _error;
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
     });
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add({"text": text, "isUser": true});
+      _controller.clear();
+      _sending = true;
+      _error = null;
+    });
+    _scrollToBottom();
+
+    try {
+      final response = await ChatbotService.ask(text);
+      if (!mounted) return;
+      setState(() {
+        _messages.add({"text": response.isNotEmpty ? response : "I'm sorry, I couldn't respond right now.", "isUser": false});
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Network error. Please try again.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      _scrollToBottom();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -49,7 +83,8 @@ class _ChatBotPageState extends State<ChatBotPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text("Pregnancy Assistant", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text("Always active", style: TextStyle(fontSize: 12, color: Colors.green[600])),
+                Text(_error != null ? "Currently offline" : "Always active",
+                    style: TextStyle(fontSize: 12, color: _error != null ? Colors.orange[700] : Colors.green[600])),
               ],
             ),
           ],
@@ -62,16 +97,67 @@ class _ChatBotPageState extends State<ChatBotPage> {
         children: [
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(20),
-              itemCount: _messages.length,
+              itemCount: _messages.length + (_sending ? 1 : 0),
               itemBuilder: (context, index) {
+                if (_sending && index == _messages.length) {
+                  return _buildTypingBubble();
+                }
                 final msg = _messages[index];
                 return _buildMessageBubble(msg['text'], msg['isUser']);
               },
             ),
           ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_error!} Try again?',
+                      style: TextStyle(fontSize: 13, color: Colors.orange[800]),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _sendMessage,
+                    child: const Text("Retry"),
+                  ),
+                ],
+              ),
+            ),
           _buildInputSection(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTypingBubble() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+            ),
+            const SizedBox(width: 10),
+            Text("Thinking...", style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+          ],
+        ),
       ),
     );
   }
@@ -92,7 +178,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
             bottomRight: Radius.circular(isUser ? 0 : 20),
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
           ],
         ),
         child: Text(
@@ -113,7 +199,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
         ],
       ),
       child: Row(
@@ -121,6 +207,8 @@ class _ChatBotPageState extends State<ChatBotPage> {
           Expanded(
             child: TextField(
               controller: _controller,
+              textInputAction: TextInputAction.send,
+              enabled: !_sending,
               decoration: InputDecoration(
                 hintText: "Type a message...",
                 border: OutlineInputBorder(
@@ -135,7 +223,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
             ),
           ),
           IconButton(
-            onPressed: _sendMessage,
+            onPressed: _sending ? null : _sendMessage,
             icon: const Icon(Icons.send_rounded, color: AppColors.primary),
           ),
         ],
