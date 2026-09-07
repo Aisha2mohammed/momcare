@@ -89,6 +89,9 @@ export interface CmsListParams {
   q?: string;
   trimester?: string | number;
   category?: string;
+  type?: string;
+  week?: string | number;
+  month?: string | number;
   isPublished?: boolean;
   published?: boolean;
   isActive?: boolean;
@@ -98,7 +101,7 @@ export interface CmsListParams {
 // ─── Generic CMS Client ───────────────────────────────────────────────────
 export const cmsClient = {
   /**
-   * List items with pagination, search, and trimester/category filter
+   * List items with pagination, search, and trimester/category/week/month/type filter
    */
   async list<T = any>(module: string, params: CmsListParams = {}) {
     const query = new URLSearchParams();
@@ -107,6 +110,9 @@ export const cmsClient = {
     if (params.search || params.q) query.set('search', params.search || params.q || '');
     if (params.trimester !== undefined && params.trimester !== '') query.set('trimester', String(params.trimester));
     if (params.category && params.category !== 'All') query.set('category', params.category);
+    if (params.type && params.type !== 'All') query.set('type', params.type);
+    if (params.week !== undefined && params.week !== '' && params.week !== 'All') query.set('week', String(params.week));
+    if (params.month !== undefined && params.month !== '' && params.month !== 'All') query.set('month', String(params.month));
     if (params.isPublished !== undefined) query.set('isPublished', String(params.isPublished));
     if (params.published !== undefined) query.set('isPublished', String(params.published));
     if (params.isActive !== undefined) query.set('isActive', String(params.isActive));
@@ -171,6 +177,32 @@ export const cmsClient = {
    */
   async toggleActive(module: string, id: string | number, currentStatus: boolean) {
     return this.update(module, id, { isActive: !currentStatus });
+  },
+
+  /**
+   * Upload media file (Image, Video, Audio, or PDF document)
+   */
+  async upload(file: File): Promise<{ url: string; relativeUrl: string; filename: string; size: number; mimetype: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = getAuthToken();
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE_URL}/admin/cms/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || `Upload failed with HTTP ${res.status}`);
+    }
+    return json.data;
   },
 };
 

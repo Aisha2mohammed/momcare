@@ -4,14 +4,15 @@ import 'mother_service.dart';
 class ContentService {
   static const int _limit = 100;
 
-  // Language preference is per-account (am/or/en) from the mother's profile.
+  // Language preference is per-account (am/or/en/so) from the mother's profile.
   static Future<String> _language() async {
     try {
       final profile = await MotherService.getProfile();
       final user = profile['user'];
       final lang = (user is Map<String, dynamic> ? user['language'] : null)
           as String?;
-      if (lang != null && (lang == 'am' || lang == 'or' || lang == 'en')) {
+      if (lang != null &&
+          (lang == 'am' || lang == 'or' || lang == 'en' || lang == 'so')) {
         return lang;
       }
     } catch (_) {
@@ -19,6 +20,8 @@ class ContentService {
     }
     return 'am';
   }
+
+  static Future<String> getLanguage() => _language();
 
   // ── Fetal tracker ─────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getFetalByWeek(int week) async {

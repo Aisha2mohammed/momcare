@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import clsx from 'clsx';
 
-type ToastType = 'success' | 'error';
+type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 interface Toast {
     id: number;
@@ -12,7 +12,7 @@ interface Toast {
 }
 
 interface ToastContextType {
-    showToast: (message: string, type: ToastType) => void;
+    showToast: (message: string, type?: ToastType) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -20,7 +20,7 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export function ToastProvider({ children }: { children: ReactNode }) {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
-    const showToast = useCallback((message: string, type: ToastType) => {
+    const showToast = useCallback((message: string, type: ToastType = 'success') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
         setTimeout(() => {
@@ -37,17 +37,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                         key={toast.id}
                         className={clsx(
                             'flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border animate-in slide-in-from-right-8 fade-in text-sm font-medium',
-                            toast.type === 'success'
-                                ? 'bg-white border-green-200 text-green-800'
-                                : 'bg-white border-red-200 text-red-800'
+                            toast.type === 'success' && 'bg-emerald-50 border-emerald-200 text-emerald-800',
+                            toast.type === 'error' && 'bg-rose-50 border-rose-200 text-rose-800',
+                            toast.type === 'warning' && 'bg-amber-50 border-amber-200 text-amber-800',
+                            toast.type === 'info' && 'bg-blue-50 border-blue-200 text-blue-800',
                         )}
                     >
-                        {toast.type === 'success' ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        ) : (
-                            <XCircle className="w-5 h-5 text-red-500" />
-                        )}
-                        {toast.message}
+                        {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                        {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-500" />}
+                        {toast.type === 'warning' && <span className="text-base">⚠️</span>}
+                        {toast.type === 'info' && <span className="text-base">ℹ️</span>}
+                        <span>{toast.message}</span>
                     </div>
                 ))}
             </div>

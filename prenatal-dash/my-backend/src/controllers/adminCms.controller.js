@@ -6,8 +6,15 @@ const MODULES = {
   nutrition: {
     table: 'nutrition_content',
     primaryKey: 'id',
-    orderBy: 'trimester ASC, created_at DESC',
-    searchFields: ['title_am', 'title_or', 'title_en', 'body_am', 'body_or', 'body_en', 'nutrient_type'],
+    orderBy: 'week ASC NULLS LAST, trimester ASC, created_at DESC',
+    searchFields: [
+      'title_am', 'title_or', 'title_en', 'title_so',
+      'body_am', 'body_or', 'body_en', 'body_so',
+      'nutrient_type',
+      'why_important_am', 'why_important_or', 'why_important_en', 'why_important_so',
+      'hydration_am', 'hydration_or', 'hydration_en', 'hydration_so',
+      'reason_am', 'reason_or', 'reason_en', 'reason_so'
+    ],
     normalizeIn: (body) => {
       let trimester = body.trimester;
       if (typeof trimester === 'string') {
@@ -22,27 +29,58 @@ const MODULES = {
         return v;
       };
 
+      const sections = parseJson(body.nutrientSectionsJson ?? body.nutrient_sections_json ?? body.nutrientSections) ?? [];
+      const firstSec = Array.isArray(sections) && sections.length > 0 ? sections[0] : null;
+
+      const titleAm = body.titleAm ?? body.title_am ?? firstSec?.titleAm ?? firstSec?.title_am ?? '';
+      const titleOr = body.titleOr ?? body.title_or ?? firstSec?.titleOr ?? firstSec?.title_or ?? '';
+      const titleEn = body.titleEn ?? body.title_en ?? firstSec?.titleEn ?? firstSec?.title_en ?? '';
+      const titleSo = body.titleSo ?? body.title_so ?? firstSec?.titleSo ?? firstSec?.title_so ?? '';
+
+      const bodyAm = body.bodyAm ?? body.body_am ?? firstSec?.bodyAm ?? firstSec?.body_am ?? '';
+      const bodyOr = body.bodyOr ?? body.body_or ?? firstSec?.bodyOr ?? firstSec?.body_or ?? '';
+      const bodyEn = body.bodyEn ?? body.body_en ?? firstSec?.bodyEn ?? firstSec?.body_en ?? '';
+      const bodySo = body.bodySo ?? body.body_so ?? firstSec?.bodySo ?? firstSec?.body_so ?? '';
+
+      const emoji = body.emoji ?? firstSec?.emoji ?? '🥗';
+      const nutrientType = body.nutrientType ?? body.nutrient_type ?? firstSec?.nutrientType ?? firstSec?.nutrient_type ?? '';
+      const imageUrl = body.imageUrl ?? body.image_url ?? firstSec?.imageUrl ?? firstSec?.image_url ?? null;
+      const videoUrl = body.videoUrl ?? body.video_url ?? firstSec?.videoUrl ?? firstSec?.video_url ?? null;
+      const videoTitle = body.videoTitle ?? body.video_title ?? firstSec?.videoTitle ?? firstSec?.video_title ?? null;
+
       return {
         trimester: trimester !== undefined ? Number(trimester) : 1,
-        week: body.week !== undefined && body.week !== '' ? Number(body.week) : null,
+        week: body.week !== undefined && body.week !== '' && body.week !== null ? Number(body.week) : null,
         type: body.type ?? 'eat',
-        emoji: body.emoji ?? '🥗',
-        nutrient_type: body.nutrientType ?? body.nutrient_type ?? '',
-        title_am: body.titleAm ?? body.title_am ?? '',
-        title_or: body.titleOr ?? body.title_or ?? '',
-        title_en: body.titleEn ?? body.title_en ?? '',
-        body_am: body.bodyAm ?? body.body_am ?? '',
-        body_or: body.bodyOr ?? body.body_or ?? '',
-        body_en: body.bodyEn ?? body.body_en ?? '',
-        image_url: body.imageUrl ?? body.image_url ?? null,
-        video_url: body.videoUrl ?? body.video_url ?? null,
-        video_title: body.videoTitle ?? body.video_title ?? null,
+        emoji,
+        nutrient_type: nutrientType,
+        title_am: titleAm,
+        title_or: titleOr,
+        title_en: titleEn,
+        title_so: titleSo,
+        body_am: bodyAm,
+        body_or: bodyOr,
+        body_en: bodyEn,
+        body_so: bodySo,
+        why_important_am: body.whyImportantAm ?? body.why_important_am ?? null,
+        why_important_or: body.whyImportantOr ?? body.why_important_or ?? null,
+        why_important_en: body.whyImportantEn ?? body.why_important_en ?? null,
+        why_important_so: body.whyImportantSo ?? body.why_important_so ?? null,
+        hydration_am: body.hydrationAm ?? body.hydration_am ?? null,
+        hydration_or: body.hydrationOr ?? body.hydration_or ?? null,
+        hydration_en: body.hydrationEn ?? body.hydration_en ?? null,
+        hydration_so: body.hydrationSo ?? body.hydration_so ?? null,
+        image_url: imageUrl,
+        video_url: videoUrl,
+        video_title: videoTitle,
+        pdf_url: body.pdfUrl ?? body.pdf_url ?? null,
         reason_am: body.reasonAm ?? body.reason_am ?? null,
         reason_or: body.reasonOr ?? body.reason_or ?? null,
         reason_en: body.reasonEn ?? body.reason_en ?? null,
-        foods_json: parseJson(body.foodsJson ?? body.foods_json ?? body.foods) ?? null,
-        nutrient_sections_json: parseJson(body.nutrientSectionsJson ?? body.nutrient_sections_json ?? body.nutrientSections) ?? null,
-        is_published: body.isPublished !== undefined ? Boolean(body.isPublished) : (body.published !== undefined ? Boolean(body.published) : false),
+        reason_so: body.reasonSo ?? body.reason_so ?? null,
+        foods_json: JSON.stringify(parseJson(body.foodsJson ?? body.foods_json ?? body.foods) ?? []),
+        nutrient_sections_json: JSON.stringify(sections),
+        is_published: body.isPublished !== undefined ? Boolean(body.isPublished) : (body.published !== undefined ? Boolean(body.published) : true),
       };
     },
     normalizeOut: (row) => {
@@ -57,15 +95,27 @@ const MODULES = {
         titleAm: row.title_am || '',
         titleOr: row.title_or || '',
         titleEn: row.title_en || '',
+        titleSo: row.title_so || '',
         bodyAm: row.body_am || '',
         bodyOr: row.body_or || '',
         bodyEn: row.body_en || '',
+        bodySo: row.body_so || '',
+        whyImportantAm: row.why_important_am || '',
+        whyImportantOr: row.why_important_or || '',
+        whyImportantEn: row.why_important_en || '',
+        whyImportantSo: row.why_important_so || '',
+        hydrationAm: row.hydration_am || '',
+        hydrationOr: row.hydration_or || '',
+        hydrationEn: row.hydration_en || '',
+        hydrationSo: row.hydration_so || '',
         imageUrl: row.image_url || '',
         videoUrl: row.video_url || '',
         videoTitle: row.video_title || '',
+        pdfUrl: row.pdf_url || '',
         reasonAm: row.reason_am || '',
         reasonOr: row.reason_or || '',
         reasonEn: row.reason_en || '',
+        reasonSo: row.reason_so || '',
         nutrientType: row.nutrient_type || '',
         emoji: row.emoji || '🥗',
         type: row.type || 'eat',
@@ -324,6 +374,9 @@ exports.list = async (req, res, next) => {
       search,
       q,
       trimester,
+      week,
+      month,
+      type,
       category,
       isPublished,
       published,
@@ -340,9 +393,58 @@ exports.list = async (req, res, next) => {
     if (searchTerm && searchTerm.trim()) {
       const term = `%${searchTerm.trim()}%`;
       const searchConditions = meta.searchFields.map(field => `${field} ILIKE $${paramIndex}`);
+      if (resolved.key === 'nutrition') {
+        searchConditions.push(`foods_json::text ILIKE $${paramIndex}`);
+        searchConditions.push(`nutrient_sections_json::text ILIKE $${paramIndex}`);
+      }
       params.push(term);
       paramIndex++;
       whereClauses.push(`(${searchConditions.join(' OR ')})`);
+    }
+
+    // Type filter ('eat' | 'avoid' for nutrition)
+    if (type && type !== '' && type !== 'All') {
+      if (resolved.key === 'nutrition') {
+        whereClauses.push(`type = $${paramIndex++}`);
+        params.push(type);
+      }
+    }
+
+    // Specific Week filter
+    if (week !== undefined && week !== '' && week !== 'All') {
+      if (resolved.key === 'nutrition') {
+        whereClauses.push(`week = $${paramIndex++}`);
+        params.push(Number(week));
+      } else if (resolved.key === 'fetal') {
+        whereClauses.push(`week_number = $${paramIndex++}`);
+        params.push(Number(week));
+      }
+    }
+
+    // Month filter (gestational months 1-9)
+    if (month !== undefined && month !== '' && month !== 'All') {
+      const MONTH_WEEKS = {
+        1: [1, 4],
+        2: [5, 8],
+        3: [9, 13],
+        4: [14, 17],
+        5: [18, 21],
+        6: [22, 26],
+        7: [27, 30],
+        8: [31, 35],
+        9: [36, 40],
+      };
+      const mNum = parseInt(String(month).replace(/\D/g, ''), 10);
+      if (MONTH_WEEKS[mNum]) {
+        const [minW, maxW] = MONTH_WEEKS[mNum];
+        if (resolved.key === 'nutrition') {
+          whereClauses.push(`(week >= $${paramIndex++} AND week <= $${paramIndex++})`);
+          params.push(minW, maxW);
+        } else if (resolved.key === 'fetal') {
+          whereClauses.push(`(week_number >= $${paramIndex++} AND week_number <= $${paramIndex++})`);
+          params.push(minW, maxW);
+        }
+      }
     }
 
     // Trimester filter (for nutrition, sleep, exercise)
@@ -400,7 +502,7 @@ exports.list = async (req, res, next) => {
 
     // Pagination
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+    const limitNum = Math.max(1, Math.min(1000, parseInt(limit, 10) || 20));
     const offset = (pageNum - 1) * limitNum;
 
     const dataParams = [...params, limitNum, offset];
@@ -479,8 +581,12 @@ exports.create = async (req, res, next) => {
       if (!normalizedData.title_am && !normalizedData.title_en && !normalizedData.title_or) {
         return sendError(res, 400, 'Track title is required in at least one language.');
       }
+    } else if (resolved.key === 'nutrition') {
+      if (!normalizedData.title_am && !normalizedData.title_en && !normalizedData.title_or && !normalizedData.title_so && (!normalizedData.nutrient_sections_json || normalizedData.nutrient_sections_json.length === 0)) {
+        return sendError(res, 400, 'Title or nutrient section is required in at least one language.');
+      }
     } else {
-      if (!normalizedData.title_am && !normalizedData.title_en && !normalizedData.title_or) {
+      if (!normalizedData.title_am && !normalizedData.title_en && !normalizedData.title_or && !normalizedData.title_so) {
         return sendError(res, 400, 'Title is required in at least one language.');
       }
     }
@@ -584,3 +690,115 @@ exports.remove = async (req, res, next) => {
     next(err);
   }
 };
+
+// ── POST /api/v1/admin/cms/upload ───────────────────────────────────────
+exports.uploadMedia = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return sendError(res, 400, 'No file was uploaded.');
+    }
+    const file = req.files[0];
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const relativeUrl = `/uploads/${file.filename}`;
+    const fullUrl = `${protocol}://${host}${relativeUrl}`;
+
+    return sendSuccess(res, 201, 'File uploaded successfully', {
+      url: fullUrl,
+      relativeUrl,
+      filename: file.filename,
+      originalName: file.originalname,
+      size: file.size,
+      mimetype: file.mimetype,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── PATCH /api/v1/admin/cms/nutrition/:id/add-nutrient ──────────────────
+// Appends a single nutrient section to an existing nutrition_content row
+exports.appendNutrient = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch existing row
+    const existing = await query(
+      'SELECT id, nutrient_sections_json FROM nutrition_content WHERE id::text = $1',
+      [id]
+    );
+    if (existing.rows.length === 0) {
+      return sendError(res, 404, `Nutrition entry '${id}' not found.`);
+    }
+
+    const row = existing.rows[0];
+    let sections = [];
+    if (row.nutrient_sections_json) {
+      try {
+        sections = typeof row.nutrient_sections_json === 'string'
+          ? JSON.parse(row.nutrient_sections_json)
+          : row.nutrient_sections_json;
+      } catch { sections = []; }
+    }
+    if (!Array.isArray(sections)) sections = [];
+
+    // Build the new nutrient section from request body
+    const b = req.body;
+    const newNutrient = {
+      id: b.id || `sec-${Date.now()}`,
+      type: b.type || 'eat',
+      nutrientType: b.nutrientType || b.nutrient_type || '',
+      nutrient_type: b.nutrientType || b.nutrient_type || '',
+      emoji: b.emoji || '🥩',
+      titleEn: b.titleEn || b.title_en || '',
+      titleAm: b.titleAm || b.title_am || '',
+      titleOr: b.titleOr || b.title_or || '',
+      titleSo: b.titleSo || b.title_so || '',
+      bodyEn: b.bodyEn || b.desc_en || b.body_en || '',
+      bodyAm: b.bodyAm || b.desc_am || b.body_am || '',
+      bodyOr: b.bodyOr || b.desc_or || b.body_or || '',
+      bodySo: b.bodySo || b.desc_so || b.body_so || '',
+      imageUrl: b.imageUrl || b.image_url || '',
+      image_url: b.imageUrl || b.image_url || '',
+      videoUrl: b.videoUrl || b.video_url || '',
+      video_url: b.videoUrl || b.video_url || '',
+      benefitValue: b.benefitValue || b.benefit_value || '',
+      benefit_value: b.benefitValue || b.benefit_value || '',
+      benefitLabelEn: b.benefitLabelEn || b.benefit_label_en || '',
+      benefitLabelAm: b.benefitLabelAm || b.benefit_label_am || '',
+      benefitLabelOr: b.benefitLabelOr || b.benefit_label_or || '',
+      benefitLabelSo: b.benefitLabelSo || b.benefit_label_so || '',
+      helpfulTips: b.helpfulTips || b.helpful_tips || '',
+      helpful_tips: b.helpfulTips || b.helpful_tips || '',
+      foods: Array.isArray(b.foods) ? b.foods : [],
+    };
+
+    sections.push(newNutrient);
+
+    // Update first section fields on the parent row too (for display)
+    const firstSec = sections[0];
+    const updateSql = `
+      UPDATE nutrition_content
+      SET
+        nutrient_sections_json = $1::jsonb,
+        emoji = $2,
+        nutrient_type = $3,
+        updated_at = NOW()
+      WHERE id::text = $4
+      RETURNING *
+    `;
+
+    const result = await query(updateSql, [
+      JSON.stringify(sections),
+      firstSec.emoji || '🥗',
+      firstSec.nutrientType || firstSec.nutrient_type || '',
+      id,
+    ]);
+
+    const meta = MODULES.nutrition;
+    return sendSuccess(res, 200, 'Nutrient section appended successfully', meta.normalizeOut(result.rows[0]));
+  } catch (err) {
+    next(err);
+  }
+};
+

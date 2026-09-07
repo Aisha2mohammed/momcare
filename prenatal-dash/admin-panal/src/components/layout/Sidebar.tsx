@@ -18,7 +18,10 @@ import {
     ClipboardList,
     LogOut,
     ChevronRight,
+    ChevronDown,
     MessageSquareWarning,
+    ListChecks,
+    PlusCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
@@ -41,9 +44,9 @@ const navSections = [
     },
     {
         label: 'Content Library',
-        collapsible: true, // we translate the label inline directly
+        collapsible: true,
         items: [
-            { icon: Apple, label: 'Nutrition Guide', key: 'nutrition', path: '/nutrition', badge: 0 },
+            // Note: Nutrition Guide is rendered separately with its own sub-dropdown
             { icon: Baby, label: 'Fetal Development', key: 'fetalDevelopment', path: '/fetal-development', badge: 0 },
             { icon: Activity, label: 'Exercise Recs', key: 'exercise', path: '/exercise', badge: 0 },
             { icon: Moon, label: 'Sleep Position Tips', key: 'sleep', path: '/sleep', badge: 0 },
@@ -74,11 +77,16 @@ export function Sidebar() {
     const location = useLocation();
     const { user, logout } = useAuth();
     const [contentExpanded, setContentExpanded] = useState(true);
+    const [nutritionExpanded, setNutritionExpanded] = useState(
+        location.pathname.startsWith('/nutrition')
+    );
 
     const isActive = (path: string) => {
         if (path === '/') return location.pathname === '/';
-        return location.pathname.startsWith(path);
+        return location.pathname === path;
     };
+
+    const isActivePrefix = (path: string) => location.pathname.startsWith(path);
 
     // auto-expand content section if any child is active
     const contentPaths = ['/nutrition', '/fetal-development', '/exercise', '/sleep', '/music', '/notifications', '/emergency', '/language'];
@@ -119,6 +127,73 @@ export function Sidebar() {
 
                             {expanded && (
                                 <div className="space-y-0.5">
+                                    {/* Nutrition Guide — nested sub-dropdown */}
+                                    {section.collapsible && (
+                                        <div>
+                                            {/* Parent row */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setNutritionExpanded(e => !e)}
+                                                className={clsx(
+                                                    'w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm font-medium group',
+                                                    isActivePrefix('/nutrition')
+                                                        ? 'bg-[#fdf2f8] text-[#61183e]'
+                                                        : 'text-gray-600 hover:bg-[#fdf2f8] hover:text-[#61183e]'
+                                                )}
+                                            >
+                                                <Apple className={clsx(
+                                                    'w-4 h-4 mr-2.5 shrink-0',
+                                                    isActivePrefix('/nutrition') ? 'text-[#61183e]' : 'text-gray-400 group-hover:text-[#61183e]'
+                                                )} />
+                                                <span className="flex-1 truncate text-xs font-semibold text-left">
+                                                    {t('nav.nutrition', { defaultValue: 'Nutrition Guide' })}
+                                                </span>
+                                                <ChevronDown className={clsx(
+                                                    'w-3.5 h-3.5 transition-transform shrink-0',
+                                                    nutritionExpanded ? 'rotate-180' : '',
+                                                    isActivePrefix('/nutrition') ? 'text-[#61183e]' : 'text-gray-400'
+                                                )} />
+                                            </button>
+
+                                            {/* Sub-items */}
+                                            {nutritionExpanded && (
+                                                <div className="ml-4 mt-0.5 space-y-0.5 border-l-2 border-[#61183e]/15 pl-2">
+                                                    <Link
+                                                        to="/nutrition/weeks"
+                                                        className={clsx(
+                                                            'flex items-center px-3 py-1.5 rounded-lg transition-all text-xs font-medium group',
+                                                            isActive('/nutrition/weeks')
+                                                                ? 'bg-[#61183e] text-white shadow-sm'
+                                                                : 'text-gray-600 hover:bg-[#fdf2f8] hover:text-[#61183e]'
+                                                        )}
+                                                    >
+                                                        <ListChecks className={clsx(
+                                                            'w-3.5 h-3.5 mr-2 shrink-0',
+                                                            isActive('/nutrition/weeks') ? 'text-white' : 'text-gray-400 group-hover:text-[#61183e]'
+                                                        )} />
+                                                        Nutrition Week
+                                                    </Link>
+                                                    <Link
+                                                        to="/nutrition/add"
+                                                        className={clsx(
+                                                            'flex items-center px-3 py-1.5 rounded-lg transition-all text-xs font-medium group',
+                                                            isActive('/nutrition/add')
+                                                                ? 'bg-[#61183e] text-white shadow-sm'
+                                                                : 'text-gray-600 hover:bg-[#fdf2f8] hover:text-[#61183e]'
+                                                        )}
+                                                    >
+                                                        <PlusCircle className={clsx(
+                                                            'w-3.5 h-3.5 mr-2 shrink-0',
+                                                            isActive('/nutrition/add') ? 'text-white' : 'text-gray-400 group-hover:text-[#61183e]'
+                                                        )} />
+                                                        Add Nutrient
+                                                    </Link>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* All other content items */}
                                     {section.items.map(item => {
                                         const active = isActive(item.path);
                                         return (

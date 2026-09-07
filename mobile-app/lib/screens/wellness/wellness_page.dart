@@ -5,8 +5,8 @@ import 'package:pregnancy_appp/screens/wellness/music_page.dart';
 import 'package:pregnancy_appp/screens/wellness/exercise_page.dart';
 import 'package:pregnancy_appp/screens/wellness/sleep_tips_page.dart';
 import 'package:pregnancy_appp/screens/wellness/nutrition_guide_page.dart';
+import 'package:pregnancy_appp/screens/wellness/video_page.dart';
 // import 'package:pregnancy_appp/screens/wellness/health_tips_page.dart';
-// import 'package:pregnancy_appp/screens/wellness/video_page.dart';
 // import 'package:pregnancy_appp/screens/wellness/journal_page.dart';
 // import 'package:pregnancy_appp/screens/wellness/birth_plan_page.dart';
 
@@ -77,12 +77,12 @@ class _WellnessPageState extends State<WellnessPage> {
                 //   Icons.health_and_safety_rounded,
                 //   () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HealthTipsPage())),
                 // ),
-                // _buildWellnessCard(
-                //   context,
-                //   AppStrings.of(context, 'video'),
-                //   Icons.play_circle_fill_rounded,
-                //   () => Navigator.push(context, MaterialPageRoute(builder: (context) => const VideoPage())),
-                // ),
+                _buildWellnessCard(
+                  context,
+                  AppStrings.of(context, 'video'),
+                  Icons.play_circle_fill_rounded,
+                  () => Navigator.push(context, MaterialPageRoute(builder: (context) => const VideoPage())),
+                ),
                 // _buildWellnessCard(
                 //   context,
                 //   "Journal",

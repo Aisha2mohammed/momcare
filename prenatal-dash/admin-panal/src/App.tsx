@@ -10,6 +10,7 @@ import DoctorApprovals from './pages/DoctorApprovals';
 import DoctorReviewDetail from './pages/DoctorReviewDetail';
 import HealthProviders from './pages/HealthProviders';
 import NutritionManager from './pages/NutritionManager';
+import AddNutritionPage from './pages/AddNutritionPage';
 import FetalDevelopmentManager from './pages/FetalDevelopmentManager';
 import ExerciseManager from './pages/ExerciseManager';
 import SleepPositionManager from './pages/SleepPositionManager';
@@ -45,7 +46,9 @@ export default function App() {
               <Route path="doctor-approvals/:id" element={<DoctorReviewDetail />} />
               <Route path="users" element={<UsersManager />} />
               <Route path="health-providers" element={<HealthProviders />} />
-              <Route path="nutrition" element={<NutritionManager />} />
+              <Route path="nutrition" element={<Navigate to="/nutrition/weeks" replace />} />
+              <Route path="nutrition/weeks" element={<NutritionManager />} />
+              <Route path="nutrition/add" element={<AddNutritionPage />} />
               <Route path="fetal-development" element={<FetalDevelopmentManager />} />
               <Route path="exercise" element={<ExerciseManager />} />
               <Route path="sleep" element={<SleepPositionManager />} />
