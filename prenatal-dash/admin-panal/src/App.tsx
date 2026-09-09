@@ -22,6 +22,8 @@ import Announcements from './pages/Announcements';
 import AuditLog from './pages/AuditLog';
 import CommunityModeration from './pages/CommunityModeration';
 import Settings from './pages/Settings';
+import AddSleepPage from './pages/AddSleepPage';
+import AddExercisePage from './pages/AddExercisePage';
 
 export default function App() {
   return (
@@ -50,8 +52,12 @@ export default function App() {
               <Route path="nutrition/weeks" element={<NutritionManager />} />
               <Route path="nutrition/add" element={<AddNutritionPage />} />
               <Route path="fetal-development" element={<FetalDevelopmentManager />} />
-              <Route path="exercise" element={<ExerciseManager />} />
-              <Route path="sleep" element={<SleepPositionManager />} />
+              <Route path="exercise" element={<Navigate to="/exercise/weeks" replace />} />
+              <Route path="exercise/weeks" element={<ExerciseManager />} />
+              <Route path="exercise/add" element={<AddExercisePage />} />
+              <Route path="sleep" element={<Navigate to="/sleep/weeks" replace />} />
+              <Route path="sleep/weeks" element={<SleepPositionManager />} />
+              <Route path="sleep/add" element={<AddSleepPage />} />
               <Route path="music" element={<MusicLibraryManager />} />
               <Route path="notifications" element={<NotificationsManager />} />
               <Route path="emergency" element={<EmergencyContactsManager />} />

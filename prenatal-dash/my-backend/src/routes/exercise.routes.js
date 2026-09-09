@@ -1,13 +1,39 @@
 const express = require('express');
 const router = express.Router();
+const upload = require('../middlewares/upload');
 const exerciseController = require('../controllers/exercise.controller');
-const { validate, paginationRules } = require('../utils/validators');
+const exerciseWeekController = require('../controllers/exerciseWeekController');
 const { requireAdmin } = require('../middlewares/roleGuard');
 
-router.get('/', paginationRules, validate, exerciseController.getAll);
-router.get('/:id', exerciseController.getOne);
-router.post('/', requireAdmin, exerciseController.create);
-router.put('/:id', requireAdmin, exerciseController.update);
-router.delete('/:id', requireAdmin, exerciseController.remove);
+const handleMedia = (req, fieldName) => {
+  if (req.files && req.files[fieldName] && req.files[fieldName][0]) {
+    return `/uploads/${req.files[fieldName][0].filename}`;
+  }
+  return req.body[fieldName] || null;
+};
 
-module.exports = router;
+// --- EXERCISES (Tips / Content) ---
+router.get('/tips', exerciseController.getAll);
+router.post(
+  '/tips',
+  requireAdmin,
+  upload.fields([
+    { name: 'imageUrl', maxCount: 1 },
+    { name: 'videoUrl', maxCount: 1 },
+    { name: 'pdfUrl', maxCount: 1 }
+  ]),
+  (req, res, next) => {
+    req.body.imageUrl = handleMedia(req, 'imageUrl');
+    req.body.videoUrl = handleMedia(req, 'videoUrl');
+    req.body.pdfUrl = handleMedia(req, 'pdfUrl');
+    exerciseController.create(req, res, next);
+  }
+);
+
+// --- EXERCISE WEEKS ---
+router.get('/weeks', exerciseWeekController.getAll);
+router.post('/weeks', requireAdmin, exerciseWeekController.create);
+router.put('/weeks/:id', requireAdmin, exerciseWeekController.update);
+router.delete('/weeks/:id', requireAdmin, exerciseWeekController.remove);
+
+module.exports = router;

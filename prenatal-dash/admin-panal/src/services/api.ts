@@ -21,6 +21,45 @@ export const API_BASE_URL = getBaseUrl();
 export const CMS_BASE_URL = `${API_BASE_URL}/admin/cms`;
 
 /**
+ * Module-to-endpoint map:
+ * Translates logical module names used by admin panel manager pages
+ * into their actual backend REST path segments (relative to API_BASE_URL).
+ *
+ * This replaces the deleted /admin/cms/ proxy router — each module now
+ * directly calls the real controller endpoints.
+ */
+const MODULE_ENDPOINT_MAP: Record<string, string> = {
+  // Exercise
+  'exercise-weeks': '/exercise/weeks',   // ExerciseManager (exercise_weeks table)
+  'exercise-tips':  '/exercise/tips',    // AddExercisePage (exercises table)
+  'exercises':      '/exercise/tips',    // legacy alias → exercise tips content
+
+  // Nutrition
+  'nutrition-weeks': '/nutrition/weeks', // NutritionManager (nutrition_weeks table)
+  'nutrition-tips':  '/nutrition/tips',  // AddNutritionPage (nutrition_tips table)
+  'nutrition':       '/nutrition/tips',  // legacy alias → nutrition tips content
+
+  // Sleep
+  'sleep-weeks': '/sleep/weeks',         // SleepPositionManager (sleep_weeks table)
+  'sleep-tips':  '/sleep/tips',          // AddSleepPage (sleep_tips table)
+  'sleep':       '/sleep/tips',          // legacy alias → sleep tips content
+
+  // Music
+  'music': '/music',                     // MusicLibraryManager (music_tracks table)
+
+  // Fetal Development
+  'fetal': '/fetal',                     // FetalDevelopmentManager (fetal_weekly_content table)
+};
+
+/**
+ * Resolve the actual REST path for a given module name.
+ * Falls back to /admin/cms/{module} for any unknown modules (legacy behaviour).
+ */
+function resolveModulePath(module: string): string {
+  return MODULE_ENDPOINT_MAP[module] ?? `/admin/cms/${module}`;
+}
+
+/**
  * Retrieve current JWT auth token from session or local storage
  */
 export const getAuthToken = (): string | null => {
@@ -101,7 +140,8 @@ export interface CmsListParams {
 // ─── Generic CMS Client ───────────────────────────────────────────────────
 export const cmsClient = {
   /**
-   * List items with pagination, search, and trimester/category/week/month/type filter
+   * List items with pagination, search, and trimester/category/week/month/type filter.
+   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
    */
   async list<T = any>(module: string, params: CmsListParams = {}) {
     const query = new URLSearchParams();
@@ -117,9 +157,12 @@ export const cmsClient = {
     if (params.published !== undefined) query.set('isPublished', String(params.published));
     if (params.isActive !== undefined) query.set('isActive', String(params.isActive));
     if (params.active !== undefined) query.set('isActive', String(params.active));
+    // Pass includeInactive for admin fetal view so all records are returned
+    if (module === 'fetal') query.set('includeInactive', 'true');
 
     const qs = query.toString();
-    const endpoint = `/admin/cms/${module}${qs ? `?${qs}` : ''}`;
+    const basePath = resolveModulePath(module);
+    const endpoint = `${basePath}${qs ? `?${qs}` : ''}`;
     const res = await apiRequest<T[]>(endpoint, { method: 'GET' });
     return {
       items: (res.data || []) as T[],
@@ -128,18 +171,22 @@ export const cmsClient = {
   },
 
   /**
-   * Get single item detail by ID
+   * Get single item detail by ID.
+   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
    */
   async get<T = any>(module: string, id: string | number) {
-    const res = await apiRequest<T>(`/admin/cms/${module}/${id}`, { method: 'GET' });
+    const basePath = resolveModulePath(module);
+    const res = await apiRequest<T>(`${basePath}/${id}`, { method: 'GET' });
     return res.data as T;
   },
 
   /**
-   * Create new item with payload
+   * Create new item with payload.
+   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
    */
   async create<T = any>(module: string, payload: any) {
-    const res = await apiRequest<T>(`/admin/cms/${module}`, {
+    const basePath = resolveModulePath(module);
+    const res = await apiRequest<T>(basePath, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -147,10 +194,12 @@ export const cmsClient = {
   },
 
   /**
-   * Update item by ID
+   * Update item by ID.
+   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
    */
   async update<T = any>(module: string, id: string | number, payload: any) {
-    const res = await apiRequest<T>(`/admin/cms/${module}/${id}`, {
+    const basePath = resolveModulePath(module);
+    const res = await apiRequest<T>(`${basePath}/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
@@ -158,10 +207,12 @@ export const cmsClient = {
   },
 
   /**
-   * Delete item by ID
+   * Delete item by ID.
+   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
    */
   async delete(module: string, id: string | number) {
-    const res = await apiRequest(`/admin/cms/${module}/${id}`, { method: 'DELETE' });
+    const basePath = resolveModulePath(module);
+    const res = await apiRequest(`${basePath}/${id}`, { method: 'DELETE' });
     return res;
   },
 

@@ -23,9 +23,6 @@ router.post('/health-providers', healthProviderRules, validate, adminController.
 router.put('/health-providers/:id', adminController.updateHealthProvider);
 router.put('/health-providers/:id/status', adminController.toggleHealthProviderStatus);
 
-// Content Management System (CMS for 5 core modules)
-const cmsRoutes = require('./adminCms.routes');
-router.use('/cms', cmsRoutes);
 
 // Audit Logs
 router.get('/audit-logs', paginationRules, validate, adminController.getAuditLogs);

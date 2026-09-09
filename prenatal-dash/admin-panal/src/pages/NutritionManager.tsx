@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    PlusCircle, Search, X, Calendar, Droplets, BookOpen,
+    PlusCircle, Search, X, Calendar, Droplets, BookOpen, Utensils,
     Edit2, Trash2, Eye, EyeOff, Loader2, CheckCircle2,
     Filter, AlertTriangle
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { TextArea } from '../components/ui/Input';
+import { Input, TextArea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { cmsClient } from '../services/api';
@@ -21,6 +21,12 @@ export interface NutritionWeekEntry {
     trimester: string; // '1st' | '2nd' | '3rd'
     month: number;
     isPublished: boolean;
+
+    // Title in 4 Languages
+    titleEn: string;
+    titleAm: string;
+    titleOr: string;
+    titleSo: string;
 
     // Why It Is Important (4 Languages)
     whyImportantEn: string;
@@ -39,6 +45,11 @@ interface BackendNutritionRow {
     id: string | number;
     week?: number | string | null;
     trimester?: number | string | null;
+
+    title_en?: string; titleEn?: string;
+    title_am?: string; titleAm?: string;
+    title_or?: string; titleOr?: string;
+    title_so?: string; titleSo?: string;
 
     why_important_en?: string; whyImportantEn?: string;
     why_important_am?: string; whyImportantAm?: string;
@@ -83,6 +94,10 @@ const EMPTY_WEEK_ENTRY: Omit<NutritionWeekEntry, 'id'> = {
     trimester: '2nd',
     month: 5,
     isPublished: true,
+    titleEn: '',
+    titleAm: '',
+    titleOr: '',
+    titleSo: '',
     whyImportantEn: '',
     whyImportantAm: '',
     whyImportantOr: '',
@@ -132,7 +147,7 @@ export default function NutritionManager() {
     const loadWeekGuidesData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await cmsClient.list<BackendNutritionRow>('nutrition', { limit: 500 });
+            const res = await cmsClient.list<BackendNutritionRow>('nutrition-weeks', { limit: 500 });
             setRawRows(res.items || []);
         } catch (err: any) {
             showToast(err.message || 'Failed to load nutrition weeks', 'error');
@@ -158,6 +173,11 @@ export default function NutritionManager() {
                 trimester: String(row.trimester || trimester),
                 month,
                 isPublished: isPub,
+
+                titleEn: row.title_en || row.titleEn || '',
+                titleAm: row.title_am || row.titleAm || '',
+                titleOr: row.title_or || row.titleOr || '',
+                titleSo: row.title_so || row.titleSo || '',
 
                 whyImportantEn: row.why_important_en || row.whyImportantEn || '',
                 whyImportantAm: row.why_important_am || row.whyImportantAm || '',
@@ -194,6 +214,10 @@ export default function NutritionManager() {
                 const match = (
                     `week ${item.week}`.includes(q) ||
                     `month ${item.month}`.includes(q) ||
+                    item.titleEn.toLowerCase().includes(q) ||
+                    item.titleAm.toLowerCase().includes(q) ||
+                    item.titleOr.toLowerCase().includes(q) ||
+                    item.titleSo.toLowerCase().includes(q) ||
                     item.whyImportantEn.toLowerCase().includes(q) ||
                     item.whyImportantAm.toLowerCase().includes(q) ||
                     item.whyImportantOr.toLowerCase().includes(q) ||
@@ -244,6 +268,10 @@ export default function NutritionManager() {
             const payload = {
                 week: formData.week,
                 trimester: formData.trimester,
+                titleEn: formData.titleEn,
+                titleAm: formData.titleAm,
+                titleOr: formData.titleOr,
+                titleSo: formData.titleSo,
                 whyImportantEn: formData.whyImportantEn,
                 whyImportantAm: formData.whyImportantAm,
                 whyImportantOr: formData.whyImportantOr,
@@ -256,7 +284,7 @@ export default function NutritionManager() {
             };
 
             if (isEditModalOpen && formData.id) {
-                await cmsClient.update('nutrition', formData.id, payload);
+                await cmsClient.update('nutrition-weeks', formData.id, payload);
                 setIsEditModalOpen(false);
                 setSuccessModal({
                     open: true,
@@ -264,7 +292,7 @@ export default function NutritionManager() {
                     message: `Nutrition Guide for Week ${formData.week} updated successfully.`,
                 });
             } else {
-                await cmsClient.create('nutrition', payload);
+                await cmsClient.create('nutrition-weeks', payload);
                 setIsAddModalOpen(false);
                 setSuccessModal({
                     open: true,
@@ -286,7 +314,7 @@ export default function NutritionManager() {
         if (!entryToDelete) return;
         setSubmitting(true);
         try {
-            await cmsClient.delete('nutrition', entryToDelete.id);
+            await cmsClient.delete('nutrition-weeks', entryToDelete.id);
             setIsDeleteModalOpen(false);
             setSuccessModal({
                 open: true,
@@ -306,7 +334,7 @@ export default function NutritionManager() {
     const handleTogglePublish = async (entry: NutritionWeekEntry) => {
         try {
             const newStatus = !entry.isPublished;
-            await cmsClient.update('nutrition', entry.id, {
+            await cmsClient.update('nutrition-weeks', entry.id, {
                 isPublished: newStatus,
             });
             showToast(`Week ${entry.week} status updated to ${newStatus ? 'Published' : 'Draft'}`, 'success');
@@ -451,6 +479,7 @@ export default function NutritionManager() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {filteredEntries.map((item) => {
                             const lang = getActiveCardLang(item.id);
+                            const title = lang === 'am' ? (item.titleAm || item.titleEn) : lang === 'or' ? (item.titleOr || item.titleEn) : lang === 'so' ? (item.titleSo || item.titleEn) : item.titleEn;
                             const whyImp = lang === 'am' ? item.whyImportantAm : lang === 'or' ? item.whyImportantOr : lang === 'so' ? item.whyImportantSo : item.whyImportantEn;
                             const hydration = lang === 'am' ? item.hydrationAm : lang === 'or' ? item.hydrationOr : lang === 'so' ? item.hydrationSo : item.hydrationEn;
 
@@ -466,7 +495,7 @@ export default function NutritionManager() {
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-pink-700">Week</span>
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-bold text-gray-900 text-base">Week {item.week} Guide</h3>
+                                                    <h3 className="font-bold text-gray-900 text-base">{title || `Week ${item.week} Nutrition Guide`}</h3>
                                                     <p className="text-xs text-gray-500 font-medium">
                                                         Month {item.month} • {item.trimester} Trimester
                                                     </p>
@@ -598,11 +627,57 @@ export default function NutritionManager() {
                         </div>
                     </div>
 
-                    {/* SECTION 2: WHY IT IS IMPORTANT (4 LANGUAGES) */}
+                    {/* SECTION 2: TITLE (4 LANGUAGES) */}
+                    <div className="space-y-3 bg-pink-50/40 p-4 rounded-2xl border border-pink-100">
+                        <h4 className="text-xs font-bold text-[#61183e] uppercase tracking-wider flex items-center gap-2">
+                            <Utensils className="w-4 h-4 text-[#61183e]" />
+                            2. Week Nutrition Title (4 Languages)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇬🇧 English Title</label>
+                                <Input
+                                    value={formData.titleEn}
+                                    onChange={e => setFormData(prev => ({ ...prev, titleEn: e.target.value }))}
+                                    placeholder="e.g. Iron & Calcium Essentials..."
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇪🇹 Amharic (አማርኛ) Title</label>
+                                <Input
+                                    value={formData.titleAm}
+                                    onChange={e => setFormData(prev => ({ ...prev, titleAm: e.target.value }))}
+                                    placeholder="ለምሳሌ፡ የብረትና ካልሲየም ፍላጎት..."
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🌳 Afaan Oromo Title</label>
+                                <Input
+                                    value={formData.titleOr}
+                                    onChange={e => setFormData(prev => ({ ...prev, titleOr: e.target.value }))}
+                                    placeholder="e.g. Nyaatawwan Kaalsiyeemii fi Ayiranii..."
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇸🇴 Afan Somali Title</label>
+                                <Input
+                                    value={formData.titleSo}
+                                    onChange={e => setFormData(prev => ({ ...prev, titleSo: e.target.value }))}
+                                    placeholder="e.g. Nafaqada Muhiimka ah ee Birta..."
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SECTION 3: WHY IT IS IMPORTANT (4 LANGUAGES) */}
                     <div className="space-y-3 bg-amber-50/40 p-4 rounded-2xl border border-amber-100">
                         <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
                             <BookOpen className="w-4 h-4 text-amber-700" />
-                            2. Why It Is Important (4 Languages)
+                            3. Why It Is Important (4 Languages)
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
@@ -648,11 +723,11 @@ export default function NutritionManager() {
                         </div>
                     </div>
 
-                    {/* SECTION 3: HYDRATION GUIDANCE (4 LANGUAGES) */}
+                    {/* SECTION 4: HYDRATION GUIDANCE (4 LANGUAGES) */}
                     <div className="space-y-3 bg-sky-50/40 p-4 rounded-2xl border border-sky-100">
                         <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wider flex items-center gap-2">
                             <Droplets className="w-4 h-4 text-sky-700" />
-                            3. Hydration Guidance (4 Languages)
+                            4. Hydration Guidance (4 Languages)
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>

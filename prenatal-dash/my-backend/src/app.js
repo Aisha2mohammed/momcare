@@ -74,8 +74,8 @@ app.use('/api/v1/appointments', appointmentRoutes);
 app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/nutrition', nutritionRoutes);
 app.use('/api/v1/fetal', fetalRoutes);
-app.use('/api/v1/exercises', exerciseRoutes);
-app.use('/api/v1/sleep-tips', sleepRoutes);
+app.use('/api/v1/exercise', exerciseRoutes); // Fixed: mapped to /exercise
+app.use('/api/v1/sleep', sleepRoutes);       // Fixed: mapped to /sleep
 app.use('/api/v1/music', musicRoutes);
 app.use('/api/v1/health-tips', healthTipRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
