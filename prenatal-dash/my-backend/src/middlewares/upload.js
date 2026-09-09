@@ -30,6 +30,15 @@ const fileFilter = (req, file, cb) => {
     'video/webm',
     'video/quicktime',
     'application/pdf',
+    // audio, added for music tracks (image + per-language audio uploads)
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/ogg',
+    'audio/mp4',
+    'audio/aac',
+    'audio/webm',
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
@@ -47,4 +56,15 @@ const upload = multer({
   },
 });
 
+// Music track admin form: one image + one audio file per language, all optional
+// (any of these can be sent as a *Url string instead of a file - see music.controller.js).
+const musicUploadFields = upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'audio_en', maxCount: 1 },
+  { name: 'audio_am', maxCount: 1 },
+  { name: 'audio_om', maxCount: 1 },
+  { name: 'audio_so', maxCount: 1 },
+]);
+
 module.exports = upload;
+module.exports.musicUploadFields = musicUploadFields;
