@@ -89,5 +89,5 @@ async function simulateLLMResponse(message, systemPrompt, language) {
     return responses[lang].greeting;
   }
 
-  return responses[lang].default + ` (Context: ${systemPrompt.substring(0, 100)}...)`;
+  return responses[lang].default;
 }
