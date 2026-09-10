@@ -92,6 +92,8 @@ exports.localizeWeek = (row, lang = 'en') => {
     title: getField(row, 'title', lang),
     summary: getField(row, 'summary', lang),
     baby_length_cm: row.baby_length_cm,
+    daysRemaining: row.days_remaining, // Add field
+    heartRate: row.heart_rate,
     baby_weight_g: row.baby_weight_g,
     size_comparison: getField(row, 'size_comparison', lang),
     milestone: getField(row, 'milestone', lang),

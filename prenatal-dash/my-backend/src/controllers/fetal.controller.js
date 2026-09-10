@@ -40,11 +40,11 @@ const safeJsonParse = (value, fallback = []) => {
 // ── GET /api/v1/fetal ─────────────────────────────────────────────────
 exports.getAll = async (req, res, next) => {
   try {
-    const { lang = 'am', page = 1, limit = 42 } = req.query;
+    const { lang = 'am', page = 1, limit = 42, includeInactive } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
-    const includeInactive = req.user?.role === 'admin' && req.query.includeInactive === 'true';
+    const isAdminReq = req.user?.role === 'admin' && includeInactive === 'true';
 
-    const whereClause = includeInactive ? '' : 'WHERE is_active = true';
+    const whereClause = isAdminReq ? '' : 'WHERE is_active = true';
 
     const countResult = await query(`SELECT COUNT(*) FROM fetal_weekly_content ${whereClause}`);
     const total = parseInt(countResult.rows[0].count, 10);
@@ -53,6 +53,10 @@ exports.getAll = async (req, res, next) => {
       `SELECT * FROM fetal_weekly_content ${whereClause} ORDER BY week_number ASC LIMIT $1 OFFSET $2`,
       [Number(limit), offset]
     );
+
+    if (isAdminReq || lang === 'all') {
+      return sendPaginated(res, result.rows, page, limit, total);
+    }
 
     const localized = result.rows.map(r => localizeWeek(r, lang));
     return sendPaginated(res, localized, page, limit, total);
@@ -94,6 +98,8 @@ exports.getByWeek = async (req, res, next) => {
 
     const payload = {
       ...localizeWeek(weekRow, lang),
+      daysRemaining: weekRow.days_remaining, // Included in single-week payload
+      heartRate: weekRow.heart_rate,         // Included in single-week payload
       developments: devItemsResult.rows.map(i => localizeDevelopmentItem(i, lang)),
       checklist: checklistResult.rows.map(i => localizeChecklistItem(i, lang)),
     };
@@ -118,7 +124,7 @@ exports.create = async (req, res, next) => {
       'week_number', 'title_en', 'title_am', 'title_om', 'title_so',
       'image_url', 'image_alt_en', 'image_alt_am', 'image_alt_om', 'image_alt_so',
       'summary_en', 'summary_am', 'summary_om', 'summary_so',
-      'baby_length_cm', 'baby_weight_g',
+      'baby_length_cm', 'baby_weight_g', 'days_remaining', 'heart_rate',
       'size_comparison_en', 'size_comparison_am', 'size_comparison_om', 'size_comparison_so',
       'milestone_en', 'milestone_am', 'milestone_om', 'milestone_so',
       'physical_development_en', 'physical_development_am', 'physical_development_om', 'physical_development_so',
@@ -144,7 +150,16 @@ exports.create = async (req, res, next) => {
     const values = columns.map(c => {
       if (c === 'image_url') return finalImageUrl;
       
-      // FIXED: Strictly JSON.stringify 'senses' for PostgreSQL
+      if (c === 'days_remaining') {
+        const val = b.daysRemaining ?? b.days_remaining;
+        return val ? Number(val) : null;
+      }
+      
+      if (c === 'heart_rate') {
+        const val = b.heartRate ?? b.heart_rate;
+        return val ? Number(val) : null;
+      }
+
       if (c === 'senses') {
         const parsedSenses = safeJsonParse(b.senses);
         return JSON.stringify(parsedSenses);
@@ -189,7 +204,7 @@ exports.update = async (req, res, next) => {
       'week_number', 'title_en', 'title_am', 'title_om', 'title_so',
       'image_url', 'image_alt_en', 'image_alt_am', 'image_alt_om', 'image_alt_so',
       'summary_en', 'summary_am', 'summary_om', 'summary_so',
-      'baby_length_cm', 'baby_weight_g',
+      'baby_length_cm', 'baby_weight_g', 'days_remaining', 'heart_rate',
       'size_comparison_en', 'size_comparison_am', 'size_comparison_om', 'size_comparison_so',
       'milestone_en', 'milestone_am', 'milestone_om', 'milestone_so',
       'physical_development_en', 'physical_development_am', 'physical_development_om', 'physical_development_so',
@@ -225,11 +240,13 @@ exports.update = async (req, res, next) => {
       let value = req.body[camel] !== undefined ? req.body[camel] : req.body[field];
 
       if (value !== undefined) {
-        // FIXED: Convert JS Object/Array into valid JSON string for PostgreSQL
         if (field === 'senses') {
           const parsed = safeJsonParse(value);
           value = JSON.stringify(parsed);
+        } else if (field === 'days_remaining' || field === 'heart_rate') {
+          value = value === '' ? null : Number(value);
         }
+
         updates.push(`${field} = $${idx++}`);
         values.push(value);
       }

@@ -10,7 +10,6 @@ function fileUrl(req, file) {
 }
 
 // Resolve one media field: prefer an uploaded file, fall back to a submitted URL string.
-// Returns `undefined` if neither was provided at all (meaning: leave unchanged on update).
 function resolveMedia(req, files, fieldName, bodyUrlKey) {
   const file = files && files[fieldName] && files[fieldName][0];
   if (file) return fileUrl(req, file);
@@ -18,9 +17,65 @@ function resolveMedia(req, files, fieldName, bodyUrlKey) {
   return undefined;
 }
 
+// Helper to resolve localized text fields with fallback
+function getFieldValue(item, field, targetLang) {
+  // 1. Try requested language
+  const localizedVal = item[`${field}_${targetLang}`];
+  if (localizedVal && localizedVal.trim() !== '') {
+    return localizedVal;
+  }
+
+  // 2. Fallback to English
+  const englishVal = item[`${field}_en`];
+  if (englishVal && englishVal.trim() !== '') {
+    return englishVal;
+  }
+
+  // 3. Fallback to Amharic if English is missing
+  const amharicVal = item[`${field}_am`];
+  if (amharicVal && amharicVal.trim() !== '') {
+    return amharicVal;
+  }
+
+  // 4. Final fallback
+  return '';
+}
+
+// Helper to resolve localized audio URLs with fallback
+function getAudioUrl(item, targetLang) {
+  return (
+    item[`audio_${targetLang}_url`] ||
+    item.audio_en_url ||
+    item.audio_am_url ||
+    item.audio_om_url ||
+    item.audio_so_url ||
+    null
+  );
+}
+
+function localize(item, lang) {
+  const targetLang = LANGS.includes(lang) ? lang : 'en';
+
+  return {
+    id: item.id,
+    category: item.category,
+    title: getFieldValue(item, 'title', targetLang),
+    description: getFieldValue(item, 'description', targetLang),
+    audioUrl: getAudioUrl(item, targetLang),
+    imageUrl: item.image_url,
+    durationSeconds: item.duration_seconds,
+    benefits: getFieldValue(item, 'benefits', targetLang),
+    isActive: item.is_active,
+    isFeatured: item.is_featured,
+    displayOrder: item.display_order,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+  };
+}
+
 exports.getAll = async (req, res, next) => {
   try {
-    const { category, featured, lang = 'am', page = 1, limit = 20 } = req.query;
+    const { category, featured, lang, page = 1, limit = 20 } = req.query;
     let whereClause = 'WHERE mt.is_active = true';
     const params = [];
     let idx = 1;
@@ -38,17 +93,54 @@ exports.getAll = async (req, res, next) => {
     const total = parseInt(countResult.rows[0].count, 10);
 
     const offset = (Number(page) - 1) * Number(limit);
+    const limitIdx = idx++;
+    const offsetIdx = idx++;
     params.push(Number(limit), offset);
 
     const result = await query(
       `SELECT * FROM music_tracks mt ${whereClause}
        ORDER BY mt.display_order ASC, mt.id DESC
-       LIMIT $${idx++} OFFSET $${idx}`,
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     );
 
-    const localized = result.rows.map((r) => localize(r, lang));
-    return sendPaginated(res, localized, page, limit, total);
+    // If lang parameter is explicitly passed, localize; otherwise return ALL language fields
+    const data = result.rows.map((row) => {
+      if (lang) {
+        return localize(row, lang);
+      }
+
+      // Return full multilingual payload
+      return {
+        id: row.id,
+        category: row.category,
+        titleEn: row.title_en,
+        titleAm: row.title_am,
+        titleOm: row.title_om,
+        titleSo: row.title_so,
+        descriptionEn: row.description_en,
+        descriptionAm: row.description_am,
+        descriptionOm: row.description_om,
+        descriptionSo: row.description_so,
+        audioEnUrl: row.audio_en_url,
+        audioAmUrl: row.audio_am_url,
+        audioOmUrl: row.audio_om_url,
+        audioSoUrl: row.audio_so_url,
+        imageUrl: row.image_url,
+        durationSeconds: row.duration_seconds,
+        benefitsEn: row.benefits_en,
+        benefitsAm: row.benefits_am,
+        benefitsOm: row.benefits_om,
+        benefitsSo: row.benefits_so,
+        isActive: row.is_active,
+        isFeatured: row.is_featured,
+        displayOrder: row.display_order,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    });
+
+    return sendPaginated(res, data, page, limit, total);
   } catch (err) {
     next(err);
   }
@@ -60,8 +152,6 @@ exports.getOne = async (req, res, next) => {
     const result = await query('SELECT * FROM music_tracks WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return sendError(res, 404, 'Music track not found.');
 
-    // No lang param -> return the full multilingual record (useful for the admin edit form).
-    // lang param -> return the localized shape used by the mobile app.
     const data = lang ? localize(result.rows[0], lang) : result.rows[0];
     return sendSuccess(res, 200, 'Music track retrieved', data);
   } catch (err) {
@@ -185,22 +275,3 @@ exports.remove = async (req, res, next) => {
     next(err);
   }
 };
-
-function localize(item, lang) {
-  const l = LANGS.includes(lang) ? lang : 'am';
-  return {
-    id: item.id,
-    category: item.category,
-    title: item[`title_${l}`] || item.title_en || '',
-    description: item[`description_${l}`] || item.description_en || '',
-    audioUrl: item[`audio_${l}_url`] || item.audio_en_url || null,
-    imageUrl: item.image_url,
-    durationSeconds: item.duration_seconds,
-    benefits: item[`benefits_${l}`] || item.benefits_en || '',
-    isActive: item.is_active,
-    isFeatured: item.is_featured,
-    displayOrder: item.display_order,
-    createdAt: item.created_at,
-    updatedAt: item.updated_at,
-  };
-}

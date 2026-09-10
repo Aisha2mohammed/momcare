@@ -1,19 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/fetal_details_page.dart';
+import 'package:pregnancy_appp/services/content_service.dart';
+import 'package:pregnancy_appp/services/mother_service.dart';
 
-class AmIPregnantCard extends StatelessWidget {
-  final int week;
-  final int daysRemaining;
+class AmIPregnantCard extends StatefulWidget {
+  const AmIPregnantCard({super.key, required int week, required int daysRemaining});
 
-  const AmIPregnantCard({
-    super.key,
-    this.week = 12,
-    this.daysRemaining = 196,
-  });
+  @override
+  State<AmIPregnantCard> createState() => _AmIPregnantCardState();
+}
+
+class _AmIPregnantCardState extends State<AmIPregnantCard> {
+  int _week = 12;
+  int _daysRemaining = 196;
+  String _sizeComparison = "Plum";
+  int _heartRate = 160;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final progress = await MotherService.getGestationalWeek();
+      final week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
+      final data = await ContentService.getFetalByWeek(week);
+      
+      if (!mounted) return;
+
+      setState(() {
+        _week = week;
+        _daysRemaining = (data['days_remaining'] as num?)?.toInt() ?? _daysRemaining;
+        _heartRate = (data['heart_rate'] as num?)?.toInt() ?? _heartRate;
+        
+        final sizeRaw = data['size_comparison'] ?? data['size_comparison_en'];
+        if (sizeRaw != null && sizeRaw.toString().isNotEmpty) {
+          _sizeComparison = sizeRaw.toString();
+        }
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -63,8 +110,8 @@ class AmIPregnantCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    "Week $week",
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    "Week $_week",
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -80,11 +127,11 @@ class AmIPregnantCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 
-                _buildListItem(Icons.child_care_rounded, "Baby is size of a plum 🍑"),
+                _buildListItem(Icons.child_care_rounded, "Size of a $_sizeComparison"),
                 const SizedBox(height: 10),
-                _buildListItem(Icons.favorite_rounded, "Heart rate: 160 bpm"),
+                _buildListItem(Icons.favorite_rounded, "Heart rate: $_heartRate bpm"),
                 const SizedBox(height: 10),
-                _buildListItem(Icons.calendar_month_rounded, "$daysRemaining days remaining"),
+                _buildListItem(Icons.calendar_month_rounded, "$_daysRemaining days remaining"),
                 
                 const SizedBox(height: 20),
                 
