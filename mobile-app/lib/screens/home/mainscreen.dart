@@ -99,7 +99,7 @@ class _MainScreenState extends State<MainScreen> {
       appBar: const CustomTopNavbar(),
       body: _pages[_selectedIndex], 
       
-      // Floating Action Button with generic + icon
+     // Floating Action Button with generic + icon
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: FloatingActionButton(

@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -7,8 +9,15 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
+// ── Static Files (Uploads) ─────────────────────────────────────────────
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
 // ── Security Middlewares ──────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -16,12 +25,21 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate Limiting: 100 requests per 15 minutes on /api/
+// Rate Limiting: global limiter — admin routes & admin auth are fully exempted
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: process.env.NODE_ENV === 'production' ? 15 * 60 * 1000 : 5 * 60 * 1000, // 15 min prod / 5 min dev
+  max: process.env.NODE_ENV === 'production' ? 1000 : 10000,
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip all /admin/ routes AND the admin login endpoint
+  skip: (req) => {
+    if (!req.originalUrl) return false;
+    const url = req.originalUrl;
+    return (
+      url.includes('/admin/') ||
+      url.includes('/auth/admin')
+    );
+  },
   message: { error: { message: 'Too many requests, please try again later.', code: 429 } },
 });
 app.use('/api/', limiter);
@@ -56,8 +74,8 @@ app.use('/api/v1/appointments', appointmentRoutes);
 app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/nutrition', nutritionRoutes);
 app.use('/api/v1/fetal', fetalRoutes);
-app.use('/api/v1/exercises', exerciseRoutes);
-app.use('/api/v1/sleep-tips', sleepRoutes);
+app.use('/api/v1/exercise', exerciseRoutes); // Fixed: mapped to /exercise
+app.use('/api/v1/sleep', sleepRoutes);       // Fixed: mapped to /sleep
 app.use('/api/v1/music', musicRoutes);
 app.use('/api/v1/health-tips', healthTipRoutes);
 app.use('/api/v1/notifications', notificationRoutes);

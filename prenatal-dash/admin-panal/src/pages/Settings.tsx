@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Bell, Lock, Globe, Shield, Palette } from 'lucide-react';
+import { Save, Bell, Globe, Shield, Palette } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';

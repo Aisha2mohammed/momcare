@@ -12,6 +12,25 @@ router.get('/users', paginationRules, validate, adminController.getUsers);
 router.put('/users/:id/suspend', adminController.suspendUser);
 router.put('/users/:id/reactivate', adminController.reactivateUser);
 
+// Generic CMS upload
+const upload = require('../middlewares/upload');
+router.post('/cms/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: { message: 'No file uploaded' } });
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({
+    success: true,
+    data: {
+      url: url,
+      relativeUrl: url,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    }
+  });
+});
+
 // Doctor Approval
 router.get('/doctors/pending', adminController.getPendingDoctors);
 router.put('/doctors/:id/approve', adminController.approveDoctor);
@@ -23,7 +42,7 @@ router.post('/health-providers', healthProviderRules, validate, adminController.
 router.put('/health-providers/:id', adminController.updateHealthProvider);
 router.put('/health-providers/:id/status', adminController.toggleHealthProviderStatus);
 
-// Content Management (CRUD for all content types is handled via respective routes)
+
 // Audit Logs
 router.get('/audit-logs', paginationRules, validate, adminController.getAuditLogs);
 

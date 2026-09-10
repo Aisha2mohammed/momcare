@@ -110,6 +110,13 @@ export function Header() {
                         <span className="font-semibold text-gray-900 leading-tight">{user?.name ?? 'Admin'}</span>
                         <span className="text-xs text-gray-400 capitalize">{user?.role ?? 'admin'}</span>
                     </div>
+                    <button
+                        onClick={logout}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors ml-1"
+                        title="Sign Out"
+                    >
+                        <LogOut className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
         </header>

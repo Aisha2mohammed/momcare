@@ -10,6 +10,7 @@ import DoctorApprovals from './pages/DoctorApprovals';
 import DoctorReviewDetail from './pages/DoctorReviewDetail';
 import HealthProviders from './pages/HealthProviders';
 import NutritionManager from './pages/NutritionManager';
+import AddNutritionPage from './pages/AddNutritionPage';
 import FetalDevelopmentManager from './pages/FetalDevelopmentManager';
 import ExerciseManager from './pages/ExerciseManager';
 import SleepPositionManager from './pages/SleepPositionManager';
@@ -21,6 +22,8 @@ import Announcements from './pages/Announcements';
 import AuditLog from './pages/AuditLog';
 import CommunityModeration from './pages/CommunityModeration';
 import Settings from './pages/Settings';
+import AddSleepPage from './pages/AddSleepPage';
+import AddExercisePage from './pages/AddExercisePage';
 
 export default function App() {
   return (
@@ -45,10 +48,16 @@ export default function App() {
               <Route path="doctor-approvals/:id" element={<DoctorReviewDetail />} />
               <Route path="users" element={<UsersManager />} />
               <Route path="health-providers" element={<HealthProviders />} />
-              <Route path="nutrition" element={<NutritionManager />} />
+              <Route path="nutrition" element={<Navigate to="/nutrition/weeks" replace />} />
+              <Route path="nutrition/weeks" element={<NutritionManager />} />
+              <Route path="nutrition/add" element={<AddNutritionPage />} />
               <Route path="fetal-development" element={<FetalDevelopmentManager />} />
-              <Route path="exercise" element={<ExerciseManager />} />
-              <Route path="sleep" element={<SleepPositionManager />} />
+              <Route path="exercise" element={<Navigate to="/exercise/weeks" replace />} />
+              <Route path="exercise/weeks" element={<ExerciseManager />} />
+              <Route path="exercise/add" element={<AddExercisePage />} />
+              <Route path="sleep" element={<Navigate to="/sleep/weeks" replace />} />
+              <Route path="sleep/weeks" element={<SleepPositionManager />} />
+              <Route path="sleep/add" element={<AddSleepPage />} />
               <Route path="music" element={<MusicLibraryManager />} />
               <Route path="notifications" element={<NotificationsManager />} />
               <Route path="emergency" element={<EmergencyContactsManager />} />

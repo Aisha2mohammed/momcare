@@ -9,7 +9,8 @@
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
-    "seed": "node src/seeds/run.js",
+    "seed": "node src/scripts/run.js",
+    "seed:cms": "node src/scripts/seed_cms.js",
     "seed:make": "knex seed:make",
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit"
@@ -36,6 +37,7 @@
     "jsonwebtoken": "^9.0.2",
     "knex": "^3.1.0",
     "morgan": "^1.11.0",
+    "multer": "^2.3.0",
     "nodemailer": "^6.9.14",
     "pg": "^8.12.0",
     "socket.io": "^4.7.5",

@@ -18,7 +18,10 @@ import {
     ClipboardList,
     LogOut,
     ChevronRight,
+    ChevronDown,
     MessageSquareWarning,
+    ListChecks,
+    PlusCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
@@ -41,12 +44,10 @@ const navSections = [
     },
     {
         label: 'Content Library',
-        collapsible: true, // we translate the label inline directly
+        collapsible: true,
         items: [
-            { icon: Apple, label: 'Nutrition Guide', key: 'nutrition', path: '/nutrition', badge: 0 },
+            // Note: Nutrition, Exercise, and Sleep are rendered separately with sub-dropdowns
             { icon: Baby, label: 'Fetal Development', key: 'fetalDevelopment', path: '/fetal-development', badge: 0 },
-            { icon: Activity, label: 'Exercise Recs', key: 'exercise', path: '/exercise', badge: 0 },
-            { icon: Moon, label: 'Sleep Position Tips', key: 'sleep', path: '/sleep', badge: 0 },
             { icon: Music, label: 'Music & Relaxation', key: 'music', path: '/music', badge: 0 },
             { icon: Bell, label: 'Tracker & Notifications', key: 'notifications', path: '/notifications', badge: 0 },
             { icon: HeartPulse, label: 'Emergency & Health', key: 'emergency', path: '/emergency', badge: 0 },
@@ -69,16 +70,80 @@ const navSections = [
     },
 ];
 
+const SubMenu = ({
+    label, icon: Icon, pathPrefix, expanded, setExpanded, subItems, isActive, isActivePrefix
+}: any) => (
+    <div>
+        <button
+            type="button"
+            onClick={() => setExpanded((e: boolean) => !e)}
+            className={clsx(
+                'w-full flex items-center px-3 py-2 rounded-lg transition-all text-sm font-medium group',
+                isActivePrefix(pathPrefix)
+                    ? 'bg-[#fdf2f8] text-[#61183e]'
+                    : 'text-gray-600 hover:bg-[#fdf2f8] hover:text-[#61183e]'
+            )}
+        >
+            <Icon className={clsx(
+                'w-4 h-4 mr-2.5 shrink-0',
+                isActivePrefix(pathPrefix) ? 'text-[#61183e]' : 'text-gray-400 group-hover:text-[#61183e]'
+            )} />
+            <span className="flex-1 truncate text-xs font-semibold text-left">
+                {label}
+            </span>
+            <ChevronDown className={clsx(
+                'w-3.5 h-3.5 transition-transform shrink-0',
+                expanded ? 'rotate-180' : '',
+                isActivePrefix(pathPrefix) ? 'text-[#61183e]' : 'text-gray-400'
+            )} />
+        </button>
+
+        {expanded && (
+            <div className="ml-4 mt-0.5 space-y-0.5 border-l-2 border-[#61183e]/15 pl-2">
+                {subItems.map((item: any) => (
+                    <Link
+                        key={item.path}
+                        to={item.path}
+                        className={clsx(
+                            'flex items-center px-3 py-1.5 rounded-lg transition-all text-xs font-medium group',
+                            isActive(item.path)
+                                ? 'bg-[#61183e] text-white shadow-sm'
+                                : 'text-gray-600 hover:bg-[#fdf2f8] hover:text-[#61183e]'
+                        )}
+                    >
+                        <item.icon className={clsx(
+                            'w-3.5 h-3.5 mr-2 shrink-0',
+                            isActive(item.path) ? 'text-white' : 'text-gray-400 group-hover:text-[#61183e]'
+                        )} />
+                        {item.label}
+                    </Link>
+                ))}
+            </div>
+        )}
+    </div>
+);
+
 export function Sidebar() {
     const { t } = useTranslation();
     const location = useLocation();
     const { user, logout } = useAuth();
     const [contentExpanded, setContentExpanded] = useState(true);
+    const [nutritionExpanded, setNutritionExpanded] = useState(
+        location.pathname.startsWith('/nutrition')
+    );
+    const [exerciseExpanded, setExerciseExpanded] = useState(
+        location.pathname.startsWith('/exercise')
+    );
+    const [sleepExpanded, setSleepExpanded] = useState(
+        location.pathname.startsWith('/sleep')
+    );
 
     const isActive = (path: string) => {
         if (path === '/') return location.pathname === '/';
-        return location.pathname.startsWith(path);
+        return location.pathname === path;
     };
+
+    const isActivePrefix = (path: string) => location.pathname.startsWith(path);
 
     // auto-expand content section if any child is active
     const contentPaths = ['/nutrition', '/fetal-development', '/exercise', '/sleep', '/music', '/notifications', '/emergency', '/language'];
@@ -119,6 +184,52 @@ export function Sidebar() {
 
                             {expanded && (
                                 <div className="space-y-0.5">
+                                     {/* Custom Sub-menus for Content Library */}
+                                     {section.collapsible && (
+                                         <>
+                                            <SubMenu
+                                                label={t('nav.nutrition', { defaultValue: 'Nutrition Guide' })}
+                                                icon={Apple}
+                                                pathPrefix="/nutrition"
+                                                expanded={nutritionExpanded}
+                                                setExpanded={setNutritionExpanded}
+                                                isActive={isActive}
+                                                isActivePrefix={isActivePrefix}
+                                                subItems={[
+                                                    { label: 'Nutrition Week', path: '/nutrition/weeks', icon: ListChecks },
+                                                    { label: 'Add Nutrient', path: '/nutrition/add', icon: PlusCircle }
+                                                ]}
+                                            />
+                                            <SubMenu
+                                                label={t('nav.exercise', { defaultValue: 'Exercise Recs' })}
+                                                icon={Activity}
+                                                pathPrefix="/exercise"
+                                                expanded={exerciseExpanded}
+                                                setExpanded={setExerciseExpanded}
+                                                isActive={isActive}
+                                                isActivePrefix={isActivePrefix}
+                                                subItems={[
+                                                    { label: 'Exercise Week', path: '/exercise/weeks', icon: ListChecks },
+                                                    { label: 'Add Exercise', path: '/exercise/add', icon: PlusCircle }
+                                                ]}
+                                            />
+                                            <SubMenu
+                                                label={t('nav.sleep', { defaultValue: 'Sleep Position Tips' })}
+                                                icon={Moon}
+                                                pathPrefix="/sleep"
+                                                expanded={sleepExpanded}
+                                                setExpanded={setSleepExpanded}
+                                                isActive={isActive}
+                                                isActivePrefix={isActivePrefix}
+                                                subItems={[
+                                                    { label: 'Sleep Week', path: '/sleep/weeks', icon: ListChecks },
+                                                    { label: 'Add Sleep', path: '/sleep/add', icon: PlusCircle }
+                                                ]}
+                                            />
+                                         </>
+                                     )}
+
+                                    {/* All other content items */}
                                     {section.items.map(item => {
                                         const active = isActive(item.path);
                                         return (

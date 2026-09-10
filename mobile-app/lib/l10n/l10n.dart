@@ -6,7 +6,8 @@ class L10n {
   static final all = [
     const Locale('en'), // English (fallback)
     const Locale('am'), // Amharic
-    const Locale('om'), // Afan Oromo
+    const Locale('om'), // Afaan Oromo
+    const Locale('so'), // Af-Soomaali (Somali)
   ];
 
   static String getLanguageName(String code) {
@@ -15,6 +16,8 @@ class L10n {
         return 'አማርኛ (Amharic)';
       case 'om':
         return 'Afaan Oromoo (Oromo)';
+      case 'so':
+        return 'Af-Soomaali (Somali)';
       case 'en':
       default:
         return 'English';
@@ -113,6 +116,27 @@ class AppStrings {
       'emergency_call': 'Bilbila Ariifachiisaa',
       'gps_share': 'Bakka Jirtan Ergaa',
       'first_aid': 'Gorsa Gargaarsa Jalqabaa',
+    },
+    'so': {
+      'app_title': 'Abka Uurka',
+      'nutrition': 'Hagaha Nafaqada',
+      'fetal_growth': 'Raadraaca Uurjiifka',
+      'exercise': 'Tababarka',
+      'sleeping': 'Xeeladaha Hurdo',
+      'music': 'Nasasho & Muusiko',
+      'video': 'Fiidiyowyada Waxbarashada',
+      'tracker': 'Raadraaca Uurka',
+      'emergency': 'Xaalad Degdeg ah',
+      'language': 'Luqad',
+      'welcome': 'Ku soo dhowow!',
+      'trimester': 'Saddexdii Bilood',
+      'week': 'Toddobaad',
+      'days_left': 'maalmood la',
+      'local_food': 'Cuntada Maxalliga ah',
+      'meal_plan': 'Qorshaha Cuntada',
+      'emergency_call': 'Wicitaanka Degdegga ah',
+      'gps_share': 'La Wadaag Goobta',
+      'first_aid': 'Xaaladaha Koowaad',
     },
   };
 

@@ -169,7 +169,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text("Post Details", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Post Details', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -183,7 +183,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Author Info
+                  // ── Author info ──────────────────────────────────────
                   Row(
                     children: [
                       CircleAvatar(
@@ -255,8 +255,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                       ),
                     ],
                   ),
+
                   const Divider(height: 40),
-                  const Text("Comments", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Text('Comments',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   const SizedBox(height: 16),
                   if (_loadingComments)
                     const Padding(
@@ -302,9 +305,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               ),
             ),
           ),
-          // Comment Input
+
+          // ── Comment input ──────────────────────────────────────────────
           Container(
-            padding: EdgeInsets.only(left: 20, right: 10, bottom: MediaQuery.of(context).padding.bottom + 10, top: 10),
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 10,
+              bottom: MediaQuery.of(context).padding.bottom + 10,
+              top: 10,
+            ),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -317,14 +326,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                   child: TextField(
                     controller: _commentController,
                     decoration: InputDecoration(
-                      hintText: "Add a comment...",
+                      hintText: 'Add a comment...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
                       fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
                     ),
                     onSubmitted: (_) => _submitComment(),
                   ),
@@ -354,7 +364,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     );
   }
 
-  Widget _buildCommentItem(String name, String text, String time) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
@@ -381,7 +390,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(text, style: TextStyle(color: Colors.grey[800], fontSize: 14, height: 1.4)),
+                Text(text,
+                    style: TextStyle(
+                        color: Colors.grey[800], fontSize: 14, height: 1.4)),
               ],
             ),
           ),

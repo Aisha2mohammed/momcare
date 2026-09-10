@@ -38,9 +38,16 @@ class CustomTopNavbar extends StatelessWidget implements PreferredSizeWidget {
                   },
                   itemBuilder: (BuildContext context) => L10n.all.map((locale) {
                     final name = L10n.getLanguageName(locale.languageCode);
+                    final isSelected = provider.locale == locale;
                     return PopupMenuItem<Locale>(
                       value: locale,
-                      child: Text(name),
+                      child: Text(
+                        name,
+                        style: TextStyle(
+                          color: isSelected ? AppColors.primary : Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),

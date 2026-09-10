@@ -174,7 +174,7 @@ class _JournalPageState extends State<JournalPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    initialValue: selectedMood,
+                    value: selectedMood,
                     decoration: InputDecoration(
                       labelText: "Mood",
                       filled: true,

@@ -10,7 +10,11 @@ async function run() {
     const { seed: hpSeed } = require('../seeds/01_health_providers');
     await hpSeed(knex);
 
-    console.log('✅ Seeds completed!');
+    // 2. Seed CMS content (Nutrition, Fetal Tracker, Exercise, Sleep, Music, Admin)
+    const { seed: cmsSeed } = require('../seeds/02_cms_content');
+    await cmsSeed(knex);
+
+    console.log('✅ All seeds completed!');
   } catch (err) {
     console.error('❌ Seed error:', err);
     process.exit(1);
