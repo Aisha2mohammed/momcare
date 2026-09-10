@@ -5,10 +5,13 @@ const {
   localizeDevelopmentItem,
   localizeChecklistItem,
 } = require('../utils/fetalLocalize');
+
+// ── FIXED HELPER ──────────────────────────────────────────────────────
 const safeJsonParse = (value, fallback = []) => {
   if (!value) return fallback;
   let parsed = value;
 
+  // 1. If string, parse it once
   if (typeof value === 'string') {
     try {
       parsed = JSON.parse(value);
@@ -17,7 +20,7 @@ const safeJsonParse = (value, fallback = []) => {
     }
   }
 
-  // If parsed result is an array, ensure each element inside is also parsed
+  // 2. If it's an array, ensure all internal stringified items are fully parsed into objects
   if (Array.isArray(parsed)) {
     return parsed.map(item => {
       if (typeof item === 'string') {
@@ -33,6 +36,7 @@ const safeJsonParse = (value, fallback = []) => {
 
   return parsed;
 };
+
 // ── GET /api/v1/fetal ─────────────────────────────────────────────────
 exports.getAll = async (req, res, next) => {
   try {
@@ -105,7 +109,6 @@ exports.create = async (req, res, next) => {
   try {
     const b = req.body;
 
-    // Resolve Image URL: File Upload > URL Body String
     let finalImageUrl = b.imageUrl || b.image_url || null;
     if (req.file) {
       finalImageUrl = `/uploads/fetal/${req.file.filename}`;
@@ -140,8 +143,13 @@ exports.create = async (req, res, next) => {
 
     const values = columns.map(c => {
       if (c === 'image_url') return finalImageUrl;
-      // Pass native JS object/array directly for PostgreSQL JSONB
-      if (c === 'senses') return safeJsonParse(b.senses);
+      
+      // FIXED: Strictly JSON.stringify 'senses' for PostgreSQL
+      if (c === 'senses') {
+        const parsedSenses = safeJsonParse(b.senses);
+        return JSON.stringify(parsedSenses);
+      }
+      
       if (c === 'is_active') return b.isActive ?? b.is_active ?? true;
       if (c === 'created_by') return b.createdBy ?? b.created_by ?? req.user?.id ?? null;
 
@@ -158,7 +166,6 @@ exports.create = async (req, res, next) => {
     );
     const weekRow = result.rows[0];
 
-    // Handle developments and checklist arrays
     const developments = safeJsonParse(b.developments);
     if (developments.length > 0) {
       await insertDevelopmentItems(weekRow.id, developments);
@@ -205,7 +212,6 @@ exports.update = async (req, res, next) => {
       'is_active', 'reviewed_by',
     ];
 
-    // Priority: File upload > URL field in body
     if (req.file) {
       req.body.imageUrl = `/uploads/fetal/${req.file.filename}`;
     }
@@ -219,9 +225,10 @@ exports.update = async (req, res, next) => {
       let value = req.body[camel] !== undefined ? req.body[camel] : req.body[field];
 
       if (value !== undefined) {
-        // Pass native JS object/array directly for PostgreSQL JSONB
+        // FIXED: Convert JS Object/Array into valid JSON string for PostgreSQL
         if (field === 'senses') {
-          value = safeJsonParse(value);
+          const parsed = safeJsonParse(value);
+          value = JSON.stringify(parsed);
         }
         updates.push(`${field} = $${idx++}`);
         values.push(value);
