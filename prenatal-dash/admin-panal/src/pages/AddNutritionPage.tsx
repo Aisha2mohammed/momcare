@@ -64,56 +64,26 @@ export interface NutrientSection {
     benefitLabelOr?: string;
     benefitLabelSo?: string;
     benefitLabelAm?: string;
-    helpfulTips?: string;
+    // Why Important (4 Languages)
+    whyImportantEn?: string;
+    whyImportantOr?: string;
+    whyImportantSo?: string;
+    whyImportantAm?: string;
+
+    // Health Tips (multi-language array from API, stored as single EN string in form)
+    healthTips?: string;
 
     // Foods List
     foods: FoodItem[];
 }
 
-interface BackendNutritionRow {
+// Use a flexible record type to avoid TypeScript errors on dynamic backend field names
+type BackendNutritionRow = Record<string, any> & {
     id: string | number;
-    week?: number | string | null;
-    trimester?: number | string | null;
     type?: 'eat' | 'avoid';
-    emoji?: string;
-    nutrient_type?: string;
-    nutrientType?: string;
-
-    title_en?: string; titleEn?: string;
-    title_or?: string; titleOr?: string;
-    title_so?: string; titleSo?: string;
-    title_am?: string; titleAm?: string;
-
-    body_en?: string; bodyEn?: string;
-    body_or?: string; bodyOr?: string;
-    body_so?: string; bodySo?: string;
-    body_am?: string; bodyAm?: string;
-
-    why_important_en?: string; whyImportantEn?: string;
-    why_important_or?: string; whyImportantOr?: string;
-    why_important_so?: string; whyImportantSo?: string;
-    why_important_am?: string; whyImportantAm?: string;
-
-    hydration_en?: string; hydrationEn?: string;
-    hydration_or?: string; hydrationOr?: string;
-    hydration_so?: string; hydrationSo?: string;
-    hydration_am?: string; hydrationAm?: string;
-
-    image_url?: string; imageUrl?: string;
-    video_url?: string; videoUrl?: string;
-    benefit_value?: string; benefitValue?: string;
-    benefit_label_en?: string; benefitLabelEn?: string;
-    benefit_label_or?: string; benefitLabelOr?: string;
-    benefit_label_so?: string; benefitLabelSo?: string;
-    benefit_label_am?: string; benefitLabelAm?: string;
-
-    nutrient_sections_json?: any;
-    nutrientSectionsJson?: any;
-    foods_json?: any;
-    foodsJson?: any;
     is_published?: boolean;
     isPublished?: boolean;
-}
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -141,9 +111,9 @@ const TRIMESTER_BADGE_STYLE: Record<string, string> = {
 };
 
 const EMPTY_NUTRIENT: Omit<NutrientSection, 'id'> = {
-    week: 18,
-    trimester: '2nd',
-    month: 5,
+    week: 1,
+    trimester: '1st',
+    month: 1,
     type: 'eat',
     nutrientType: '',
     emoji: '🥗',
@@ -163,7 +133,11 @@ const EMPTY_NUTRIENT: Omit<NutrientSection, 'id'> = {
     benefitLabelOr: '',
     benefitLabelSo: '',
     benefitLabelAm: '',
-    helpfulTips: '',
+    whyImportantEn: '',
+    whyImportantOr: '',
+    whyImportantSo: '',
+    whyImportantAm: '',
+    healthTips: '',
     foods: [],
 };
 
@@ -206,14 +180,32 @@ export default function AddNutritionPage() {
         open: false, title: '', message: ''
     });
 
-    // Language tab state for preview in cards
+    // ─── Nutrition Weeks (for dropdown) ──────────────────────────────────────
+    const [nutritionWeeks, setNutritionWeeks] = useState<{id: number; week: number; month: number; trimester: string}[]>([]);
+
+    useEffect(() => {
+        cmsClient.list('nutrition-weeks', { limit: 500 }).then(res => {
+            const rows = res.items || [];
+            setNutritionWeeks(rows.map((r: any) => ({
+                id: Number(r.id),
+                week: Number(r.week),
+                month: Number(r.month),
+                trimester: r.trimester || '',
+            })));
+            // Set form default to first week
+            if (rows.length > 0) {
+                const first = rows[0];
+                setFormData(prev => ({ ...prev, week: Number(first.id), month: Number(first.month), trimester: String(first.trimester) }));
+            }
+        }).catch(() => {});
+    }, []);
     const [cardLang, setCardLang] = useState<Record<string, 'en' | 'or' | 'so' | 'am'>>({});
 
     // ── Fetch Data ────────────────────────────────────────────────────────────
     const loadNutritionData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await cmsClient.list<BackendNutritionRow>('nutrition', { limit: 500 });
+            const res = await cmsClient.list<BackendNutritionRow>('nutrition-tips', { limit: 500 });
             setRawRows(res.items || []);
         } catch (err: any) {
             showToast(err.message || 'Failed to load nutrients', 'error');
@@ -231,148 +223,91 @@ export default function AddNutritionPage() {
         const list: NutrientSection[] = [];
 
         rawRows.forEach(row => {
-            const weekNum = Number(row.week || 1);
+            // Backend localize() returns: id, type, nutrition_week_id, trimester, month, week,
+            // image_url, title, description, description_label, description_value, why_important,
+            // health_tips (array), list_food (array)
+            const weekNum = Number(row.week || row.nutritionWeekId || row.nutrition_week_id || 1);
             const { month, trimester } = calculateMonthAndTrimester(weekNum);
-            const parentType = row.type || 'eat';
+            const rowMonth = Number(row.month || month);
+            const rowTrimester = String(row.trimester || trimester);
             const isPub = row.is_published ?? row.isPublished ?? true;
 
-            // Parse nutrient_sections_json
-            let sections: any[] = [];
-            if (row.nutrient_sections_json || row.nutrientSectionsJson) {
-                const rawSec = row.nutrient_sections_json || row.nutrientSectionsJson;
-                try {
-                    sections = typeof rawSec === 'string' ? JSON.parse(rawSec) : rawSec;
-                } catch { sections = []; }
+            // Parse listFood
+            let listFood: any[] = [];
+            const rawListFood = row.list_food || row.listFood;
+            if (Array.isArray(rawListFood)) listFood = rawListFood;
+            else if (typeof rawListFood === 'string') { try { listFood = JSON.parse(rawListFood); } catch { listFood = []; } }
+
+            // Parse healthTips to single EN string for display
+            let healthTipStr = '';
+            const rawTips = row.health_tips || row.healthTips;
+            if (Array.isArray(rawTips) && rawTips.length > 0) {
+                healthTipStr = rawTips.map((t: any) => {
+                    if (typeof t === 'string') return t;
+                    return t?.label?.en || t?.label || '';
+                }).filter(Boolean).join(' | ');
             }
 
-            if (Array.isArray(sections) && sections.length > 0) {
-                sections.forEach((sec, idx) => {
-                    // Normalize foods
-                    let foodsList: FoodItem[] = [];
-                    if (Array.isArray(sec.foods)) {
-                        foodsList = sec.foods.map((f: any) => ({
-                            id: f.id || `f-${Math.random()}`,
-                            nameEn: f.nameEn || f.name_en || f.name || '',
-                            nameOr: f.nameOr || f.name_or || '',
-                            nameSo: f.nameSo || f.name_so || '',
-                            nameAm: f.nameAm || f.name_am || '',
-                            descEn: f.descEn || f.desc_en || f.description || '',
-                            descOr: f.descOr || f.desc_or || '',
-                            descSo: f.descSo || f.desc_so || '',
-                            descAm: f.descAm || f.desc_am || '',
-                            imageUrl: f.imageUrl || f.image_url || '',
-                            videoUrl: f.videoUrl || f.video_url || '',
-                        }));
-                    }
+            const foodsList: FoodItem[] = listFood.map((f: any, fi: number) => ({
+                id: f.id || `f-${fi}`,
+                nameEn: f.name?.en || f.nameEn || f.name || '',
+                nameAm: f.name?.am || f.nameAm || '',
+                nameOr: f.name?.or || f.nameOr || '',
+                nameSo: f.name?.so || f.nameSo || '',
+                descEn: f.description?.en || f.descEn || f.description || '',
+                descAm: f.description?.am || f.descAm || '',
+                descOr: f.description?.or || f.descOr || '',
+                descSo: f.description?.so || f.descSo || '',
+                imageUrl: f.image?.url || f.imageUrl || '',
+                videoUrl: f.video?.url || f.videoUrl || '',
+            }));
 
-                    list.push({
-                        id: sec.id || `sec-${row.id}-${idx}`,
-                        parentId: row.id,
-                        week: weekNum,
-                        trimester: String(row.trimester || trimester),
-                        month,
-                        type: (sec.type || parentType) as 'eat' | 'avoid',
-                        nutrientType: sec.nutrientType || sec.nutrient_type || row.nutrient_type || 'General Nutrient',
-                        emoji: sec.emoji || row.emoji || '🥗',
-                        isPublished: isPub,
+            list.push({
+                id: String(row.id),
+                week: weekNum,
+                trimester: rowTrimester,
+                month: rowMonth,
+                type: (row.type || 'eat') as 'eat' | 'avoid',
+                nutrientType: row.nutrient_type || row.nutrientType || row.description_label || row.title || 'Nutrient',
+                emoji: row.emoji || '🥗',
+                isPublished: isPub,
 
-                        titleEn: sec.titleEn || sec.title_en || row.title_en || row.titleEn || '',
-                        titleOr: sec.titleOr || sec.title_or || row.title_or || row.titleOr || '',
-                        titleSo: sec.titleSo || sec.title_so || row.title_so || row.titleSo || '',
-                        titleAm: sec.titleAm || sec.title_am || row.title_am || row.titleAm || '',
+                // Title fields — localized response returns 'title', raw fields may also exist
+                titleEn: row.title_en || row.titleEn || row.title || '',
+                titleOr: row.title_or || row.titleOr || '',
+                titleSo: row.title_so || row.titleSo || '',
+                titleAm: row.title_am || row.titleAm || '',
 
-                        bodyEn: sec.bodyEn || sec.desc_en || sec.body_en || row.body_en || row.bodyEn || '',
-                        bodyOr: sec.bodyOr || sec.desc_or || sec.body_or || row.body_or || row.bodyOr || '',
-                        bodySo: sec.bodySo || sec.desc_so || sec.body_so || row.body_so || row.bodySo || '',
-                        bodyAm: sec.bodyAm || sec.desc_am || sec.body_am || row.body_am || row.bodyAm || '',
+                // Body / Description
+                bodyEn: row.description_en || row.descriptionEn || row.body_en || row.bodyEn || row.description || '',
+                bodyOr: row.description_or || row.descriptionOr || row.body_or || row.bodyOr || '',
+                bodySo: row.description_so || row.descriptionSo || row.body_so || row.bodySo || '',
+                bodyAm: row.description_am || row.descriptionAm || row.body_am || row.bodyAm || '',
 
-                        imageUrl: sec.imageUrl || sec.image_url || row.image_url || row.imageUrl || '',
-                        videoUrl: sec.videoUrl || sec.video_url || row.video_url || row.videoUrl || '',
+                imageUrl: row.image_url || row.imageUrl || '',
+                videoUrl: row.video_url || row.videoUrl || '',
 
-                        benefitValue: sec.benefitValue || sec.benefit_value || row.benefit_value || row.benefitValue || '',
-                        benefitLabelEn: sec.benefitLabelEn || sec.benefit_label_en || row.benefit_label_en || '',
-                        benefitLabelOr: sec.benefitLabelOr || sec.benefit_label_or || row.benefit_label_or || '',
-                        benefitLabelSo: sec.benefitLabelSo || sec.benefit_label_so || row.benefit_label_so || '',
-                        benefitLabelAm: sec.benefitLabelAm || sec.benefit_label_am || row.benefit_label_am || '',
+                // Benefit
+                benefitValue: row.description_value_en || row.descriptionValueEn || row.benefit_value || row.benefitValue || '',
+                benefitLabelEn: row.description_label_en || row.descriptionLabelEn || row.benefit_label_en || row.benefitLabelEn || row.description_label || '',
+                benefitLabelOr: row.description_label_or || row.descriptionLabelOr || row.benefit_label_or || row.benefitLabelOr || '',
+                benefitLabelSo: row.description_label_so || row.descriptionLabelSo || row.benefit_label_so || row.benefitLabelSo || '',
+                benefitLabelAm: row.description_label_am || row.descriptionLabelAm || row.benefit_label_am || row.benefitLabelAm || '',
 
-                        helpfulTips: sec.helpfulTips || sec.helpful_tips || '',
-                        foods: foodsList,
-                    });
-                });
-            } else {
-                // If parent row doesn't have sections json, convert parent row into a single section
-                let foodsList: FoodItem[] = [];
-                let rawFoods = row.foods_json || row.foodsJson;
-                if (rawFoods) {
-                    try {
-                        const parsed = typeof rawFoods === 'string' ? JSON.parse(rawFoods) : rawFoods;
-                        if (Array.isArray(parsed)) {
-                            foodsList = parsed.map((f: any) => ({
-                                id: f.id || `f-${Math.random()}`,
-                                nameEn: f.nameEn || f.name_en || f.name || '',
-                                nameOr: f.nameOr || f.name_or || '',
-                                nameSo: f.nameSo || f.name_so || '',
-                                nameAm: f.nameAm || f.name_am || '',
-                                descEn: f.descEn || f.desc_en || f.description || '',
-                                descOr: f.descOr || f.desc_or || '',
-                                descSo: f.descSo || f.desc_so || '',
-                                descAm: f.descAm || f.desc_am || '',
-                                imageUrl: f.imageUrl || f.image_url || '',
-                                videoUrl: f.videoUrl || f.video_url || '',
-                            }));
-                        }
-                    } catch {}
-                }
+                // Why Important
+                whyImportantEn: row.why_important_en || row.whyImportantEn || row.why_important || '',
+                whyImportantOr: row.why_important_or || row.whyImportantOr || '',
+                whyImportantSo: row.why_important_so || row.whyImportantSo || '',
+                whyImportantAm: row.why_important_am || row.whyImportantAm || '',
 
-                list.push({
-                    id: `row-${row.id}`,
-                    parentId: row.id,
-                    week: weekNum,
-                    trimester: String(row.trimester || trimester),
-                    month,
-                    type: parentType,
-                    nutrientType: row.nutrient_type || row.nutrientType || 'Nutrient',
-                    emoji: row.emoji || '🥗',
-                    isPublished: isPub,
-
-                    titleEn: row.title_en || row.titleEn || '',
-                    titleOr: row.title_or || row.titleOr || '',
-                    titleSo: row.title_so || row.titleSo || '',
-                    titleAm: row.title_am || row.titleAm || '',
-
-                    bodyEn: row.body_en || row.bodyEn || '',
-                    bodyOr: row.body_or || row.bodyOr || '',
-                    bodySo: row.body_so || row.bodySo || '',
-                    bodyAm: row.body_am || row.bodyAm || '',
-
-                    imageUrl: row.image_url || row.imageUrl || '',
-                    videoUrl: row.video_url || row.videoUrl || '',
-
-                    benefitValue: row.benefit_value || row.benefitValue || '',
-                    benefitLabelEn: row.benefit_label_en || row.benefitLabelEn || '',
-                    benefitLabelOr: row.benefit_label_or || row.benefitLabelOr || '',
-                    benefitLabelSo: row.benefit_label_so || row.benefitLabelSo || '',
-                    benefitLabelAm: row.benefit_label_am || row.benefitLabelAm || '',
-
-                    helpfulTips: '',
-                    foods: foodsList,
-                });
-            }
+                healthTips: healthTipStr,
+                foods: foodsList,
+            });
         });
 
         return list;
     }, [rawRows]);
 
-    // ── Get Created Weeks List ────────────────────────────────────────────────
-    const createdWeeks = useMemo(() => {
-        const set = new Set<number>();
-        rawRows.forEach(row => {
-            if (row.week !== null && row.week !== undefined && row.week !== '') {
-                set.add(Number(row.week));
-            }
-        });
-        return Array.from(set).sort((a, b) => a - b);
-    }, [rawRows]);
 
     // ── Filter Nutrients List ─────────────────────────────────────────────────
     const filteredNutrients = useMemo(() => {
@@ -417,13 +352,12 @@ export default function AddNutritionPage() {
 
     // ── Handlers for Modal Form ───────────────────────────────────────────────
     const handleOpenAddModal = () => {
-        const initialWeek = createdWeeks.length > 0 ? createdWeeks[0] : 18;
-        const { month, trimester } = calculateMonthAndTrimester(initialWeek);
+        const firstWeek = nutritionWeeks[0];
         setFormData({
             ...EMPTY_NUTRIENT,
-            week: initialWeek,
-            month,
-            trimester,
+            week: firstWeek ? firstWeek.id : 1,
+            month: firstWeek ? firstWeek.month : 1,
+            trimester: firstWeek ? firstWeek.trimester : '1st',
             foods: [{ ...EMPTY_FOOD }],
         });
         setIsAddModalOpen(true);
@@ -442,13 +376,13 @@ export default function AddNutritionPage() {
         setIsDeleteModalOpen(true);
     };
 
-    const handleWeekChangeInForm = (weekNum: number) => {
-        const { month, trimester } = calculateMonthAndTrimester(weekNum);
+    const handleWeekChangeInForm = (weekId: number) => {
+        const wk = nutritionWeeks.find(w => w.id === weekId);
         setFormData(prev => ({
             ...prev,
-            week: weekNum,
-            month,
-            trimester,
+            week: weekId,
+            month: wk ? wk.month : prev.month,
+            trimester: wk ? wk.trimester : prev.trimester,
         }));
     };
 
@@ -485,130 +419,70 @@ export default function AddNutritionPage() {
 
         setSubmitting(true);
         try {
-            // Find if there is an existing parent nutrition_content row for this week & type
-            const existingRow = rawRows.find(
-                r => Number(r.week) === Number(formData.week) && r.type === formData.type
-            );
-
-            const nutrientSectionObj = {
-                id: formData.id && !formData.id.startsWith('row-') ? formData.id : `sec-${Date.now()}`,
+            const payload = {
                 type: formData.type,
-                nutrientType: formData.nutrientType,
-                emoji: formData.emoji || '🥗',
+                nutritionWeekId: formData.week, // this is now the DB id of nutrition_weeks row
+                imageUrl: formData.imageUrl || '',
                 titleEn: formData.titleEn,
                 titleAm: formData.titleAm,
                 titleOr: formData.titleOr,
                 titleSo: formData.titleSo,
-                bodyEn: formData.bodyEn,
-                bodyAm: formData.bodyAm,
-                bodyOr: formData.bodyOr,
-                bodySo: formData.bodySo,
-                imageUrl: formData.imageUrl || '',
-                videoUrl: formData.videoUrl || '',
-                benefitValue: formData.benefitValue || '',
-                benefitLabelEn: formData.benefitLabelEn || '',
-                benefitLabelAm: formData.benefitLabelAm || '',
-                benefitLabelOr: formData.benefitLabelOr || '',
-                benefitLabelSo: formData.benefitLabelSo || '',
-                helpfulTips: formData.helpfulTips || '',
-                foods: formData.foods,
+                descriptionEn: formData.bodyEn,
+                descriptionAm: formData.bodyAm,
+                descriptionOr: formData.bodyOr,
+                descriptionSo: formData.bodySo,
+                descriptionLabelEn: formData.benefitLabelEn || 'Nutrient',
+                descriptionLabelAm: formData.benefitLabelAm || 'ንጥረ ነገር',
+                descriptionLabelOr: formData.benefitLabelOr || 'Nyaata Madaalawaa',
+                descriptionLabelSo: formData.benefitLabelSo || 'Nafaqada',
+                descriptionValueEn: formData.benefitValue || '',
+                descriptionValueAm: formData.benefitValue || '',
+                descriptionValueOr: formData.benefitValue || '',
+                descriptionValueSo: formData.benefitValue || '',
+                whyImportantEn: formData.whyImportantEn || '',
+                whyImportantAm: formData.whyImportantAm || '',
+                whyImportantOr: formData.whyImportantOr || '',
+                whyImportantSo: formData.whyImportantSo || '',
+                healthTips: formData.healthTips ? [
+                    {
+                        label: {
+                            en: formData.healthTips,
+                            am: formData.healthTips,
+                            or: formData.healthTips,
+                            so: formData.healthTips
+                        }
+                    }
+                ] : [],
+                listFood: formData.foods.map(f => ({
+                    type: formData.type,
+                    name: { en: f.nameEn, am: f.nameAm, or: f.nameOr, so: f.nameSo },
+                    description: { en: f.descEn, am: f.descAm, or: f.descOr, so: f.descSo },
+                    label: {
+                        en: formData.type === 'eat' ? 'Recommended' : 'Avoid',
+                        am: formData.type === 'eat' ? 'የሚመከር' : 'ያስወግዱ',
+                        or: formData.type === 'eat' ? 'Kan gorfamu' : 'Irraa Fagaadhaa',
+                        so: formData.type === 'eat' ? 'La talinayo' : 'Ka fogow'
+                    },
+                    image: f.imageUrl ? { type: 'url', url: f.imageUrl } : null,
+                    video: f.videoUrl ? { type: 'url', url: f.videoUrl } : null
+                }))
             };
 
-            if (isEditModalOpen && formData.parentId) {
-                // Editing existing nutrient: fetch parent row, replace the section, save back
-                const parentRow = rawRows.find(r => r.id === formData.parentId);
-                if (parentRow) {
-                    let secArr: any[] = [];
-                    if (parentRow.nutrient_sections_json || parentRow.nutrientSectionsJson) {
-                        const rawSec = parentRow.nutrient_sections_json || parentRow.nutrientSectionsJson;
-                        try { secArr = typeof rawSec === 'string' ? JSON.parse(rawSec) : rawSec; } catch { secArr = []; }
-                    }
-
-                    const targetId = formData.id;
-                    const matchIdx = secArr.findIndex((s: any) => s.id === targetId);
-
-                    if (matchIdx >= 0) {
-                        secArr[matchIdx] = nutrientSectionObj;
-                    } else {
-                        secArr = [nutrientSectionObj];
-                    }
-
-                    await cmsClient.update('nutrition', formData.parentId, {
-                        trimester: formData.trimester,
-                        week: formData.week,
-                        type: formData.type,
-                        emoji: formData.emoji,
-                        nutrientType: formData.nutrientType,
-                        titleEn: formData.titleEn,
-                        titleAm: formData.titleAm,
-                        titleOr: formData.titleOr,
-                        titleSo: formData.titleSo,
-                        bodyEn: formData.bodyEn,
-                        bodyAm: formData.bodyAm,
-                        bodyOr: formData.bodyOr,
-                        bodySo: formData.bodySo,
-                        imageUrl: formData.imageUrl,
-                        videoUrl: formData.videoUrl,
-                        benefitValue: formData.benefitValue,
-                        benefitLabelEn: formData.benefitLabelEn,
-                        benefitLabelAm: formData.benefitLabelAm,
-                        benefitLabelOr: formData.benefitLabelOr,
-                        benefitLabelSo: formData.benefitLabelSo,
-                        nutrientSectionsJson: JSON.stringify(secArr),
-                        foodsJson: JSON.stringify(formData.foods),
-                    });
-                }
+            if (isEditModalOpen && formData.id) {
+                await cmsClient.update('nutrition-tips', formData.id, payload);
                 setIsEditModalOpen(false);
                 setSuccessModal({
                     open: true,
                     title: 'Nutrient Updated Successfully!',
                     message: `Nutrient "${formData.nutrientType}" for Week ${formData.week} has been updated.`,
                 });
-            } else if (existingRow) {
-                // Parent row exists -> Append nutrient via PATCH endpoint
-                await fetch(`/api/v1/admin/cms/nutrition/${existingRow.id}/add-nutrient`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(nutrientSectionObj),
-                });
+            } else {
+                await cmsClient.create('nutrition-tips', payload);
                 setIsAddModalOpen(false);
                 setSuccessModal({
                     open: true,
                     title: 'Nutrient Added Successfully!',
                     message: `New nutrient "${formData.nutrientType}" added to Week ${formData.week}!`,
-                });
-            } else {
-                // No parent row exists -> Create new nutrition row
-                await cmsClient.create('nutrition', {
-                    trimester: formData.trimester,
-                    week: formData.week,
-                    type: formData.type,
-                    emoji: formData.emoji || '🥗',
-                    nutrientType: formData.nutrientType,
-                    titleEn: formData.titleEn,
-                    titleAm: formData.titleAm,
-                    titleOr: formData.titleOr,
-                    titleSo: formData.titleSo,
-                    bodyEn: formData.bodyEn,
-                    bodyAm: formData.bodyAm,
-                    bodyOr: formData.bodyOr,
-                    bodySo: formData.bodySo,
-                    imageUrl: formData.imageUrl,
-                    videoUrl: formData.videoUrl,
-                    benefitValue: formData.benefitValue,
-                    benefitLabelEn: formData.benefitLabelEn,
-                    benefitLabelAm: formData.benefitLabelAm,
-                    benefitLabelOr: formData.benefitLabelOr,
-                    benefitLabelSo: formData.benefitLabelSo,
-                    nutrientSectionsJson: JSON.stringify([nutrientSectionObj]),
-                    foodsJson: JSON.stringify(formData.foods),
-                    isPublished: true,
-                });
-                setIsAddModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Nutrient Guide Created!',
-                    message: `Nutrient "${formData.nutrientType}" created for Week ${formData.week}.`,
                 });
             }
 
@@ -625,25 +499,7 @@ export default function AddNutritionPage() {
         if (!nutrientToDelete) return;
         setSubmitting(true);
         try {
-            const parentRow = rawRows.find(r => r.id === nutrientToDelete.parentId);
-            if (parentRow) {
-                let secArr: any[] = [];
-                if (parentRow.nutrient_sections_json || parentRow.nutrientSectionsJson) {
-                    const rawSec = parentRow.nutrient_sections_json || parentRow.nutrientSectionsJson;
-                    try { secArr = typeof rawSec === 'string' ? JSON.parse(rawSec) : rawSec; } catch { secArr = []; }
-                }
-
-                if (Array.isArray(secArr) && secArr.length > 1) {
-                    // Remove section from array
-                    const nextSec = secArr.filter((s: any) => s.id !== nutrientToDelete.id);
-                    await cmsClient.update('nutrition', parentRow.id, {
-                        nutrientSectionsJson: JSON.stringify(nextSec),
-                    });
-                } else {
-                    // Last section -> delete whole parent row
-                    await cmsClient.delete('nutrition', parentRow.id);
-                }
-            }
+            await cmsClient.delete('nutrition-tips', nutrientToDelete.id);
 
             setIsDeleteModalOpen(false);
             setSuccessModal({
@@ -662,10 +518,10 @@ export default function AddNutritionPage() {
 
     // ── Toggle Publish Action ────────────────────────────────────────────────
     const handleTogglePublish = async (nutrient: NutrientSection) => {
-        if (!nutrient.parentId) return;
+        if (!nutrient.id) return;
         try {
             const newStatus = !nutrient.isPublished;
-            await cmsClient.update('nutrition', nutrient.parentId, {
+            await cmsClient.update('nutrition-tips', nutrient.id, {
                 isPublished: newStatus,
             });
             showToast(`Status updated to ${newStatus ? 'Published' : 'Draft'}`, 'success');
@@ -756,11 +612,13 @@ export default function AddNutritionPage() {
                             className="w-full text-xs rounded-xl px-3 py-2 border border-gray-200 bg-white focus:outline-none focus:border-[#61183e]"
                         >
                             <option value="all">
-                                {createdWeeks.length > 0 ? `All Created Weeks (${createdWeeks.length})` : 'All Weeks (1–40)'}
+                                {nutritionWeeks.length > 0 ? `All Created Weeks (${nutritionWeeks.length})` : 'All Weeks (1–40)'}
                             </option>
-                            {(createdWeeks.length > 0 ? createdWeeks : Array.from({ length: 40 }, (_, i) => i + 1)).map(w => (
-                                <option key={w} value={w}>Week {w}</option>
-                            ))}
+                            {(nutritionWeeks.length > 0 ? nutritionWeeks : Array.from({ length: 40 }, (_, i) => i + 1)).map((w: any) => {
+                                const weekNum = typeof w === 'object' ? w.week : w;
+                                const weekId = typeof w === 'object' ? w.id : w;
+                                return <option key={weekId} value={weekNum}>Week {weekNum}</option>;
+                            })}
                         </select>
                     </div>
 
@@ -979,25 +837,21 @@ export default function AddNutritionPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                                    Pregnancy Week * {createdWeeks.length > 0 ? `(${createdWeeks.length} Created Weeks)` : ''}
+                                    Pregnancy Week * {nutritionWeeks.length > 0 ? `(${nutritionWeeks.length} Created Weeks)` : '(No weeks yet — create weeks first)'}
                                 </label>
                                 <select
                                     value={formData.week}
                                     onChange={e => handleWeekChangeInForm(Number(e.target.value))}
                                     className="w-full text-xs font-semibold rounded-xl px-3 py-2 border border-gray-200 bg-white focus:outline-none focus:border-[#61183e]"
                                 >
-                                    {(
-                                        createdWeeks.length > 0
-                                            ? (createdWeeks.includes(formData.week) ? createdWeeks : [...createdWeeks, formData.week].sort((a,b) => a-b))
-                                            : Array.from({ length: 40 }, (_, i) => i + 1)
-                                    ).map(w => {
-                                        const { month, trimester } = calculateMonthAndTrimester(w);
-                                        return (
-                                            <option key={w} value={w}>
-                                                Week {w} (Month {month}, {trimester} Trim)
-                                            </option>
-                                        );
-                                    })}
+                                    {nutritionWeeks.length === 0 && (
+                                        <option value="">No nutrition weeks created yet</option>
+                                    )}
+                                    {nutritionWeeks.map(wk => (
+                                        <option key={wk.id} value={wk.id}>
+                                            Week {wk.week} (Month {wk.month}, {wk.trimester} Trim)
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -1230,12 +1084,63 @@ export default function AddNutritionPage() {
                             </div>
                         </div>
 
-                        <div className="pt-2">
-                            <label className="block text-xs font-bold text-gray-700 mb-1">Helpful Tips / Extra Notes</label>
+                    </div>
+
+                    {/* SECTION 6b: WHY IMPORTANT (4 Languages) */}
+                    <div className="space-y-3 p-4 bg-amber-50/40 rounded-2xl border border-amber-100">
+                        <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            6b. Why Important (4 Languages)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇬🇧 Why Important (EN)</label>
+                                <TextArea
+                                    value={formData.whyImportantEn || ''}
+                                    onChange={e => setFormData(prev => ({ ...prev, whyImportantEn: e.target.value }))}
+                                    placeholder="e.g. Helps regulate blood pressure and muscle function."
+                                    rows={2}
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇪🇹 Why Important (AM)</label>
+                                <TextArea
+                                    value={formData.whyImportantAm || ''}
+                                    onChange={e => setFormData(prev => ({ ...prev, whyImportantAm: e.target.value }))}
+                                    placeholder="ለምሳሌ፡ የደም ግፊትን ለመቆጣጠር ይረዳል"
+                                    rows={2}
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🌳 Why Important (OR)</label>
+                                <TextArea
+                                    value={formData.whyImportantOr || ''}
+                                    onChange={e => setFormData(prev => ({ ...prev, whyImportantOr: e.target.value }))}
+                                    placeholder="e.g. Dhiibbaa dhiigaa to'achuuf gargaara."
+                                    rows={2}
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇸🇴 Why Important (SO)</label>
+                                <TextArea
+                                    value={formData.whyImportantSo || ''}
+                                    onChange={e => setFormData(prev => ({ ...prev, whyImportantSo: e.target.value }))}
+                                    placeholder="e.g. Waxay caawisaa xakamaynta cadaadiska dhiigga."
+                                    rows={2}
+                                    className="text-xs rounded-xl"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-1">
+                            <label className="block text-xs font-bold text-gray-700 mb-1">Health Tip (English — shown in app)</label>
                             <TextArea
-                                value={formData.helpfulTips}
-                                onChange={e => setFormData(prev => ({ ...prev, helpfulTips: e.target.value }))}
-                                placeholder="e.g. Take with Vitamin C for better absorption..."
+                                value={formData.healthTips || ''}
+                                onChange={e => setFormData(prev => ({ ...prev, healthTips: e.target.value }))}
+                                placeholder="e.g. Eat one banana daily. Best eaten in the morning."
                                 rows={2}
                                 className="text-xs rounded-xl"
                             />
@@ -1273,13 +1178,14 @@ export default function AddNutritionPage() {
                                     )}
                                 </div>
 
+                                {/* Food Names */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇬🇧 Food Name (EN)</label>
                                         <Input
                                             value={food.nameEn}
                                             onChange={e => handleFoodChange(fIdx, 'nameEn', e.target.value)}
-                                            placeholder="Spinach, Lentils, Red Meat..."
+                                            placeholder="e.g. Banana, Spinach, Lentils"
                                             className="text-xs rounded-xl"
                                         />
                                     </div>
@@ -1288,7 +1194,7 @@ export default function AddNutritionPage() {
                                         <Input
                                             value={food.nameAm}
                                             onChange={e => handleFoodChange(fIdx, 'nameAm', e.target.value)}
-                                            placeholder="ስፒናች፣ ምስር..."
+                                            placeholder="ለምሳሌ፡ ሙዝ፣ ስፒናች"
                                             className="text-xs rounded-xl"
                                         />
                                     </div>
@@ -1297,7 +1203,7 @@ export default function AddNutritionPage() {
                                         <Input
                                             value={food.nameOr}
                                             onChange={e => handleFoodChange(fIdx, 'nameOr', e.target.value)}
-                                            placeholder="Isbiinaaqii..."
+                                            placeholder="e.g. Muuza, Isbiinaaqii"
                                             className="text-xs rounded-xl"
                                         />
                                     </div>
@@ -1306,7 +1212,51 @@ export default function AddNutritionPage() {
                                         <Input
                                             value={food.nameSo}
                                             onChange={e => handleFoodChange(fIdx, 'nameSo', e.target.value)}
-                                            placeholder="Isbanaaj..."
+                                            placeholder="e.g. Moos, Isbanaaj"
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Food Descriptions */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇬🇧 Description (EN)</label>
+                                        <TextArea
+                                            value={food.descEn}
+                                            onChange={e => handleFoodChange(fIdx, 'descEn', e.target.value)}
+                                            placeholder="e.g. Rich in potassium and fiber"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇪🇹 Description (AM)</label>
+                                        <TextArea
+                                            value={food.descAm}
+                                            onChange={e => handleFoodChange(fIdx, 'descAm', e.target.value)}
+                                            placeholder="ለምሳሌ፡ በፖታስየም እና ፋይበር የበለፀገ"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🌳 Description (OR)</label>
+                                        <TextArea
+                                            value={food.descOr}
+                                            onChange={e => handleFoodChange(fIdx, 'descOr', e.target.value)}
+                                            placeholder="e.g. Potaasiyeemii fi fiibaraan badhaadhaa"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇸🇴 Description (SO)</label>
+                                        <TextArea
+                                            value={food.descSo}
+                                            onChange={e => handleFoodChange(fIdx, 'descSo', e.target.value)}
+                                            placeholder="e.g. Ku hodan botassiyum iyo fiber"
+                                            rows={2}
                                             className="text-xs rounded-xl"
                                         />
                                     </div>

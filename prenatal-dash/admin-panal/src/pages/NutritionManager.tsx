@@ -22,12 +22,6 @@ export interface NutritionWeekEntry {
     month: number;
     isPublished: boolean;
 
-    // Title in 4 Languages
-    titleEn: string;
-    titleAm: string;
-    titleOr: string;
-    titleSo: string;
-
     // Why It Is Important (4 Languages)
     whyImportantEn: string;
     whyImportantAm: string;
@@ -45,11 +39,6 @@ interface BackendNutritionRow {
     id: string | number;
     week?: number | string | null;
     trimester?: number | string | null;
-
-    title_en?: string; titleEn?: string;
-    title_am?: string; titleAm?: string;
-    title_or?: string; titleOr?: string;
-    title_so?: string; titleSo?: string;
 
     why_important_en?: string; whyImportantEn?: string;
     why_important_am?: string; whyImportantAm?: string;
@@ -94,10 +83,6 @@ const EMPTY_WEEK_ENTRY: Omit<NutritionWeekEntry, 'id'> = {
     trimester: '2nd',
     month: 5,
     isPublished: true,
-    titleEn: '',
-    titleAm: '',
-    titleOr: '',
-    titleSo: '',
     whyImportantEn: '',
     whyImportantAm: '',
     whyImportantOr: '',
@@ -174,11 +159,6 @@ export default function NutritionManager() {
                 month,
                 isPublished: isPub,
 
-                titleEn: row.title_en || row.titleEn || '',
-                titleAm: row.title_am || row.titleAm || '',
-                titleOr: row.title_or || row.titleOr || '',
-                titleSo: row.title_so || row.titleSo || '',
-
                 whyImportantEn: row.why_important_en || row.whyImportantEn || '',
                 whyImportantAm: row.why_important_am || row.whyImportantAm || '',
                 whyImportantOr: row.why_important_or || row.whyImportantOr || '',
@@ -214,10 +194,6 @@ export default function NutritionManager() {
                 const match = (
                     `week ${item.week}`.includes(q) ||
                     `month ${item.month}`.includes(q) ||
-                    item.titleEn.toLowerCase().includes(q) ||
-                    item.titleAm.toLowerCase().includes(q) ||
-                    item.titleOr.toLowerCase().includes(q) ||
-                    item.titleSo.toLowerCase().includes(q) ||
                     item.whyImportantEn.toLowerCase().includes(q) ||
                     item.whyImportantAm.toLowerCase().includes(q) ||
                     item.whyImportantOr.toLowerCase().includes(q) ||
@@ -267,11 +243,8 @@ export default function NutritionManager() {
         try {
             const payload = {
                 week: formData.week,
-                trimester: formData.trimester,
-                titleEn: formData.titleEn,
-                titleAm: formData.titleAm,
-                titleOr: formData.titleOr,
-                titleSo: formData.titleSo,
+                trimester: formData.trimester === '1st' ? 1 : formData.trimester === '2nd' ? 2 : 3,
+                month: formData.month,
                 whyImportantEn: formData.whyImportantEn,
                 whyImportantAm: formData.whyImportantAm,
                 whyImportantOr: formData.whyImportantOr,
@@ -479,7 +452,6 @@ export default function NutritionManager() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {filteredEntries.map((item) => {
                             const lang = getActiveCardLang(item.id);
-                            const title = lang === 'am' ? (item.titleAm || item.titleEn) : lang === 'or' ? (item.titleOr || item.titleEn) : lang === 'so' ? (item.titleSo || item.titleEn) : item.titleEn;
                             const whyImp = lang === 'am' ? item.whyImportantAm : lang === 'or' ? item.whyImportantOr : lang === 'so' ? item.whyImportantSo : item.whyImportantEn;
                             const hydration = lang === 'am' ? item.hydrationAm : lang === 'or' ? item.hydrationOr : lang === 'so' ? item.hydrationSo : item.hydrationEn;
 
@@ -495,7 +467,7 @@ export default function NutritionManager() {
                                                     <span className="text-[9px] font-bold uppercase tracking-wider text-pink-700">Week</span>
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-bold text-gray-900 text-base">{title || `Week ${item.week} Nutrition Guide`}</h3>
+                                                    <h3 className="font-bold text-gray-900 text-base">Week {item.week} Nutrition Guide</h3>
                                                     <p className="text-xs text-gray-500 font-medium">
                                                         Month {item.month} • {item.trimester} Trimester
                                                     </p>
@@ -623,52 +595,6 @@ export default function NutritionManager() {
                                         {formData.trimester} Trim
                                     </span>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* SECTION 2: TITLE (4 LANGUAGES) */}
-                    <div className="space-y-3 bg-pink-50/40 p-4 rounded-2xl border border-pink-100">
-                        <h4 className="text-xs font-bold text-[#61183e] uppercase tracking-wider flex items-center gap-2">
-                            <Utensils className="w-4 h-4 text-[#61183e]" />
-                            2. Week Nutrition Title (4 Languages)
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇬🇧 English Title</label>
-                                <Input
-                                    value={formData.titleEn}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleEn: e.target.value }))}
-                                    placeholder="e.g. Iron & Calcium Essentials..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇪🇹 Amharic (አማርኛ) Title</label>
-                                <Input
-                                    value={formData.titleAm}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleAm: e.target.value }))}
-                                    placeholder="ለምሳሌ፡ የብረትና ካልሲየም ፍላጎት..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🌳 Afaan Oromo Title</label>
-                                <Input
-                                    value={formData.titleOr}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleOr: e.target.value }))}
-                                    placeholder="e.g. Nyaatawwan Kaalsiyeemii fi Ayiranii..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇸🇴 Afan Somali Title</label>
-                                <Input
-                                    value={formData.titleSo}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleSo: e.target.value }))}
-                                    placeholder="e.g. Nafaqada Muhiimka ah ee Birta..."
-                                    className="text-xs rounded-xl"
-                                />
                             </div>
                         </div>
                     </div>

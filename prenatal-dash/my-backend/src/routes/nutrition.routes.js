@@ -14,6 +14,8 @@ const handleMedia = (req, fieldName) => {
 
 // --- NUTRITION TIPS (Content) ---
 router.get('/tips', nutritionController.getAll);
+router.get('/tips/:id', nutritionController.getOne);
+
 router.post(
   '/tips',
   requireAdmin,
@@ -24,7 +26,19 @@ router.post(
   }
 );
 
-// --- NUTRITION WEEKS ---
+router.put(
+  '/tips/:id',
+  requireAdmin,
+  upload.fields([{ name: 'imageUrl', maxCount: 1 }]),
+  (req, res, next) => {
+    req.body.imageUrl = handleMedia(req, 'imageUrl');
+    nutritionController.update(req, res, next);
+  }
+);
+
+router.delete('/tips/:id', requireAdmin, nutritionController.remove);
+
+// --- NUTRITION WEEKS (trimester/month/week + why_important + hydration) ---
 router.get('/weeks', nutritionWeekController.getAll);
 router.post('/weeks', requireAdmin, nutritionWeekController.create);
 router.put('/weeks/:id', requireAdmin, nutritionWeekController.update);
