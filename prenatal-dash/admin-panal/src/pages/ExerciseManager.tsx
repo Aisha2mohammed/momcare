@@ -2,11 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     PlusCircle, Search, Calendar, Activity, BookOpen,
     Edit2, Trash2, Eye, EyeOff, Loader2, CheckCircle2,
-    Filter, AlertTriangle, Dumbbell
-} from 'lucide-react';
+    Filter, AlertTriangle} from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input, TextArea } from '../components/ui/Input';
+import { TextArea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { cmsClient } from '../services/api';
@@ -609,50 +608,6 @@ export default function ExerciseManager() {
                     </div>
 
                     {/* SECTION 2: EXERCISE WEEK TITLE (4 LANGUAGES) */}
-                    <div className="space-y-3 bg-blue-50/40 p-4 rounded-2xl border border-blue-100">
-                        <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
-                            <Dumbbell className="w-4 h-4 text-blue-700" />
-                            2. Exercise Week Title (4 Languages)
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇬🇧 English Title</label>
-                                <Input
-                                    value={formData.titleEn}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleEn: e.target.value }))}
-                                    placeholder="e.g. Safe Exercise Practices for Week 18..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇪🇹 Amharic (አማርኛ) Title</label>
-                                <Input
-                                    value={formData.titleAm}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleAm: e.target.value }))}
-                                    placeholder="ለምሳሌ፡ ለ18ኛ ሳምንት ደህንነቱ የተጠበቀ ልምምድ..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🌳 Afaan Oromo Title</label>
-                                <Input
-                                    value={formData.titleOr}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleOr: e.target.value }))}
-                                    placeholder="Fkn. Sochii Qaamaa Nagaa Torban 18 Keessatti..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇸🇴 Afan Somali Title</label>
-                                <Input
-                                    value={formData.titleSo}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleSo: e.target.value }))}
-                                    placeholder="Tusaale. Jimicsi Amaan ah Toddobaadka 18aad..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                        </div>
-                    </div>
 
                     {/* SECTION 3: WHY IT IS IMPORTANT (4 LANGUAGES) */}
                     <div className="space-y-3 bg-amber-50/40 p-4 rounded-2xl border border-amber-100">

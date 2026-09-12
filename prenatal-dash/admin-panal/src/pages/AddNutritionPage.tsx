@@ -18,6 +18,10 @@ import { cmsClient } from '../services/api';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface FoodItem {
+    labelSo: string | number | readonly string[];
+    labelOr: string | number | readonly string[];
+    labelAm: string | number | readonly string[];
+    labelEn: string | number | readonly string[];
     id?: string;
     nameEn: string;
     nameOr: string;
@@ -32,6 +36,10 @@ export interface FoodItem {
 }
 
 export interface NutrientSection {
+    healthTipsAm: string;
+    healthTipsOr: string;
+    healthTipsSo: string;
+    healthTipsEn: string;
     id?: string;
     parentId?: string | number; // Parent nutrition_content row ID
     week: number;
@@ -137,13 +145,17 @@ const EMPTY_NUTRIENT: Omit<NutrientSection, 'id'> = {
     whyImportantOr: '',
     whyImportantSo: '',
     whyImportantAm: '',
-    healthTips: '',
+    healthTipsEn: '',
+    healthTipsOr: '',
+    healthTipsSo: '',
+    healthTipsAm: '',
     foods: [],
 };
 
 const EMPTY_FOOD: FoodItem = {
     nameEn: '', nameOr: '', nameSo: '', nameAm: '',
     descEn: '', descOr: '', descSo: '', descAm: '',
+    labelEn : '', labelOr: '', labelSo: '', labelAm: '',
     imageUrl: '', videoUrl: ''
 };
 
@@ -258,6 +270,10 @@ export default function AddNutritionPage() {
                 descAm: f.description?.am || f.descAm || '',
                 descOr: f.description?.or || f.descOr || '',
                 descSo: f.description?.so || f.descSo || '',
+                labelEn: f.label?.en || f.labelEn || '',
+                labelAm: f.label?.am || f.labelAm || '',
+                labelOr: f.label?.or || f.labelOr || '',
+                labelSo: f.label?.so || f.labelSo || '',
                 imageUrl: f.image?.url || f.imageUrl || '',
                 videoUrl: f.video?.url || f.videoUrl || '',
             }));
@@ -300,7 +316,10 @@ export default function AddNutritionPage() {
                 whyImportantSo: row.why_important_so || row.whyImportantSo || '',
                 whyImportantAm: row.why_important_am || row.whyImportantAm || '',
 
-                healthTips: healthTipStr,
+                healthTipsEn: row.health_tips_en || row.healthTipsEn || healthTipStr || '',
+                healthTipsOr: row.health_tips_or || row.healthTipsOr || '',
+                healthTipsSo: row.health_tips_so || row.healthTipsSo || '',
+                healthTipsAm: row.health_tips_am || row.healthTipsAm || '',
                 foods: foodsList,
             });
         });
@@ -1134,16 +1153,54 @@ export default function AddNutritionPage() {
                                 />
                             </div>
                         </div>
+                        </div>
 
-                        <div className="pt-1">
-                            <label className="block text-xs font-bold text-gray-700 mb-1">Health Tip (English — shown in app)</label>
+  <div className="space-y-3 p-4 bg-Red-50/40 rounded-2xl border border-amber-100">
+                        <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            7b. Health Tips (4 Languages)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                             <label className="block text-xs font-bold text-gray-700 mb-1">Health Tip (EN)</label>
                             <TextArea
-                                value={formData.healthTips || ''}
-                                onChange={e => setFormData(prev => ({ ...prev, healthTips: e.target.value }))}
+                                value={formData.healthTipsEn || ''}
+                                onChange={e => setFormData(prev => ({ ...prev, healthTipsEn: e.target.value }))}
                                 placeholder="e.g. Eat one banana daily. Best eaten in the morning."
                                 rows={2}
                                 className="text-xs rounded-xl"
                             />
+                            </div>
+                            <div>
+                                 <label className="block text-xs font-bold text-gray-700 mb-1">Health Tip (Am)</label>
+                            <TextArea
+                                value={formData.healthTipsAm || ''}
+                                onChange={e => setFormData(prev => ({ ...prev, healthTipsAm: e.target.value }))}
+                                placeholder="e.g. Eat one banana daily. Best eaten in the morning."
+                                rows={2}
+                                className="text-xs rounded-xl"
+                            />
+                            </div>
+                           <div>
+                                 <label className="block text-xs font-bold text-gray-700 mb-1">Health Tip (Or)</label>
+                            <TextArea
+                                value={formData.healthTipsOr || ''}
+                                onChange={e => setFormData(prev => ({ ...prev, healthTipsOr: e.target.value }))}
+                                placeholder="e.g. Eat one banana daily. Best eaten in the morning."
+                                rows={2}
+                                className="text-xs rounded-xl"
+                            />
+                            </div>
+                            <div>
+                                 <label className="block text-xs font-bold text-gray-700 mb-1">Health Tip (So)</label>
+                            <TextArea
+                                value={formData.healthTipsSo || ''}
+                                onChange={e => setFormData(prev => ({ ...prev, healthTipsSo: e.target.value }))}
+                                placeholder="e.g. Eat one banana daily. Best eaten in the morning."
+                                rows={2}
+                                className="text-xs rounded-xl"
+                            />
+                            </div>
                         </div>
                     </div>
 
@@ -1261,7 +1318,48 @@ export default function AddNutritionPage() {
                                         />
                                     </div>
                                 </div>
-
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇬🇧 Label (EN)</label>
+                                        <TextArea
+                                            value={food.labelEn}
+                                            onChange={e => handleFoodChange(fIdx, 'labelEn', e.target.value)}
+                                            placeholder="e.g. Rich in potassium and fiber"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇪🇹 Label (AM)</label>
+                                        <TextArea
+                                            value={food.labelAm}
+                                            onChange={e => handleFoodChange(fIdx, 'labelAm', e.target.value)}
+                                            placeholder="ለምሳሌ፡ በፖታስየም እና ፋይበር የበለፀገ"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🌳 Label (OR)</label>
+                                        <TextArea
+                                            value={food.labelOr}
+                                            onChange={e => handleFoodChange(fIdx, 'labelOr', e.target.value)}
+                                            placeholder="e.g. Potaasiyeemii fi fiibaraan badhaadhaa"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇸🇴 Label (SO)</label>
+                                        <TextArea
+                                            value={food.labelSo}
+                                            onChange={e => handleFoodChange(fIdx, 'descSo', e.target.value)}
+                                            placeholder="e.g. Ku hodan botassiyum iyo fiber"
+                                            rows={2}
+                                            className="text-xs rounded-xl"
+                                        />
+                                    </div>
+                                </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <MediaInput
                                         label="Food Image (Upload or URL)"
