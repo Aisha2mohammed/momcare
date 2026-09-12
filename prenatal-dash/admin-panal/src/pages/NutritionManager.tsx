@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    PlusCircle, Search, X, Calendar, Droplets, BookOpen, Utensils,
+    PlusCircle, Search, X, Calendar, Droplets, BookOpen, 
     Edit2, Trash2, Eye, EyeOff, Loader2, CheckCircle2,
     Filter, AlertTriangle
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input, TextArea } from '../components/ui/Input';
+import { TextArea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { cmsClient } from '../services/api';

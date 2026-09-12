@@ -52,7 +52,7 @@ exports.create = async (req, res, next) => {
         description_value_en, description_value_am, description_value_or, description_value_so,
         why_important_en, why_important_am, why_important_or, why_important_so,
         health_tips, list_of_exercise
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) RETURNING *`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28) RETURNING *`,
       [
         trimester, category, durationMinutes, imageUrl, videoUrl, isPublished,
         titleEn, titleAm, titleOr, titleSo,
@@ -79,10 +79,44 @@ function localize(item, lang) {
     duration_minutes: item.duration_minutes,
     image_url: item.image_url,
     video_url: item.video_url,
+    is_published: item.is_published,
+    isPublished: item.is_published,
+
+    // Localized convenience fields (single language, for public/mobile use)
     title: item[`title_${l}`] || item.title_en || '',
     description: item[`description_${l}`] || item.description_en || '',
+    description_label: item[`description_label_${l}`] || item.description_label_en || '',
+    description_value: item[`description_value_${l}`] || item.description_value_en || '',
     why_important: item[`why_important_${l}`] || item.why_important_en || '',
+
+    // Raw multilingual fields (REQUIRED for admin panel edit forms)
+    title_en: item.title_en || '',
+    title_am: item.title_am || '',
+    title_or: item.title_or || '',
+    title_so: item.title_so || '',
+
+    description_en: item.description_en || '',
+    description_am: item.description_am || '',
+    description_or: item.description_or || '',
+    description_so: item.description_so || '',
+
+    description_label_en: item.description_label_en || '',
+    description_label_am: item.description_label_am || '',
+    description_label_or: item.description_label_or || '',
+    description_label_so: item.description_label_so || '',
+
+    description_value_en: item.description_value_en || '',
+    description_value_am: item.description_value_am || '',
+    description_value_or: item.description_value_or || '',
+    description_value_so: item.description_value_so || '',
+
+    why_important_en: item.why_important_en || '',
+    why_important_am: item.why_important_am || '',
+    why_important_or: item.why_important_or || '',
+    why_important_so: item.why_important_so || '',
+
+    // Raw JSON arrays for admin editing
     health_tips: item.health_tips || [],
-    list_of_exercise: item.list_of_exercise || []
+    list_of_exercise: item.list_of_exercise || [],
   };
 }
