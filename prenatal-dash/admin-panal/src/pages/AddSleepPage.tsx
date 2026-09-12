@@ -75,11 +75,17 @@ export interface SleepSection {
     videoUrl?: string;
 
     // Description Label & Value (4 languages)
-    benefitValue?: string;
+    benefitValueEn?: string;
+    benefitValueOr?: string;
+    benefitValueSo?: string;
+    benefitValueAm?: string;
     benefitLabelEn?: string;
     benefitLabelOr?: string;
     benefitLabelSo?: string;
     benefitLabelAm?: string;
+
+    // Sleep Duration (plain text, e.g. "8 hours / night")
+    sleepDuration?: string;
 
     // Sleep Items List
     items: SleepItem[];
@@ -120,11 +126,19 @@ interface BackendSleepRow {
     video_url?: string; videoUrl?: string;
     illustration_url?: string; illustrationUrl?: string;
 
+    benefit_value_en?: string; benefitValueEn?: string;
+    benefit_value_or?: string; benefitValueOr?: string;
+    benefit_value_so?: string; benefitValueSo?: string;
+    benefit_value_am?: string; benefitValueAm?: string;
+    // legacy single-language field (kept so old rows still load)
     benefit_value?: string; benefitValue?: string;
+
     benefit_label_en?: string; benefitLabelEn?: string;
     benefit_label_or?: string; benefitLabelOr?: string;
     benefit_label_so?: string; benefitLabelSo?: string;
     benefit_label_am?: string; benefitLabelAm?: string;
+
+    sleep_duration?: string; sleepDuration?: string;
 
     sections_json?: any; sectionsJson?: any;
     items_json?: any; itemsJson?: any;
@@ -156,6 +170,23 @@ const TRIMESTER_BADGE_STYLE: Record<string, string> = {
     '3rd': 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
+// Dropdown options for the sleep guide icon
+const SLEEP_EMOJI_OPTIONS: { value: string; label: string }[] = [
+    { value: '🌙', label: 'Crescent Moon' },
+    { value: '😴', label: 'Sleeping Face' },
+    { value: '🛌', label: 'Person in Bed' },
+    { value: '🛏️', label: 'Bed' },
+    { value: '💤', label: 'Zzz' },
+    { value: '😪', label: 'Sleepy Face' },
+    { value: '🌛', label: 'Moon Face (First Quarter)' },
+    { value: '🌜', label: 'Moon Face (Last Quarter)' },
+    { value: '⭐', label: 'Star' },
+    { value: '🧸', label: 'Teddy Bear' },
+    { value: '🤰', label: 'Pregnant Woman' },
+    { value: '🚫', label: 'Avoid / Not Recommended' },
+    { value: '✅', label: 'Recommended' },
+];
+
 const EMPTY_SLEEP_SECTION: Omit<SleepSection, 'id'> = {
     week: 18,
     trimester: '2nd',
@@ -169,7 +200,9 @@ const EMPTY_SLEEP_SECTION: Omit<SleepSection, 'id'> = {
     whyImportantEn: '', whyImportantOr: '', whyImportantSo: '', whyImportantAm: '',
     tipsEn: '', tipsOr: '', tipsSo: '', tipsAm: '',
     imageUrl: '', videoUrl: '',
-    benefitValue: '', benefitLabelEn: '', benefitLabelOr: '', benefitLabelSo: '', benefitLabelAm: '',
+    benefitValueEn: '', benefitValueOr: '', benefitValueSo: '', benefitValueAm: '',
+    benefitLabelEn: '', benefitLabelOr: '', benefitLabelSo: '', benefitLabelAm: '',
+    sleepDuration: '',
     items: [],
 };
 
@@ -298,11 +331,16 @@ export default function AddSleepPage() {
                         imageUrl: sec.imageUrl || sec.image_url || row.image_url || row.imageUrl || row.illustration_url || row.illustrationUrl || '',
                         videoUrl: sec.videoUrl || sec.video_url || row.video_url || row.videoUrl || '',
 
-                        benefitValue: sec.benefitValue || sec.benefit_value || row.benefit_value || '',
+                        benefitValueEn: sec.benefitValueEn || sec.benefit_value_en || row.benefit_value_en || sec.benefitValue || row.benefit_value || '',
+                        benefitValueOr: sec.benefitValueOr || sec.benefit_value_or || row.benefit_value_or || '',
+                        benefitValueSo: sec.benefitValueSo || sec.benefit_value_so || row.benefit_value_so || '',
+                        benefitValueAm: sec.benefitValueAm || sec.benefit_value_am || row.benefit_value_am || '',
                         benefitLabelEn: sec.benefitLabelEn || sec.benefit_label_en || row.benefit_label_en || '',
                         benefitLabelOr: sec.benefitLabelOr || sec.benefit_label_or || row.benefit_label_or || '',
                         benefitLabelSo: sec.benefitLabelSo || sec.benefit_label_so || row.benefit_label_so || '',
                         benefitLabelAm: sec.benefitLabelAm || sec.benefit_label_am || row.benefit_label_am || '',
+
+                        sleepDuration: sec.sleepDuration || sec.sleep_duration || row.sleep_duration || row.sleepDuration || '',
 
                         items: itemsList,
                     });
@@ -369,11 +407,16 @@ export default function AddSleepPage() {
                     imageUrl: row.image_url || row.imageUrl || row.illustration_url || row.illustrationUrl || '',
                     videoUrl: row.video_url || row.videoUrl || '',
 
-                    benefitValue: row.benefit_value || row.benefitValue || '',
+                    benefitValueEn: row.benefit_value_en || row.benefitValueEn || row.benefit_value || row.benefitValue || '',
+                    benefitValueOr: row.benefit_value_or || row.benefitValueOr || '',
+                    benefitValueSo: row.benefit_value_so || row.benefitValueSo || '',
+                    benefitValueAm: row.benefit_value_am || row.benefitValueAm || '',
                     benefitLabelEn: row.benefit_label_en || row.benefitLabelEn || '',
                     benefitLabelOr: row.benefit_label_or || row.benefitLabelOr || '',
                     benefitLabelSo: row.benefit_label_so || row.benefitLabelSo || '',
                     benefitLabelAm: row.benefit_label_am || row.benefitLabelAm || '',
+
+                    sleepDuration: row.sleep_duration || row.sleepDuration || '',
 
                     items: itemsList,
                 });
@@ -508,11 +551,15 @@ export default function AddSleepPage() {
                 imageUrl: formData.imageUrl,
                 illustrationUrl: formData.imageUrl,
                 videoUrl: formData.videoUrl,
-                benefitValue: formData.benefitValue,
+                benefitValueEn: formData.benefitValueEn,
+                benefitValueOr: formData.benefitValueOr,
+                benefitValueSo: formData.benefitValueSo,
+                benefitValueAm: formData.benefitValueAm,
                 benefitLabelEn: formData.benefitLabelEn,
                 benefitLabelAm: formData.benefitLabelAm,
                 benefitLabelOr: formData.benefitLabelOr,
                 benefitLabelSo: formData.benefitLabelSo,
+                sleepDuration: formData.sleepDuration,
                 sectionsJson: JSON.stringify([{
                     id: formData.id && !formData.id.startsWith('row-') ? formData.id : `sec-${Date.now()}`,
                     type: formData.type,
@@ -536,11 +583,15 @@ export default function AddSleepPage() {
                     tipsSo: formData.tipsSo,
                     imageUrl: formData.imageUrl,
                     videoUrl: formData.videoUrl,
-                    benefitValue: formData.benefitValue,
+                    benefitValueEn: formData.benefitValueEn,
+                    benefitValueOr: formData.benefitValueOr,
+                    benefitValueSo: formData.benefitValueSo,
+                    benefitValueAm: formData.benefitValueAm,
                     benefitLabelEn: formData.benefitLabelEn,
                     benefitLabelAm: formData.benefitLabelAm,
                     benefitLabelOr: formData.benefitLabelOr,
                     benefitLabelSo: formData.benefitLabelSo,
+                    sleepDuration: formData.sleepDuration,
                     items: formData.items
                 }]),
                 itemsJson: JSON.stringify(formData.items),
@@ -597,6 +648,12 @@ export default function AddSleepPage() {
     const setCardLanguage = (id: string, lang: 'en' | 'or' | 'so' | 'am') => {
         setCardLang(prev => ({ ...prev, [id]: lang }));
     };
+
+    // Ensure the currently selected emoji always shows in the dropdown,
+    // even if it isn't one of the predefined options (e.g. legacy data).
+    const emojiSelectOptions = SLEEP_EMOJI_OPTIONS.some(o => o.value === formData.emoji)
+        ? SLEEP_EMOJI_OPTIONS
+        : [{ value: formData.emoji || '🌙', label: 'Current' }, ...SLEEP_EMOJI_OPTIONS];
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12 px-2 sm:px-4">
@@ -722,6 +779,8 @@ export default function AddSleepPage() {
                         const body = lang === 'en' ? item.bodyEn : lang === 'or' ? item.bodyOr : lang === 'so' ? item.bodySo : item.bodyAm;
                         const whyImp = lang === 'en' ? item.whyImportantEn : lang === 'or' ? item.whyImportantOr : lang === 'so' ? item.whyImportantSo : item.whyImportantAm;
                         const tipsText = lang === 'en' ? item.tipsEn : lang === 'or' ? item.tipsOr : lang === 'so' ? item.tipsSo : item.tipsAm;
+                        const benefitValue = lang === 'en' ? item.benefitValueEn : lang === 'or' ? item.benefitValueOr : lang === 'so' ? item.benefitValueSo : item.benefitValueAm;
+                        const benefitLabel = lang === 'en' ? item.benefitLabelEn : lang === 'or' ? item.benefitLabelOr : lang === 'so' ? item.benefitLabelSo : item.benefitLabelAm;
 
                         return (
                             <Card key={item.id} className="p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-all border border-gray-100 rounded-2xl">
@@ -772,6 +831,21 @@ export default function AddSleepPage() {
                                             <div className="text-[11px] text-teal-800 font-medium flex items-start gap-1">
                                                 <HeartPulse className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                                                 <span><strong>Health Tips:</strong> {tipsText}</span>
+                                            </div>
+                                        )}
+
+                                        {(benefitValue || item.sleepDuration) && (
+                                            <div className="pt-1 flex flex-wrap items-center gap-2">
+                                                {benefitValue && (
+                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                                                        {benefitLabel ? `${benefitLabel}: ` : ''}{benefitValue}
+                                                    </span>
+                                                )}
+                                                {item.sleepDuration && (
+                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                                                        ⏱ {item.sleepDuration}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -897,21 +971,25 @@ export default function AddSleepPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Emoji Icon</label>
-                            <input
-                                type="text"
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Icon</label>
+                            <select
                                 value={formData.emoji}
                                 onChange={e => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
-                                placeholder="🌙"
-                                className="w-full text-xs p-2 border border-gray-300 rounded-lg text-center"
-                            />
+                                className="w-full text-xs p-2 border border-gray-300 rounded-lg text-center bg-white focus:outline-none focus:border-[#312e81]"
+                            >
+                                {emojiSelectOptions.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.value}  {opt.label}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div>
                             <Input
-                                label="Description Value (e.g. 8 Hours / Night)"
-                                value={formData.benefitValue || ''}
-                                onChange={e => setFormData(prev => ({ ...prev, benefitValue: e.target.value }))}
-                                placeholder="e.g. 8 hrs/night"
+                                label="Sleep Duration (e.g. 8 hours / night)"
+                                value={formData.sleepDuration || ''}
+                                onChange={e => setFormData(prev => ({ ...prev, sleepDuration: e.target.value }))}
+                                placeholder="e.g. 8 hours / night"
                             />
                         </div>
                     </div>
@@ -984,12 +1062,20 @@ export default function AddSleepPage() {
                                             placeholder="Use a pillow between knees to support hips..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (English)"
-                                        value={formData.benefitLabelEn || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelEn: e.target.value }))}
-                                        placeholder="e.g. Recommended Sleep Duration"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (English)"
+                                            value={formData.benefitValueEn || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueEn: e.target.value }))}
+                                            placeholder="e.g. 8 Hours / Night"
+                                        />
+                                        <Input
+                                            label="Description Label (English)"
+                                            value={formData.benefitLabelEn || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelEn: e.target.value }))}
+                                            placeholder="e.g. Recommended Sleep Duration"
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -1024,12 +1110,20 @@ export default function AddSleepPage() {
                                             placeholder="Gorsa fayyaa..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (Afan Oromo)"
-                                        value={formData.benefitLabelOr || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelOr: e.target.value }))}
-                                        placeholder="Sadarkaa barbaachisummaa"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (Afan Oromo)"
+                                            value={formData.benefitValueOr || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueOr: e.target.value }))}
+                                            placeholder="fkn. Sa'aatii 8 / Halkan"
+                                        />
+                                        <Input
+                                            label="Description Label (Afan Oromo)"
+                                            value={formData.benefitLabelOr || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelOr: e.target.value }))}
+                                            placeholder="Sadarkaa barbaachisummaa"
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -1064,12 +1158,20 @@ export default function AddSleepPage() {
                                             placeholder="Talooyin caafimaad..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (Somali)"
-                                        value={formData.benefitLabelSo || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelSo: e.target.value }))}
-                                        placeholder="Waqtiga lagu talinayo"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (Somali)"
+                                            value={formData.benefitValueSo || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueSo: e.target.value }))}
+                                            placeholder="tusaale. 8 Saacadood / Habeen"
+                                        />
+                                        <Input
+                                            label="Description Label (Somali)"
+                                            value={formData.benefitLabelSo || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelSo: e.target.value }))}
+                                            placeholder="Waqtiga lagu talinayo"
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -1104,12 +1206,20 @@ export default function AddSleepPage() {
                                             placeholder="የጤና ምክሮች..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (Amharic)"
-                                        value={formData.benefitLabelAm || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelAm: e.target.value }))}
-                                        placeholder="ምክር መለያ"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (Amharic)"
+                                            value={formData.benefitValueAm || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueAm: e.target.value }))}
+                                            placeholder="ለምሳሌ 8 ሰዓት / ሌሊት"
+                                        />
+                                        <Input
+                                            label="Description Label (Amharic)"
+                                            value={formData.benefitLabelAm || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelAm: e.target.value }))}
+                                            placeholder="ምክር መለያ"
+                                        />
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -1145,6 +1255,18 @@ export default function AddSleepPage() {
                                         placeholder="Left Side Position"
                                     />
                                     <Input
+                                        label="Name (Afan Oromo)"
+                                        value={item.nameOr}
+                                        onChange={e => handleItemChange(idx, 'nameOr', e.target.value)}
+                                        placeholder="Maqaa teessuma bitaa..."
+                                    />
+                                    <Input
+                                        label="Name (Somali)"
+                                        value={item.nameSo}
+                                        onChange={e => handleItemChange(idx, 'nameSo', e.target.value)}
+                                        placeholder="Magaca jiifka bidix..."
+                                    />
+                                    <Input
                                         label="Name (Amharic)"
                                         value={item.nameAm}
                                         onChange={e => handleItemChange(idx, 'nameAm', e.target.value)}
@@ -1160,10 +1282,49 @@ export default function AddSleepPage() {
                                         rows={2}
                                     />
                                     <TextArea
+                                        label="Description (Afan Oromo)"
+                                        value={item.descOr}
+                                        onChange={e => handleItemChange(idx, 'descOr', e.target.value)}
+                                        rows={2}
+                                    />
+                                    <TextArea
+                                        label="Description (Somali)"
+                                        value={item.descSo}
+                                        onChange={e => handleItemChange(idx, 'descSo', e.target.value)}
+                                        rows={2}
+                                    />
+                                    <TextArea
                                         label="Description (Amharic)"
                                         value={item.descAm}
                                         onChange={e => handleItemChange(idx, 'descAm', e.target.value)}
                                         rows={2}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <Input
+                                        label="Label (English)"
+                                        value={item.labelEn || ''}
+                                        onChange={e => handleItemChange(idx, 'labelEn', e.target.value)}
+                                        placeholder="e.g. Best Position"
+                                    />
+                                    <Input
+                                        label="Label (Afan Oromo)"
+                                        value={item.labelOr || ''}
+                                        onChange={e => handleItemChange(idx, 'labelOr', e.target.value)}
+                                        placeholder="fkn. Teessuma gaarii"
+                                    />
+                                    <Input
+                                        label="Label (Somali)"
+                                        value={item.labelSo || ''}
+                                        onChange={e => handleItemChange(idx, 'labelSo', e.target.value)}
+                                        placeholder="tusaale. Jiifka ugu fiican"
+                                    />
+                                    <Input
+                                        label="Label (Amharic)"
+                                        value={item.labelAm || ''}
+                                        onChange={e => handleItemChange(idx, 'labelAm', e.target.value)}
+                                        placeholder="ለምሳሌ ምርጥ አቀማመጥ"
                                     />
                                 </div>
 

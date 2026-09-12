@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input, TextArea } from '../components/ui/Input';
+import { TextArea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { cmsClient } from '../services/api';
@@ -174,10 +174,10 @@ export default function SleepPositionManager() {
                 month,
                 isPublished: isPub,
 
-                titleEn: row.title_en || row.titleEn || '',
-                titleAm: row.title_am || row.titleAm || '',
-                titleOr: row.title_or || row.titleOr || '',
-                titleSo: row.title_so || row.titleSo || '',
+                // titleEn: row.title_en || row.titleEn || '',
+                // titleAm: row.title_am || row.titleAm || '',
+                // titleOr: row.title_or || row.titleOr || '',
+                // titleSo: row.title_so || row.titleSo || '',
 
                 whyImportantEn: row.why_important_en || row.whyImportantEn || '',
                 whyImportantAm: row.why_important_am || row.whyImportantAm || '',
@@ -607,50 +607,7 @@ export default function SleepPositionManager() {
                     </div>
 
                     {/* SECTION 2: SLEEP WEEK TITLE (4 LANGUAGES) */}
-                    <div className="space-y-3 bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100">
-                        <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
-                            <Moon className="w-4 h-4 text-indigo-700" />
-                            2. Sleep Week Title (4 Languages)
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇬🇧 English Title</label>
-                                <Input
-                                    value={formData.titleEn}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleEn: e.target.value }))}
-                                    placeholder="e.g. Safe Sleep Positions for Week 18..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇪🇹 Amharic (አማርኛ) Title</label>
-                                <Input
-                                    value={formData.titleAm}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleAm: e.target.value }))}
-                                    placeholder="ለምሳሌ፡ ለ18ኛ ሳምንት ነዓድ የቐረቀጩ የነዓድ ጫፌ..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🌳 Afaan Oromo Title</label>
-                                <Input
-                                    value={formData.titleOr}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleOr: e.target.value }))}
-                                    placeholder="Fkn. Bakka Hirribaa Nagaa Torban 18 Keessatti..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-bold text-gray-600 mb-1">🇸🇴 Afan Somali Title</label>
-                                <Input
-                                    value={formData.titleSo}
-                                    onChange={e => setFormData(prev => ({ ...prev, titleSo: e.target.value }))}
-                                    placeholder="Tusaale. Goobaha Seexashada Amaan ah Toddobaadka 18aad..."
-                                    className="text-xs rounded-xl"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                 
 
                     {/* SECTION 3: WHY IT IS IMPORTANT (4 LANGUAGES) */}
                     <div className="space-y-3 bg-amber-50/40 p-4 rounded-2xl border border-amber-100">

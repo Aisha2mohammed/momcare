@@ -31,6 +31,7 @@ export interface ExerciseItem {
     labelOr?: string;
     labelSo?: string;
     labelAm?: string;
+    duration?: string;
     imageUrl?: string;
     videoUrl?: string;
 }
@@ -74,8 +75,11 @@ export interface ExerciseSection {
     imageUrl?: string;
     videoUrl?: string;
 
-    // Description Label & Value (4 languages)
-    benefitValue?: string;
+    // Description Value (4 languages) & Label (4 languages)
+    benefitValueEn?: string;
+    benefitValueOr?: string;
+    benefitValueSo?: string;
+    benefitValueAm?: string;
     benefitLabelEn?: string;
     benefitLabelOr?: string;
     benefitLabelSo?: string;
@@ -126,6 +130,10 @@ interface BackendExerciseRow {
     animation_url?: string; animationUrl?: string;
 
     benefit_value?: string; benefitValue?: string;
+    benefit_value_en?: string; benefitValueEn?: string;
+    benefit_value_or?: string; benefitValueOr?: string;
+    benefit_value_so?: string; benefitValueSo?: string;
+    benefit_value_am?: string; benefitValueAm?: string;
     benefit_label_en?: string; benefitLabelEn?: string;
     benefit_label_or?: string; benefitLabelOr?: string;
     benefit_label_so?: string; benefitLabelSo?: string;
@@ -161,6 +169,30 @@ const TRIMESTER_BADGE_STYLE: Record<string, string> = {
     '3rd': 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
+// Icon dropdown options for exercise/nutrient type routines
+const EMOJI_OPTIONS: { value: string; label: string }[] = [
+    { value: '🧘‍♀️', label: 'Yoga / Stretching' },
+    { value: '🚶‍♀️', label: 'Walking' },
+    { value: '🏊‍♀️', label: 'Swimming' },
+    { value: '🤸‍♀️', label: 'Flexibility' },
+    { value: '💪', label: 'Strength' },
+    { value: '🧎‍♀️', label: 'Kegel / Pelvic Floor' },
+    { value: '🚴‍♀️', label: 'Cycling' },
+    { value: '🩰', label: 'Balance' },
+    { value: '❤️', label: 'Heart / Cardio' },
+    { value: '🤰', label: 'Pregnancy General' },
+    { value: '🛌', label: 'Rest' },
+    { value: '🚫', label: 'Avoid' },
+];
+
+// Language suffix / caption helpers (used for both section & sub-exercise item fields)
+const LANG_SUFFIX: Record<'en' | 'or' | 'so' | 'am', 'En' | 'Or' | 'So' | 'Am'> = {
+    en: 'En', or: 'Or', so: 'So', am: 'Am',
+};
+const LANG_CAPTION: Record<'en' | 'or' | 'so' | 'am', string> = {
+    en: 'English', or: 'Afan Oromo', so: 'Somali', am: 'Amharic',
+};
+
 const EMPTY_EXERCISE_SECTION: Omit<ExerciseSection, 'id'> = {
     week: 18,
     trimester: '2nd',
@@ -174,7 +206,8 @@ const EMPTY_EXERCISE_SECTION: Omit<ExerciseSection, 'id'> = {
     whyImportantEn: '', whyImportantOr: '', whyImportantSo: '', whyImportantAm: '',
     tipsEn: '', tipsOr: '', tipsSo: '', tipsAm: '',
     imageUrl: '', videoUrl: '',
-    benefitValue: '', benefitLabelEn: '', benefitLabelOr: '', benefitLabelSo: '', benefitLabelAm: '',
+    benefitValueEn: '', benefitValueOr: '', benefitValueSo: '', benefitValueAm: '',
+    benefitLabelEn: '', benefitLabelOr: '', benefitLabelSo: '', benefitLabelAm: '',
     items: [],
 };
 
@@ -182,6 +215,7 @@ const EMPTY_EXERCISE_ITEM: ExerciseItem = {
     nameEn: '', nameOr: '', nameSo: '', nameAm: '',
     descEn: '', descOr: '', descSo: '', descAm: '',
     labelEn: '', labelOr: '', labelSo: '', labelAm: '',
+    duration: '',
     imageUrl: '', videoUrl: ''
 };
 
@@ -263,6 +297,7 @@ export default function AddExercisePage() {
                             labelOr: it.labelOr || it.label_or || '',
                             labelSo: it.labelSo || it.label_so || '',
                             labelAm: it.labelAm || it.label_am || '',
+                            duration: it.duration || it.duration_time || it.durationTime || it.time || '',
                             imageUrl: it.imageUrl || it.image_url || '',
                             videoUrl: it.videoUrl || it.video_url || '',
                         }));
@@ -302,7 +337,10 @@ export default function AddExercisePage() {
                         imageUrl: sec.imageUrl || sec.image_url || row.image_url || row.imageUrl || row.animation_url || row.animationUrl || '',
                         videoUrl: sec.videoUrl || sec.video_url || row.video_url || row.videoUrl || '',
 
-                        benefitValue: sec.benefitValue || sec.benefit_value || row.benefit_value || '',
+                        benefitValueEn: sec.benefitValueEn || sec.benefit_value_en || row.benefit_value_en || sec.benefitValue || sec.benefit_value || row.benefit_value || '',
+                        benefitValueOr: sec.benefitValueOr || sec.benefit_value_or || row.benefit_value_or || '',
+                        benefitValueSo: sec.benefitValueSo || sec.benefit_value_so || row.benefit_value_so || '',
+                        benefitValueAm: sec.benefitValueAm || sec.benefit_value_am || row.benefit_value_am || '',
                         benefitLabelEn: sec.benefitLabelEn || sec.benefit_label_en || row.benefit_label_en || '',
                         benefitLabelOr: sec.benefitLabelOr || sec.benefit_label_or || row.benefit_label_or || '',
                         benefitLabelSo: sec.benefitLabelSo || sec.benefit_label_so || row.benefit_label_so || '',
@@ -332,6 +370,7 @@ export default function AddExercisePage() {
                                 labelOr: it.labelOr || it.label_or || '',
                                 labelSo: it.labelSo || it.label_so || '',
                                 labelAm: it.labelAm || it.label_am || '',
+                                duration: it.duration || it.duration_time || it.durationTime || it.time || '',
                                 imageUrl: it.imageUrl || it.image_url || '',
                                 videoUrl: it.videoUrl || it.video_url || '',
                             }));
@@ -373,7 +412,10 @@ export default function AddExercisePage() {
                     imageUrl: row.image_url || row.imageUrl || row.animation_url || row.animationUrl || '',
                     videoUrl: row.video_url || row.videoUrl || '',
 
-                    benefitValue: row.benefit_value || row.benefitValue || '',
+                    benefitValueEn: row.benefit_value_en || row.benefitValueEn || row.benefit_value || row.benefitValue || '',
+                    benefitValueOr: row.benefit_value_or || row.benefitValueOr || '',
+                    benefitValueSo: row.benefit_value_so || row.benefitValueSo || '',
+                    benefitValueAm: row.benefit_value_am || row.benefitValueAm || '',
                     benefitLabelEn: row.benefit_label_en || row.benefitLabelEn || '',
                     benefitLabelOr: row.benefit_label_or || row.benefitLabelOr || '',
                     benefitLabelSo: row.benefit_label_so || row.benefitLabelSo || '',
@@ -523,7 +565,10 @@ export default function AddExercisePage() {
                 imageUrl: formData.imageUrl,
                 animationUrl: formData.imageUrl,
                 videoUrl: formData.videoUrl,
-                benefitValue: formData.benefitValue,
+                benefitValueEn: formData.benefitValueEn,
+                benefitValueOr: formData.benefitValueOr,
+                benefitValueSo: formData.benefitValueSo,
+                benefitValueAm: formData.benefitValueAm,
                 benefitLabelEn: formData.benefitLabelEn,
                 benefitLabelAm: formData.benefitLabelAm,
                 benefitLabelOr: formData.benefitLabelOr,
@@ -551,7 +596,10 @@ export default function AddExercisePage() {
                     tipsSo: formData.tipsSo,
                     imageUrl: formData.imageUrl,
                     videoUrl: formData.videoUrl,
-                    benefitValue: formData.benefitValue,
+                    benefitValueEn: formData.benefitValueEn,
+                    benefitValueOr: formData.benefitValueOr,
+                    benefitValueSo: formData.benefitValueSo,
+                    benefitValueAm: formData.benefitValueAm,
                     benefitLabelEn: formData.benefitLabelEn,
                     benefitLabelAm: formData.benefitLabelAm,
                     benefitLabelOr: formData.benefitLabelOr,
@@ -612,6 +660,13 @@ export default function AddExercisePage() {
     const setCardLanguage = (id: string, lang: 'en' | 'or' | 'so' | 'am') => {
         setCardLang(prev => ({ ...prev, [id]: lang }));
     };
+
+    // Current language suffix/caption for the item (sub-exercise) fields, driven by the same tab selector
+    const activeSuf = LANG_SUFFIX[activeLangTab];
+    const activeCaption = LANG_CAPTION[activeLangTab];
+    const activeNameKey = `name${activeSuf}` as keyof ExerciseItem;
+    const activeDescKey = `desc${activeSuf}` as keyof ExerciseItem;
+    const activeLabelKey = `label${activeSuf}` as keyof ExerciseItem;
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12 px-2 sm:px-4">
@@ -895,7 +950,7 @@ export default function AddExercisePage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
                             <Input
                                 label="Title / Exercise Name"
@@ -906,22 +961,18 @@ export default function AddExercisePage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Emoji Icon</label>
-                            <input
-                                type="text"
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Icon</label>
+                            <select
                                 value={formData.emoji}
                                 onChange={e => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
-                                placeholder="🧘‍♀️"
-                                className="w-full text-xs p-2 border border-gray-300 rounded-lg text-center"
-                            />
-                        </div>
-                        <div>
-                            <Input
-                                label="Description Value (e.g. 15 Mins / Day)"
-                                value={formData.benefitValue || ''}
-                                onChange={e => setFormData(prev => ({ ...prev, benefitValue: e.target.value }))}
-                                placeholder="e.g. 15 mins/day"
-                            />
+                                className="w-full text-xs p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-[#047857]"
+                            >
+                                {EMOJI_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.value} — {opt.label}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
 
@@ -941,7 +992,7 @@ export default function AddExercisePage() {
                         />
                     </div>
 
-                    {/* Language Switch Tabs for Multilingual Inputs */}
+                    {/* Language Switch Tabs for Multilingual Inputs (also drives Sub-Exercise fields below) */}
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
                         <div className="flex bg-gray-100 border-b border-gray-200">
                             {[
@@ -993,12 +1044,20 @@ export default function AddExercisePage() {
                                             placeholder="Stay hydrated, avoid lying flat on back after 1st trimester..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (English)"
-                                        value={formData.benefitLabelEn || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelEn: e.target.value }))}
-                                        placeholder="e.g. Recommended Duration"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (English)"
+                                            value={formData.benefitValueEn || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueEn: e.target.value }))}
+                                            placeholder="e.g. 15 mins/day"
+                                        />
+                                        <Input
+                                            label="Description Label (English)"
+                                            value={formData.benefitLabelEn || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelEn: e.target.value }))}
+                                            placeholder="e.g. Recommended Duration"
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -1033,12 +1092,20 @@ export default function AddExercisePage() {
                                             placeholder="Gorsa fayyaa..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (Afan Oromo)"
-                                        value={formData.benefitLabelOr || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelOr: e.target.value }))}
-                                        placeholder="Gorsa dheerina..."
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (Afan Oromo)"
+                                            value={formData.benefitValueOr || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueOr: e.target.value }))}
+                                            placeholder="Fkn. daqiiqaa 15/guyyaa"
+                                        />
+                                        <Input
+                                            label="Description Label (Afan Oromo)"
+                                            value={formData.benefitLabelOr || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelOr: e.target.value }))}
+                                            placeholder="Gorsa dheerina..."
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -1073,12 +1140,20 @@ export default function AddExercisePage() {
                                             placeholder="Talooyin caafimaad..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (Somali)"
-                                        value={formData.benefitLabelSo || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelSo: e.target.value }))}
-                                        placeholder="Waqtiga lagu talinayo"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (Somali)"
+                                            value={formData.benefitValueSo || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueSo: e.target.value }))}
+                                            placeholder="Tusaale: 15 daqiiqo/maalintii"
+                                        />
+                                        <Input
+                                            label="Description Label (Somali)"
+                                            value={formData.benefitLabelSo || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelSo: e.target.value }))}
+                                            placeholder="Waqtiga lagu talinayo"
+                                        />
+                                    </div>
                                 </>
                             )}
 
@@ -1113,12 +1188,20 @@ export default function AddExercisePage() {
                                             placeholder="የጤና ምክሮች እና ጥንቃቄዎች..."
                                         />
                                     </div>
-                                    <Input
-                                        label="Description Label (Amharic)"
-                                        value={formData.benefitLabelAm || ''}
-                                        onChange={e => setFormData(prev => ({ ...prev, benefitLabelAm: e.target.value }))}
-                                        placeholder="ምክር መለያ"
-                                    />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <Input
+                                            label="Description Value (Amharic)"
+                                            value={formData.benefitValueAm || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitValueAm: e.target.value }))}
+                                            placeholder="ለምሳሌ፡ 15 ደቂቃ/ቀን"
+                                        />
+                                        <Input
+                                            label="Description Label (Amharic)"
+                                            value={formData.benefitLabelAm || ''}
+                                            onChange={e => setFormData(prev => ({ ...prev, benefitLabelAm: e.target.value }))}
+                                            placeholder="ምክር መለያ"
+                                        />
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -1128,7 +1211,7 @@ export default function AddExercisePage() {
                     <div className="space-y-3 pt-2">
                         <div className="flex items-center justify-between">
                             <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                                Sub-Exercises & Variations List ({formData.items.length})
+                                Sub-Exercises & Variations List ({formData.items.length}) — editing {activeCaption} fields
                             </h4>
                             <Button type="button" size="sm" variant="secondary" onClick={handleAddItem} className="text-xs">
                                 + Add Sub-Exercise
@@ -1148,33 +1231,32 @@ export default function AddExercisePage() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <Input
-                                        label="Name (English)"
-                                        value={item.nameEn}
-                                        onChange={e => handleItemChange(idx, 'nameEn', e.target.value)}
-                                        placeholder="Deep Squats with Support"
+                                        label={`Name (${activeCaption})`}
+                                        value={(item[activeNameKey] as string) || ''}
+                                        onChange={e => handleItemChange(idx, activeNameKey, e.target.value)}
+                                        placeholder="e.g. Deep Squats with Support"
                                     />
                                     <Input
-                                        label="Name (Amharic)"
-                                        value={item.nameAm}
-                                        onChange={e => handleItemChange(idx, 'nameAm', e.target.value)}
-                                        placeholder="የስኳት እንቅስቃሴ"
+                                        label={`Label (${activeCaption})`}
+                                        value={(item[activeLabelKey] as string) || ''}
+                                        onChange={e => handleItemChange(idx, activeLabelKey, e.target.value)}
+                                        placeholder="e.g. Beginner Friendly"
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <TextArea
-                                        label="Description (English)"
-                                        value={item.descEn}
-                                        onChange={e => handleItemChange(idx, 'descEn', e.target.value)}
-                                        rows={2}
-                                    />
-                                    <TextArea
-                                        label="Description (Amharic)"
-                                        value={item.descAm}
-                                        onChange={e => handleItemChange(idx, 'descAm', e.target.value)}
-                                        rows={2}
-                                    />
-                                </div>
+                                <TextArea
+                                    label={`Description (${activeCaption})`}
+                                    value={(item[activeDescKey] as string) || ''}
+                                    onChange={e => handleItemChange(idx, activeDescKey, e.target.value)}
+                                    rows={2}
+                                />
+
+                                <Input
+                                    label="Duration"
+                                    value={item.duration || ''}
+                                    onChange={e => handleItemChange(idx, 'duration', e.target.value)}
+                                    placeholder="e.g. 10 mins, 3 sets x 12 reps"
+                                />
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <MediaInput
