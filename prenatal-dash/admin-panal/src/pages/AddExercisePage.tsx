@@ -951,15 +951,7 @@ export default function AddExercisePage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-2">
-                            <Input
-                                label="Title / Exercise Name"
-                                value={formData.exerciseType}
-                                onChange={e => setFormData(prev => ({ ...prev, exerciseType: e.target.value }))}
-                                placeholder="e.g. Kegel Exercises, Light Prenatal Yoga"
-                                required
-                            />
-                        </div>
+                      
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 mb-1">Icon</label>
                             <select
@@ -984,12 +976,7 @@ export default function AddExercisePage() {
                             onChange={url => setFormData(prev => ({ ...prev, imageUrl: url }))}
                             type="image"
                         />
-                        <MediaInput
-                            label="Workout Demonstration Video URL"
-                            value={formData.videoUrl || ''}
-                            onChange={url => setFormData(prev => ({ ...prev, videoUrl: url }))}
-                            type="video"
-                        />
+                       
                     </div>
 
                     {/* Language Switch Tabs for Multilingual Inputs (also drives Sub-Exercise fields below) */}

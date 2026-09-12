@@ -961,15 +961,7 @@ export default function AddSleepPage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                        <div className="sm:col-span-2">
-                            <Input
-                                label="Title / Sleep Category Name"
-                                value={formData.sleepType}
-                                onChange={e => setFormData(prev => ({ ...prev, sleepType: e.target.value }))}
-                                placeholder="e.g. Left Side Sleeping (SOS), Pregnancy Pillow Support"
-                                required
-                            />
-                        </div>
+    
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 mb-1">Icon</label>
                             <select
@@ -984,14 +976,7 @@ export default function AddSleepPage() {
                                 ))}
                             </select>
                         </div>
-                        <div>
-                            <Input
-                                label="Sleep Duration (e.g. 8 hours / night)"
-                                value={formData.sleepDuration || ''}
-                                onChange={e => setFormData(prev => ({ ...prev, sleepDuration: e.target.value }))}
-                                placeholder="e.g. 8 hours / night"
-                            />
-                        </div>
+                      
                     </div>
 
                     {/* Media Uploads */}
@@ -1002,12 +987,7 @@ export default function AddSleepPage() {
                             onChange={url => setFormData(prev => ({ ...prev, imageUrl: url }))}
                             type="image"
                         />
-                        <MediaInput
-                            label="Main Demonstration Video URL"
-                            value={formData.videoUrl || ''}
-                            onChange={url => setFormData(prev => ({ ...prev, videoUrl: url }))}
-                            type="video"
-                        />
+                        
                     </div>
 
                     {/* Language Switch Tabs for Multilingual Inputs */}
