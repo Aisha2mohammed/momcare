@@ -62,7 +62,17 @@ const nutritionRules = [
 ];
 
 const fetalRules = [
-  body('week_number').isInt({ min: 1, max: 42 }).withMessage('Week must be between 1 and 42'),
+  body().custom((_, { req }) => {
+    const raw = req.body.weekNumber ?? req.body.week_number;
+    if (raw === undefined || raw === null || raw === '') {
+      throw new Error('Week number is required');
+    }
+    const num = Number(raw);
+    if (!Number.isInteger(num) || num < 1 || num > 42) {
+      throw new Error('Week must be between 1 and 42');
+    }
+    return true;
+  }),
 ];
 
 const musicRules = [

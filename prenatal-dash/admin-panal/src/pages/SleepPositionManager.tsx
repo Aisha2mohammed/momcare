@@ -161,36 +161,43 @@ export default function SleepPositionManager() {
     }, [loadWeekGuidesData]);
 
     // ── Process Rows into Week Entries List ───────────────────────────────────
-    const weekEntriesList = useMemo(() => {
-        return rawRows.map(row => {
-            const weekNum = Number(row.week || 1);
-            const { month, trimester } = calculateMonthAndTrimester(weekNum);
-            const isPub = row.is_published ?? row.isPublished ?? true;
+ const weekEntriesList = useMemo(() => {
+    const trimesterNumMap: Record<string, string> = { '1': '1st', '2': '2nd', '3': '3rd' };
 
-            return {
-                id: row.id,
-                week: weekNum,
-                trimester: String(row.trimester || trimester),
-                month,
-                isPublished: isPub,
+    return rawRows.map(row => {
+        const weekNum = Number(row.week || 1);
+        const { month, trimester: calculatedTrimester } = calculateMonthAndTrimester(weekNum);
+        const isPub = row.is_published ?? row.isPublished ?? true;
 
-                // titleEn: row.title_en || row.titleEn || '',
-                // titleAm: row.title_am || row.titleAm || '',
-                // titleOr: row.title_or || row.titleOr || '',
-                // titleSo: row.title_so || row.titleSo || '',
+        const rawTrimester = row.trimester;
+        const displayTrimester = rawTrimester != null
+            ? (trimesterNumMap[String(rawTrimester)] || String(rawTrimester))
+            : calculatedTrimester;
 
-                whyImportantEn: row.why_important_en || row.whyImportantEn || '',
-                whyImportantAm: row.why_important_am || row.whyImportantAm || '',
-                whyImportantOr: row.why_important_or || row.whyImportantOr || '',
-                whyImportantSo: row.why_important_so || row.whyImportantSo || '',
+        return {
+            id: row.id,
+            week: weekNum,
+            trimester: displayTrimester,
+            month,
+            isPublished: isPub,
 
-                tipsEn: row.tips_en || row.tipsEn || '',
-                tipsAm: row.tips_am || row.tipsAm || '',
-                tipsOr: row.tips_or || row.tipsOr || '',
-                tipsSo: row.tips_so || row.tipsSo || '',
-            } as SleepWeekEntry;
-        });
-    }, [rawRows]);
+            titleEn: row.title_en || row.titleEn || '',
+            titleAm: row.title_am || row.titleAm || '',
+            titleOr: row.title_or || row.titleOr || '',
+            titleSo: row.title_so || row.titleSo || '',
+
+            whyImportantEn: row.why_important_en || row.whyImportantEn || '',
+            whyImportantAm: row.why_important_am || row.whyImportantAm || '',
+            whyImportantOr: row.why_important_or || row.whyImportantOr || '',
+            whyImportantSo: row.why_important_so || row.whyImportantSo || '',
+
+            tipsEn: row.tips_en || row.tipsEn || '',
+            tipsAm: row.tips_am || row.tipsAm || '',
+            tipsOr: row.tips_or || row.tipsOr || '',
+            tipsSo: row.tips_so || row.tipsSo || '',
+        } as SleepWeekEntry;
+    });
+}, [rawRows]);
 
     // ── Filtered Week Entries ────────────────────────────────────────────────
     const filteredEntries = useMemo(() => {
@@ -261,53 +268,56 @@ export default function SleepPositionManager() {
     };
 
     // ── Save / Update Action ─────────────────────────────────────────────────
-    const handleSaveWeekGuide = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSubmitting(true);
-        try {
-            const payload = {
-                week: formData.week,
-                month: formData.month,
-                trimester: formData.trimester,
-                titleEn: formData.titleEn,
-                titleAm: formData.titleAm,
-                titleOr: formData.titleOr,
-                titleSo: formData.titleSo,
-                whyImportantEn: formData.whyImportantEn,
-                whyImportantAm: formData.whyImportantAm,
-                whyImportantOr: formData.whyImportantOr,
-                whyImportantSo: formData.whyImportantSo,
-                tipsEn: formData.tipsEn,
-                tipsAm: formData.tipsAm,
-                tipsOr: formData.tipsOr,
-                tipsSo: formData.tipsSo,
-                isPublished: formData.isPublished,
-            };
+ const handleSaveWeekGuide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+        const trimesterMap: Record<string, number> = { '1st': 1, '2nd': 2, '3rd': 3 };
+        const trimesterNumber = trimesterMap[formData.trimester] ?? Number(formData.trimester);
 
-            if (isEditModalOpen && formData.id) {
-                await cmsClient.update('sleep-weeks', formData.id, payload);
-                setIsEditModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Sleep Guide Updated',
-                    message: `Sleep Guide for Week ${formData.week} updated successfully.`
-                });
-            } else {
-                await cmsClient.create('sleep-weeks', payload);
-                setIsAddModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Sleep Guide Created',
-                    message: `New Sleep Guide for Week ${formData.week} created successfully.`
-                });
-            }
-            loadWeekGuidesData();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to save sleep guide', 'error');
-        } finally {
-            setSubmitting(false);
+        const payload = {
+            week: formData.week,
+            month: formData.month,
+            trimester: trimesterNumber,   // ← now a number
+            titleEn: formData.titleEn,
+            titleAm: formData.titleAm,
+            titleOr: formData.titleOr,
+            titleSo: formData.titleSo,
+            whyImportantEn: formData.whyImportantEn,
+            whyImportantAm: formData.whyImportantAm,
+            whyImportantOr: formData.whyImportantOr,
+            whyImportantSo: formData.whyImportantSo,
+            tipsEn: formData.tipsEn,
+            tipsAm: formData.tipsAm,
+            tipsOr: formData.tipsOr,
+            tipsSo: formData.tipsSo,
+            isPublished: formData.isPublished,
+        };
+
+        if (isEditModalOpen && formData.id) {
+            await cmsClient.update('sleep-weeks', formData.id, payload);
+            setIsEditModalOpen(false);
+            setSuccessModal({
+                open: true,
+                title: 'Sleep Guide Updated',
+                message: `Sleep Guide for Week ${formData.week} updated successfully.`
+            });
+        } else {
+            await cmsClient.create('sleep-weeks', payload);
+            setIsAddModalOpen(false);
+            setSuccessModal({
+                open: true,
+                title: 'Sleep Guide Created',
+                message: `New Sleep Guide for Week ${formData.week} created successfully.`
+            });
         }
-    };
+        loadWeekGuidesData();
+    } catch (err: any) {
+        showToast(err.message || 'Failed to save sleep guide', 'error');
+    } finally {
+        setSubmitting(false);
+    }
+};
 
     // ── Delete Action ────────────────────────────────────────────────────────
     const handleConfirmDelete = async () => {

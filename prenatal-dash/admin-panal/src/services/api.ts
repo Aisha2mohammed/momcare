@@ -21,6 +21,25 @@ export const API_BASE_URL = getBaseUrl();
 export const CMS_BASE_URL = `${API_BASE_URL}/admin/cms`;
 
 /**
+ * Origin used to serve uploaded static files (e.g. /uploads/fetal/xyz.jpg).
+ * Uploads are NOT served under /api/v1 — strip that suffix off API_BASE_URL
+ * to get the plain backend origin (e.g. http://localhost:5000).
+ */
+export const MEDIA_ORIGIN = API_BASE_URL.replace(/\/api\/v\d+\/?$/, '');
+
+/**
+ * Turn a relative upload path (e.g. "/uploads/fetal/week19.jpg") into an
+ * absolute URL usable directly in an <img src>. Leaves already-absolute
+ * URLs (http:// or https://, e.g. externally hosted images) untouched.
+ * Returns '' for empty/null input so callers can safely check truthiness.
+ */
+export function resolveMediaUrl(path?: string | null): string {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${MEDIA_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
+/**
  * Module-to-endpoint map:
  * Translates logical module names used by admin panel manager pages
  * into their actual backend REST path segments (relative to API_BASE_URL).
@@ -52,11 +71,56 @@ const MODULE_ENDPOINT_MAP: Record<string, string> = {
 };
 
 /**
+ * LIST endpoint overrides (GET collection): raw, unlocalized rows with every
+ * language field — used for the admin table view.
+ *
+ * fetal: GET /fetal (mother-facing) is localized down to ONE language and
+ *        collapses e.g. title_en/title_am/... into a single "title" field.
+ *        GET /fetal/admin/list is the raw admin listing (every *_en/*_am/
+ *        *_om/*_so column). This is a DIFFERENT path from the single-record
+ *        admin GET below — the two must stay as separate objects/values.
+ */
+const LIST_ENDPOINT_OVERRIDES: Record<string, string> = {
+  'fetal': '/fetal/admin/list',
+};
+
+/**
+ * GET-by-ID endpoint overrides (single record): includes joined child
+ * tables (developments/checklist) for the admin edit form.
+ *
+ * fetal: GET /fetal/:week (mother-facing) expects a WEEK NUMBER (1–42),
+ *        not a DB id, and filters is_active=true — wrong shape for admin
+ *        editing. GET /fetal/admin/:id is the dedicated admin single-record
+ *        route (raw columns + developments[] + checklist[]).
+ */
+const GET_ENDPOINT_OVERRIDES: Record<string, string> = {
+  'fetal': '/fetal/admin',
+};
+
+/**
  * Resolve the actual REST path for a given module name.
  * Falls back to /admin/cms/{module} for any unknown modules (legacy behaviour).
  */
 function resolveModulePath(module: string): string {
   return MODULE_ENDPOINT_MAP[module] ?? `/admin/cms/${module}`;
+}
+
+/**
+ * Resolve the path used specifically for LIST (GET collection) requests.
+ * Prefers a dedicated admin listing endpoint when one is registered,
+ * otherwise falls back to the normal module path.
+ */
+function resolveListPath(module: string): string {
+  return LIST_ENDPOINT_OVERRIDES[module] ?? resolveModulePath(module);
+}
+
+/**
+ * Resolve the path used specifically for single-record GET-by-ID requests.
+ * Prefers a dedicated admin detail endpoint when one is registered,
+ * otherwise falls back to the normal module path.
+ */
+function resolveGetPath(module: string): string {
+  return GET_ENDPOINT_OVERRIDES[module] ?? resolveModulePath(module);
 }
 
 /**
@@ -126,6 +190,7 @@ export interface CmsListParams {
   limit?: number;
   search?: string;
   q?: string;
+  lang?: string;
   trimester?: string | number;
   category?: string;
   type?: string;
@@ -141,13 +206,15 @@ export interface CmsListParams {
 export const cmsClient = {
   /**
    * List items with pagination, search, and trimester/category/week/month/type filter.
-   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
+   * Uses LIST_ENDPOINT_OVERRIDES when a module has a dedicated admin listing
+   * endpoint (e.g. fetal → /fetal/admin/list), otherwise MODULE_ENDPOINT_MAP.
    */
   async list<T = any>(module: string, params: CmsListParams = {}) {
     const query = new URLSearchParams();
     if (params.page) query.set('page', String(params.page));
     if (params.limit) query.set('limit', String(params.limit));
     if (params.search || params.q) query.set('search', params.search || params.q || '');
+    if (params.lang) query.set('lang', params.lang);
     if (params.trimester !== undefined && params.trimester !== '') query.set('trimester', String(params.trimester));
     if (params.category && params.category !== 'All') query.set('category', params.category);
     if (params.type && params.type !== 'All') query.set('type', params.type);
@@ -157,11 +224,11 @@ export const cmsClient = {
     if (params.published !== undefined) query.set('isPublished', String(params.published));
     if (params.isActive !== undefined) query.set('isActive', String(params.isActive));
     if (params.active !== undefined) query.set('isActive', String(params.active));
-    // Pass includeInactive for admin fetal view so all records are returned
+    // Admin fetal listing always wants inactive entries included too
     if (module === 'fetal') query.set('includeInactive', 'true');
 
     const qs = query.toString();
-    const basePath = resolveModulePath(module);
+    const basePath = resolveListPath(module);
     const endpoint = `${basePath}${qs ? `?${qs}` : ''}`;
     const res = await apiRequest<T[]>(endpoint, { method: 'GET' });
     return {
@@ -172,10 +239,11 @@ export const cmsClient = {
 
   /**
    * Get single item detail by ID.
-   * Module names are resolved through MODULE_ENDPOINT_MAP to the actual backend paths.
+   * Uses GET_ENDPOINT_OVERRIDES when a module has a dedicated admin detail
+   * endpoint (e.g. fetal → /fetal/admin/:id), otherwise MODULE_ENDPOINT_MAP.
    */
   async get<T = any>(module: string, id: string | number) {
-    const basePath = resolveModulePath(module);
+    const basePath = resolveGetPath(module);
     const res = await apiRequest<T>(`${basePath}/${id}`, { method: 'GET' });
     return res.data as T;
   },
@@ -232,6 +300,9 @@ export const cmsClient = {
 
   /**
    * Upload media file (Image, Video, Audio, or PDF document)
+   *
+   * NOTE: this currently posts to `${API_BASE_URL}/admin/cms/upload`.
+   * If your backend does not have that route mounted, this call will 404.
    */
   async upload(file: File): Promise<{ url: string; relativeUrl: string; filename: string; size: number; mimetype: string }> {
     const formData = new FormData();
