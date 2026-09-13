@@ -37,13 +37,19 @@ exports.create = async (req, res, next) => {
       trimester, month, week,
       whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
       exerciseTipsEn, exerciseTipsAm, exerciseTipsOr, exerciseTipsSo,
-      // Accept tipsEn/Am/Or/So as aliases for exerciseTipsEn/Am/Or/So
       tipsEn, tipsAm, tipsOr, tipsSo,
-      // titleEn/Am/Or/So are accepted for future schema expansion (currently stored in tips fields)
       titleEn, titleAm, titleOr, titleSo
     } = req.body;
 
-    // Prefer explicit exerciseTips* fields, fall back to tips* aliases
+    const trimesterMap = { '1st': 1, '2nd': 2, '3rd': 3 };
+    const normalizedTrimester = trimesterMap[trimester] ?? Number(trimester);
+    const normalizedMonth = Number(month);
+    const normalizedWeek = Number(week);
+
+    if ([normalizedTrimester, normalizedMonth, normalizedWeek].some(v => Number.isNaN(v))) {
+      return sendError(res, 400, 'trimester, month, and week must be valid numbers');
+    }
+
     const finalTipsEn = exerciseTipsEn || tipsEn;
     const finalTipsAm = exerciseTipsAm || tipsAm;
     const finalTipsOr = exerciseTipsOr || tipsOr;
@@ -56,7 +62,7 @@ exports.create = async (req, res, next) => {
         exercise_tips_en, exercise_tips_am, exercise_tips_or, exercise_tips_so
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
-        trimester, month, week,
+        normalizedTrimester, normalizedMonth, normalizedWeek,
         whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
         finalTipsEn, finalTipsAm, finalTipsOr, finalTipsSo
       ]
@@ -142,4 +148,4 @@ function localize(item, lang) {
     why_important: item[`why_important_${l}`] || item.why_important_en || '',
     exercise_tips: item[`exercise_tips_${l}`] || item.exercise_tips_en || ''
   };
-}
+}

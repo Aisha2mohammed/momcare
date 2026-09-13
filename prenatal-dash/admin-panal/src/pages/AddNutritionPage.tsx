@@ -274,38 +274,48 @@ export default function AddNutritionPage() {
             const isPub = row.is_published ?? row.isPublished ?? true;
 
             // Parse listFood
-            let listFood: any[] = [];
-            const rawListFood = row.list_food || row.listFood;
-            if (Array.isArray(rawListFood)) listFood = rawListFood;
-            else if (typeof rawListFood === 'string') { try { listFood = JSON.parse(rawListFood); } catch { listFood = []; } }
+           // Parse listFood — use the RAW multi-language version, not the localized flat one
+// Parse listFood — MUST use the raw multi-language version, not the flattened one,
+// or name/description/label will only ever populate for the requested locale (usually EN).
+let listFood: any[] = [];
+const rawListFood = row.list_food_raw || row.listFoodRaw || row.list_food || row.listFood;
+if (Array.isArray(rawListFood)) listFood = rawListFood;
+else if (typeof rawListFood === 'string') { try { listFood = JSON.parse(rawListFood); } catch { listFood = []; } }
 
-            // Parse healthTips to single EN string for display
-            let healthTipStr = '';
-            const rawTips = row.health_tips || row.healthTips;
-            if (Array.isArray(rawTips) && rawTips.length > 0) {
-                healthTipStr = rawTips.map((t: any) => {
-                    if (typeof t === 'string') return t;
-                    return t?.label?.en || t?.label || '';
-                }).filter(Boolean).join(' | ');
-            }
+// Parse healthTips — same fix: use the raw multi-language version
+let rawTipsFull: any[] = [];
+const rawTipsSource = row.health_tips_raw || row.healthTipsRaw || row.health_tips || row.healthTips;
+if (Array.isArray(rawTipsSource)) rawTipsFull = rawTipsSource;
+else if (typeof rawTipsSource === 'string') { try { rawTipsFull = JSON.parse(rawTipsSource); } catch { rawTipsFull = []; } }
+
+const firstTip = rawTipsFull.length > 0 ? rawTipsFull[0] : null;
+
+// Fallback display string (used only if no per-language field exists yet)
+let healthTipStr = '';
+if (rawTipsFull.length > 0) {
+    healthTipStr = rawTipsFull.map((t: any) => {
+        if (typeof t === 'string') return t;
+        return t?.label?.en || '';
+    }).filter(Boolean).join(' | ');
+}
 
             const foodsList: FoodItem[] = listFood.map((f: any, fi: number) => ({
-                id: f.id || `f-${fi}`,
-                nameEn: f.name?.en || f.nameEn || f.name || '',
-                nameAm: f.name?.am || f.nameAm || '',
-                nameOr: f.name?.or || f.nameOr || '',
-                nameSo: f.name?.so || f.nameSo || '',
-                descEn: f.description?.en || f.descEn || f.description || '',
-                descAm: f.description?.am || f.descAm || '',
-                descOr: f.description?.or || f.descOr || '',
-                descSo: f.description?.so || f.descSo || '',
-                labelEn: f.label?.en || f.labelEn || '',
-                labelAm: f.label?.am || f.labelAm || '',
-                labelOr: f.label?.or || f.labelOr || '',
-                labelSo: f.label?.so || f.labelSo || '',
-                imageUrl: f.image?.url || f.imageUrl || '',
-                videoUrl: f.video?.url || f.videoUrl || '',
-            }));
+    id: f.id || `f-${fi}`,
+    nameEn: f.name?.en || f.nameEn || (typeof f.name === 'string' ? f.name : '') || '',
+    nameAm: f.name?.am || f.nameAm || '',
+    nameOr: f.name?.or || f.nameOr || '',
+    nameSo: f.name?.so || f.nameSo || '',
+    descEn: f.description?.en || f.descEn || (typeof f.description === 'string' ? f.description : '') || '',
+    descAm: f.description?.am || f.descAm || '',
+    descOr: f.description?.or || f.descOr || '',
+    descSo: f.description?.so || f.descSo || '',
+    labelEn: f.label?.en || f.labelEn || (typeof f.label === 'string' ? f.label : '') || '',
+    labelAm: f.label?.am || f.labelAm || '',
+    labelOr: f.label?.or || f.labelOr || '',
+    labelSo: f.label?.so || f.labelSo || '',
+    imageUrl: f.image?.url || f.imageUrl || '',
+    videoUrl: f.video?.url || f.videoUrl || '',
+}));
 
             list.push({
                 id: String(row.id),
@@ -350,10 +360,10 @@ export default function AddNutritionPage() {
                 whyImportantSo: row.why_important_so || row.whyImportantSo || '',
                 whyImportantAm: row.why_important_am || row.whyImportantAm || '',
 
-                healthTipsEn: row.health_tips_en || row.healthTipsEn || healthTipStr || '',
-                healthTipsOr: row.health_tips_or || row.healthTipsOr || '',
-                healthTipsSo: row.health_tips_so || row.healthTipsSo || '',
-                healthTipsAm: row.health_tips_am || row.healthTipsAm || '',
+              healthTipsEn: firstTip?.label?.en || row.health_tips_en || row.healthTipsEn || healthTipStr || '',
+healthTipsOr: firstTip?.label?.or || row.health_tips_or || row.healthTipsOr || '',
+healthTipsSo: firstTip?.label?.so || row.health_tips_so || row.healthTipsSo || '',
+healthTipsAm: firstTip?.label?.am || row.health_tips_am || row.healthTipsAm || '',
                 foods: foodsList,
             });
         });
@@ -506,16 +516,16 @@ export default function AddNutritionPage() {
                 whyImportantAm: formData.whyImportantAm || '',
                 whyImportantOr: formData.whyImportantOr || '',
                 whyImportantSo: formData.whyImportantSo || '',
-                healthTips: formData.healthTips ? [
-                    {
-                        label: {
-                            en: formData.healthTips,
-                            am: formData.healthTips,
-                            or: formData.healthTips,
-                            so: formData.healthTips
-                        }
-                    }
-                ] : [],
+              healthTips: (formData.healthTipsEn || formData.healthTipsAm || formData.healthTipsOr || formData.healthTipsSo) ? [
+    {
+        label: {
+            en: formData.healthTipsEn || '',
+            am: formData.healthTipsAm || '',
+            or: formData.healthTipsOr || '',
+            so: formData.healthTipsSo || ''
+        }
+    }
+] : [],
                 listFood: formData.foods.map(f => ({
                     type: formData.type,
                     name: { en: f.nameEn, am: f.nameAm, or: f.nameOr, so: f.nameSo },
@@ -1426,7 +1436,7 @@ export default function AddNutritionPage() {
                                         <label className="block text-[11px] font-semibold text-gray-600 mb-1">🇸🇴 Label (SO)</label>
                                         <TextArea
                                             value={food.labelSo}
-                                            onChange={e => handleFoodChange(fIdx, 'descSo', e.target.value)}
+                                        onChange={e => handleFoodChange(fIdx, 'labelSo', e.target.value)}
                                             placeholder="e.g. Ku hodan botassiyum iyo fiber"
                                             rows={2}
                                             className="text-xs rounded-xl"

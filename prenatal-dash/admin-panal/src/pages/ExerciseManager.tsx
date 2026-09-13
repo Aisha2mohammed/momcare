@@ -161,36 +161,40 @@ export default function ExerciseManager() {
     }, [loadWeekGuidesData]);
 
     // ── Process Rows into Week Entries List ───────────────────────────────────
-    const weekEntriesList = useMemo(() => {
-        return rawRows.map(row => {
-            const weekNum = Number(row.week || 1);
-            const { month, trimester } = calculateMonthAndTrimester(weekNum);
-            const isPub = row.is_published ?? row.isPublished ?? true;
+   const weekEntriesList = useMemo(() => {
+    return rawRows.map(row => {
+        const weekNum = Number(row.week || 1);
+        const { month, trimester: calculatedTrimester } = calculateMonthAndTrimester(weekNum);
+        const isPub = row.is_published ?? row.isPublished ?? true;
 
-            return {
-                id: row.id,
-                week: weekNum,
-                trimester: String(row.trimester || (row.trimesters && row.trimesters[0]) || trimester),
-                month,
-                isPublished: isPub,
+        // Backend now stores trimester as a NUMBER (1/2/3) — convert back to '1st'/'2nd'/'3rd' for display
+        const trimesterNumMap: Record<string, string> = { '1': '1st', '2': '2nd', '3': '3rd' };
+        const rawTrimester = row.trimester ?? (row.trimesters && row.trimesters[0]);
+        const displayTrimester = rawTrimester != null
+            ? (trimesterNumMap[String(rawTrimester)] || String(rawTrimester))
+            : calculatedTrimester;
 
-                titleEn: row.title_en || row.titleEn || '',
-                titleAm: row.title_am || row.titleAm || '',
-                titleOr: row.title_or || row.titleOr || '',
-                titleSo: row.title_so || row.titleSo || '',
-
-                whyImportantEn: row.why_important_en || row.whyImportantEn || '',
-                whyImportantAm: row.why_important_am || row.whyImportantAm || '',
-                whyImportantOr: row.why_important_or || row.whyImportantOr || '',
-                whyImportantSo: row.why_important_so || row.whyImportantSo || '',
-
-                tipsEn: row.tips_en || row.tipsEn || '',
-                tipsAm: row.tips_am || row.tipsAm || '',
-                tipsOr: row.tips_or || row.tipsOr || '',
-                tipsSo: row.tips_so || row.tipsSo || '',
-            } as ExerciseWeekEntry;
-        });
-    }, [rawRows]);
+        return {
+            id: row.id,
+            week: weekNum,
+            trimester: displayTrimester,
+            month,
+            isPublished: isPub,
+            titleEn: row.title_en || row.titleEn || '',
+            titleAm: row.title_am || row.titleAm || '',
+            titleOr: row.title_or || row.titleOr || '',
+            titleSo: row.title_so || row.titleSo || '',
+            whyImportantEn: row.why_important_en || row.whyImportantEn || '',
+            whyImportantAm: row.why_important_am || row.whyImportantAm || '',
+            whyImportantOr: row.why_important_or || row.whyImportantOr || '',
+            whyImportantSo: row.why_important_so || row.whyImportantSo || '',
+            tipsEn: row.tips_en || row.tipsEn || '',
+            tipsAm: row.tips_am || row.tipsAm || '',
+            tipsOr: row.tips_or || row.tipsOr || '',
+            tipsSo: row.tips_so || row.tipsSo || '',
+        } as ExerciseWeekEntry;
+    });
+}, [rawRows]);
 
     // ── Filtered Week Entries ────────────────────────────────────────────────
     const filteredEntries = useMemo(() => {
@@ -261,54 +265,58 @@ export default function ExerciseManager() {
     };
 
     // ── Save / Update Action ─────────────────────────────────────────────────
-    const handleSaveWeekGuide = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSubmitting(true);
-        try {
-            const payload = {
-                week: formData.week,
-                month: formData.month,
-                trimester: formData.trimester,
-                trimesters: [formData.trimester],
-                titleEn: formData.titleEn,
-                titleAm: formData.titleAm,
-                titleOr: formData.titleOr,
-                titleSo: formData.titleSo,
-                whyImportantEn: formData.whyImportantEn,
-                whyImportantAm: formData.whyImportantAm,
-                whyImportantOr: formData.whyImportantOr,
-                whyImportantSo: formData.whyImportantSo,
-                exerciseTipsEn: formData.tipsEn,
-                exerciseTipsAm: formData.tipsAm,
-                exerciseTipsOr: formData.tipsOr,
-                exerciseTipsSo: formData.tipsSo,
-                isPublished: formData.isPublished,
-            };
+  const handleSaveWeekGuide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+        // Convert '1st' / '2nd' / '3rd' to 1 / 2 / 3 for the backend's integer column
+        const trimesterMap: Record<string, number> = { '1st': 1, '2nd': 2, '3rd': 3 };
+        const trimesterNumber = trimesterMap[formData.trimester] ?? Number(formData.trimester);
 
-            if (isEditModalOpen && formData.id) {
-                await cmsClient.update('exercise-weeks', formData.id, payload);
-                setIsEditModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Exercise Guide Updated',
-                    message: `Exercise Guide for Week ${formData.week} updated successfully.`
-                });
-            } else {
-                await cmsClient.create('exercise-weeks', payload);
-                setIsAddModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Exercise Guide Created',
-                    message: `New Exercise Guide for Week ${formData.week} created successfully.`
-                });
-            }
-            loadWeekGuidesData();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to save exercise guide', 'error');
-        } finally {
-            setSubmitting(false);
+        const payload = {
+            week: formData.week,
+            month: formData.month,
+            trimester: trimesterNumber,          // ← now a number
+            trimesters: [trimesterNumber],        // ← consistent, also a number
+            titleEn: formData.titleEn,
+            titleAm: formData.titleAm,
+            titleOr: formData.titleOr,
+            titleSo: formData.titleSo,
+            whyImportantEn: formData.whyImportantEn,
+            whyImportantAm: formData.whyImportantAm,
+            whyImportantOr: formData.whyImportantOr,
+            whyImportantSo: formData.whyImportantSo,
+            exerciseTipsEn: formData.tipsEn,
+            exerciseTipsAm: formData.tipsAm,
+            exerciseTipsOr: formData.tipsOr,
+            exerciseTipsSo: formData.tipsSo,
+            isPublished: formData.isPublished,
+        };
+
+        if (isEditModalOpen && formData.id) {
+            await cmsClient.update('exercise-weeks', formData.id, payload);
+            setIsEditModalOpen(false);
+            setSuccessModal({
+                open: true,
+                title: 'Exercise Guide Updated',
+                message: `Exercise Guide for Week ${formData.week} updated successfully.`
+            });
+        } else {
+            await cmsClient.create('exercise-weeks', payload);
+            setIsAddModalOpen(false);
+            setSuccessModal({
+                open: true,
+                title: 'Exercise Guide Created',
+                message: `New Exercise Guide for Week ${formData.week} created successfully.`
+            });
         }
-    };
+        loadWeekGuidesData();
+    } catch (err: any) {
+        showToast(err.message || 'Failed to save exercise guide', 'error');
+    } finally {
+        setSubmitting(false);
+    }
+};
 
     // ── Delete Action ────────────────────────────────────────────────────────
     const handleConfirmDelete = async () => {
