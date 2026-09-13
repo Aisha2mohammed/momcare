@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, Search, Loader2, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Loader2, ChevronLeft, ChevronRight, ImageOff } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -7,7 +7,7 @@ import { Input, TextArea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { MediaInput } from '../components/ui/MediaInput';
 import { useToast } from '../context/ToastContext';
-import { cmsClient } from '../services/api';
+import { cmsClient, resolveMediaUrl } from '../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +17,8 @@ export interface FetalEntry {
     weekNumber?: number;
     week?: number;
     trimester?: number;
+    days_remaining?: number; daysRemaining?: number;
+    heart_rate?: number; heartRate?: number;
     // Titles
     title_en?: string; titleEn?: string;
     title_am?: string; titleAm?: string;
@@ -132,14 +134,33 @@ export interface FetalEntry {
     when_to_contact_provider_so?: string; whenToContactProviderSo?: string;
     // Meta
     is_active?: boolean; isActive?: boolean;
+    // Child records (only present when fetched via the admin single-record endpoint)
+    developments?: any[];
+    checklist?: any[];
+    senses?: any[];
+}
+interface DevelopmentItem {
+    category: string;
+    titleEn: string; titleAm: string; titleOm: string; titleSo: string;
 }
 
+interface ChecklistItem {
+    titleEn: string; titleAm: string; titleOm: string; titleSo: string;
+}
+
+interface SenseItem {
+    type: string;
+    status: string;
+    descEn: string; descAm: string; descOm: string; descSo: string;
+}
 type FormData = {
     weekNumber: number;
     imageUrl: string;
     babyLengthCm: string;
     babyWeightG: string;
     isActive: boolean;
+    daysRemaining: string;
+    heartRate: string;
     // 4 langs × many fields
     titleEn: string; titleAm: string; titleOm: string; titleSo: string;
     imageAltEn: string; imageAltAm: string; imageAltOm: string; imageAltSo: string;
@@ -163,10 +184,13 @@ type FormData = {
     diaryPromptEn: string; diaryPromptAm: string; diaryPromptOm: string; diaryPromptSo: string;
     warningSignsEn: string; warningSignsAm: string; warningSignsOm: string; warningSignsSo: string;
     whenToContactProviderEn: string; whenToContactProviderAm: string; whenToContactProviderOm: string; whenToContactProviderSo: string;
+    developments: DevelopmentItem[];
+    checklist: ChecklistItem[];
+    senses: SenseItem[];
 };
 
 const EMPTY_FORM: FormData = {
-    weekNumber: 1, imageUrl: '', babyLengthCm: '', babyWeightG: '', isActive: true,
+    weekNumber: 1, imageUrl: '', babyLengthCm: '', babyWeightG: '', daysRemaining: '', heartRate: '', isActive: true,
     titleEn: '', titleAm: '', titleOm: '', titleSo: '',
     imageAltEn: '', imageAltAm: '', imageAltOm: '', imageAltSo: '',
     summaryEn: '', summaryAm: '', summaryOm: '', summarySo: '',
@@ -189,6 +213,9 @@ const EMPTY_FORM: FormData = {
     diaryPromptEn: '', diaryPromptAm: '', diaryPromptOm: '', diaryPromptSo: '',
     warningSignsEn: '', warningSignsAm: '', warningSignsOm: '', warningSignsSo: '',
     whenToContactProviderEn: '', whenToContactProviderAm: '', whenToContactProviderOm: '', whenToContactProviderSo: '',
+    developments: [],
+    checklist: [],
+    senses: [],
 };
 
 // ── Wizard page definitions ────────────────────────────────────────────────────
@@ -212,6 +239,8 @@ function entryToForm(e: FetalEntry): FormData {
         imageUrl: f('imageUrl', 'image_url'),
         babyLengthCm: String(e.baby_length_cm ?? e.babyLengthCm ?? ''),
         babyWeightG: String(e.baby_weight_g ?? e.babyWeightG ?? ''),
+        heartRate: String((e as any).heart_rate ?? (e as any).heartRate ?? ''),
+        daysRemaining: String((e as any).days_remaining ?? (e as any).daysRemaining ?? ''),
         isActive: e.is_active ?? e.isActive ?? true,
         titleEn: f('titleEn', 'title_en'), titleAm: f('titleAm', 'title_am'), titleOm: f('titleOm', 'title_om'), titleSo: f('titleSo', 'title_so'),
         imageAltEn: f('imageAltEn', 'image_alt_en'), imageAltAm: f('imageAltAm', 'image_alt_am'), imageAltOm: f('imageAltOm', 'image_alt_om'), imageAltSo: f('imageAltSo', 'image_alt_so'),
@@ -235,6 +264,33 @@ function entryToForm(e: FetalEntry): FormData {
         diaryPromptEn: f('diaryPromptEn', 'diary_prompt_en'), diaryPromptAm: f('diaryPromptAm', 'diary_prompt_am'), diaryPromptOm: f('diaryPromptOm', 'diary_prompt_om'), diaryPromptSo: f('diaryPromptSo', 'diary_prompt_so'),
         warningSignsEn: f('warningSignsEn', 'warning_signs_en'), warningSignsAm: f('warningSignsAm', 'warning_signs_am'), warningSignsOm: f('warningSignsOm', 'warning_signs_om'), warningSignsSo: f('warningSignsSo', 'warning_signs_so'),
         whenToContactProviderEn: f('whenToContactProviderEn', 'when_to_contact_provider_en'), whenToContactProviderAm: f('whenToContactProviderAm', 'when_to_contact_provider_am'), whenToContactProviderOm: f('whenToContactProviderOm', 'when_to_contact_provider_om'), whenToContactProviderSo: f('whenToContactProviderSo', 'when_to_contact_provider_so'),
+        developments: Array.isArray((e as any).developments)
+            ? (e as any).developments.map((d: any) => ({
+                category: d.category || '',
+                titleEn: d.titleEn ?? d.title_en ?? '',
+                titleAm: d.titleAm ?? d.title_am ?? '',
+                titleOm: d.titleOm ?? d.title_om ?? '',
+                titleSo: d.titleSo ?? d.title_so ?? '',
+            }))
+            : [],
+        checklist: Array.isArray((e as any).checklist)
+            ? (e as any).checklist.map((c: any) => ({
+                titleEn: c.titleEn ?? c.title_en ?? '',
+                titleAm: c.titleAm ?? c.title_am ?? '',
+                titleOm: c.titleOm ?? c.title_om ?? '',
+                titleSo: c.titleSo ?? c.title_so ?? '',
+            }))
+            : [],
+        senses: Array.isArray((e as any).senses)
+            ? (e as any).senses.map((s: any) => ({
+                type: s.type || '',
+                status: s.status || '',
+                descEn: s.description?.en ?? '',
+                descAm: s.description?.am ?? '',
+                descOm: s.description?.om ?? '',
+                descSo: s.description?.so ?? '',
+            }))
+            : [],
     };
 }
 
@@ -247,25 +303,8 @@ const WIZARD_PAGES = [
     { title: '4. Mother & Symptoms', icon: '🤱' },
     { title: '5. Care & Safety', icon: '🏥' },
     { title: '6. Bonding & Emotions', icon: '💕' },
+    { title: '7. Extras', icon: '📝' },
 ];
-
-// Language Tab Selector
-function LangTabs({ active, onChange }: { active: string; onChange: (l: string) => void }) {
-    return (
-        <div className="flex gap-2 mb-4 flex-wrap">
-            {LANG_TABS.map(lt => (
-                <button
-                    key={lt.code}
-                    onClick={() => onChange(lt.code)}
-                    className={`px-3 py-1.5 text-sm rounded-lg font-semibold transition-all border ${active === lt.code ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                    style={active === lt.code ? { backgroundColor: lt.color, borderColor: lt.color } : {}}
-                >
-                    {lt.label}
-                </button>
-            ))}
-        </div>
-    );
-}
 
 // 4-lang TextArea group
 function LangTextAreas({ label, field, form, setForm, rows = 3 }: {
@@ -340,6 +379,7 @@ export default function FetalDevelopmentManager() {
     const [editing, setEditing] = useState<FetalEntry | null>(null);
     const [form, setForm] = useState<FormData>(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
+    const [loadingEntry, setLoadingEntry] = useState(false);
     const [page, setPage] = useState(0); // wizard page
 
     // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -372,11 +412,24 @@ export default function FetalDevelopmentManager() {
         setModalOpen(true);
     }
 
-    function openEdit(e: FetalEntry) {
+    // Fetches the FULL record (incl. developments/checklist, which the list
+    // endpoint does not include — those live in separate child tables) before
+    // populating the edit form.
+    async function openEdit(e: FetalEntry) {
         setEditing(e);
-        setForm(entryToForm(e));
+        setForm(entryToForm(e)); // show something immediately (no blank flash)
         setPage(0);
         setModalOpen(true);
+        try {
+            setLoadingEntry(true);
+            const full = await cmsClient.get<FetalEntry>('fetal', e.id);
+            setEditing(full);
+            setForm(entryToForm(full)); // now includes developments/checklist/senses
+        } catch (err: any) {
+            showToast(err.message || 'Failed to load full entry details', 'error');
+        } finally {
+            setLoadingEntry(false);
+        }
     }
 
     async function handleDelete(id: string | number) {
@@ -388,6 +441,60 @@ export default function FetalDevelopmentManager() {
         } catch (err: any) {
             showToast(err.message || 'Failed to delete.', 'error');
         }
+    }
+
+    // ── Development items (Page 7) ──────────────────────────────────────────
+    function addDevelopment() {
+        setForm(f => ({
+            ...f,
+            developments: [...f.developments, { category: '', titleEn: '', titleAm: '', titleOm: '', titleSo: '' }],
+        }));
+    }
+    function removeDevelopment(idx: number) {
+        setForm(f => ({ ...f, developments: f.developments.filter((_, i) => i !== idx) }));
+    }
+    function updateDevelopment(idx: number, key: keyof DevelopmentItem, value: string) {
+        setForm(f => {
+            const next = [...f.developments];
+            next[idx] = { ...next[idx], [key]: value };
+            return { ...f, developments: next };
+        });
+    }
+
+    // ── Checklist items (Page 7) ────────────────────────────────────────────
+    function addChecklistItem() {
+        setForm(f => ({
+            ...f,
+            checklist: [...f.checklist, { titleEn: '', titleAm: '', titleOm: '', titleSo: '' }],
+        }));
+    }
+    function removeChecklistItem(idx: number) {
+        setForm(f => ({ ...f, checklist: f.checklist.filter((_, i) => i !== idx) }));
+    }
+    function updateChecklistItem(idx: number, key: keyof ChecklistItem, value: string) {
+        setForm(f => {
+            const next = [...f.checklist];
+            next[idx] = { ...next[idx], [key]: value };
+            return { ...f, checklist: next };
+        });
+    }
+
+    // ── Senses (Page 7) ─────────────────────────────────────────────────────
+    function addSense() {
+        setForm(f => ({
+            ...f,
+            senses: [...f.senses, { type: '', status: '', descEn: '', descAm: '', descOm: '', descSo: '' }],
+        }));
+    }
+    function removeSense(idx: number) {
+        setForm(f => ({ ...f, senses: f.senses.filter((_, i) => i !== idx) }));
+    }
+    function updateSense(idx: number, key: keyof SenseItem, value: string) {
+        setForm(f => {
+            const next = [...f.senses];
+            next[idx] = { ...next[idx], [key]: value };
+            return { ...f, senses: next };
+        });
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
@@ -404,6 +511,8 @@ export default function FetalDevelopmentManager() {
                 imageUrl: form.imageUrl || undefined,
                 babyLengthCm: form.babyLengthCm ? parseFloat(form.babyLengthCm) : undefined,
                 babyWeightG: form.babyWeightG ? parseFloat(form.babyWeightG) : undefined,
+                daysRemaining: form.daysRemaining ? parseInt(form.daysRemaining, 10) : undefined,
+                heartRate: form.heartRate ? parseInt(form.heartRate, 10) : undefined,
                 isActive: form.isActive,
                 titleEn: form.titleEn || undefined, titleAm: form.titleAm || undefined, titleOm: form.titleOm || undefined, titleSo: form.titleSo || undefined,
                 imageAltEn: form.imageAltEn || undefined, imageAltAm: form.imageAltAm || undefined, imageAltOm: form.imageAltOm || undefined, imageAltSo: form.imageAltSo || undefined,
@@ -427,6 +536,18 @@ export default function FetalDevelopmentManager() {
                 diaryPromptEn: form.diaryPromptEn || undefined, diaryPromptAm: form.diaryPromptAm || undefined, diaryPromptOm: form.diaryPromptOm || undefined, diaryPromptSo: form.diaryPromptSo || undefined,
                 warningSignsEn: form.warningSignsEn || undefined, warningSignsAm: form.warningSignsAm || undefined, warningSignsOm: form.warningSignsOm || undefined, warningSignsSo: form.warningSignsSo || undefined,
                 whenToContactProviderEn: form.whenToContactProviderEn || undefined, whenToContactProviderAm: form.whenToContactProviderAm || undefined, whenToContactProviderOm: form.whenToContactProviderOm || undefined, whenToContactProviderSo: form.whenToContactProviderSo || undefined,
+                developments: form.developments.map(d => ({
+                    category: d.category,
+                    titleEn: d.titleEn, titleAm: d.titleAm, titleOm: d.titleOm, titleSo: d.titleSo,
+                })),
+                checklist: form.checklist.map(c => ({
+                    titleEn: c.titleEn, titleAm: c.titleAm, titleOm: c.titleOm, titleSo: c.titleSo,
+                })),
+                senses: form.senses.map(s => ({
+                    type: s.type,
+                    status: s.status,
+                    description: { en: s.descEn, am: s.descAm, om: s.descOm, so: s.descSo },
+                })),
             };
 
             if (editing) {
@@ -489,7 +610,8 @@ export default function FetalDevelopmentManager() {
                         const weekNum = entry.week_number ?? entry.weekNumber ?? entry.week ?? 0;
                         const title = entry.title_en ?? entry.titleEn ?? entry.title_am ?? entry.titleAm ?? entry.title_om ?? entry.titleOm ?? entry.title_so ?? entry.titleSo ?? `Week ${weekNum}`;
                         const milestone = entry.milestone_en ?? entry.milestoneEn ?? entry.milestone_am ?? entry.milestoneAm ?? '';
-                        const imgUrl = entry.image_url ?? entry.imageUrl ?? '';
+                        const rawImgPath = entry.image_url ?? entry.imageUrl ?? '';
+                        const imgSrc = resolveMediaUrl(rawImgPath);
                         const trimester = entry.trimester;
                         return (
                             <Card key={entry.id} className="flex items-start gap-5">
@@ -498,12 +620,33 @@ export default function FetalDevelopmentManager() {
                                     <span className="text-2xl font-black text-white">{weekNum}</span>
                                     <span className="text-xs text-white/70 font-medium">weeks</span>
                                 </div>
+                                {/* Cover image thumbnail */}
+                                <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center">
+                                    {imgSrc ? (
+                                        <img
+                                            src={imgSrc}
+                                            alt={entry.image_alt_en ?? entry.imageAltEn ?? title}
+                                            className="w-full h-full object-cover"
+                                            onError={(ev) => {
+                                                // Broken/missing file at that path — fall back to placeholder icon
+                                                (ev.currentTarget as HTMLImageElement).style.display = 'none';
+                                                const fallback = (ev.currentTarget.nextElementSibling as HTMLElement | null);
+                                                if (fallback) fallback.style.display = 'flex';
+                                            }}
+                                        />
+                                    ) : null}
+                                    <div
+                                        className="w-full h-full items-center justify-center text-gray-300"
+                                        style={{ display: imgSrc ? 'none' : 'flex' }}
+                                    >
+                                        <ImageOff className="w-5 h-5" />
+                                    </div>
+                                </div>
                                 {/* Info */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <h4 className="font-semibold text-gray-900 text-sm truncate">{title}</h4>
                                         {trimester && <Badge variant="pink">T{trimester}</Badge>}
-                                        {imgUrl && <span className="text-xs text-green-600">📷</span>}
                                     </div>
                                     {milestone && <p className="text-xs text-gray-600 line-clamp-2">{milestone}</p>}
                                 </div>
@@ -548,10 +691,17 @@ export default function FetalDevelopmentManager() {
                     ))}
                 </div>
 
+                {loadingEntry && (
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Loading development items & checklist…
+                    </div>
+                )}
+
                 {/* ── Page 0: Basic Info ── */}
                 {page === 0 && (
                     <div className="space-y-4">
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                             <Input
                                 label="Week Number (1–42) *"
                                 type="number" min={1} max={42}
@@ -571,6 +721,20 @@ export default function FetalDevelopmentManager() {
                                 value={form.babyWeightG}
                                 onChange={e => setForm(f => ({ ...f, babyWeightG: e.target.value }))}
                                 placeholder="190"
+                            />
+                            <Input
+                                label="Days Remaining"
+                                type="number" step="1" min={0}
+                                value={form.daysRemaining}
+                                onChange={e => setForm(f => ({ ...f, daysRemaining: e.target.value }))}
+                                placeholder="147"
+                            />
+                            <Input
+                                label="Heart Rate (bpm)"
+                                type="number" step="1" min={0}
+                                value={form.heartRate}
+                                onChange={e => setForm(f => ({ ...f, heartRate: e.target.value }))}
+                                placeholder="145"
                             />
                         </div>
                         <MediaInput
@@ -640,7 +804,82 @@ export default function FetalDevelopmentManager() {
                         <LangTextAreas label="Diary Prompt" field="diaryPrompt" form={form} setForm={setForm} rows={2} />
                     </div>
                 )}
+                {page === 6 && (
+                    <div className="space-y-6">
+                        {/* DEVELOPMENTS */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-gray-800">Development Items</h4>
+                                <button type="button" onClick={addDevelopment} className="text-xs px-3 py-1.5 bg-[#61183e] text-white rounded-lg font-semibold">
+                                    + Add Development Item
+                                </button>
+                            </div>
+                            {form.developments.map((d, idx) => (
+                                <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                                    <button type="button" onClick={() => removeDevelopment(idx)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 text-xs font-bold">✕</button>
+                                    <Input
+                                        label="Category (e.g. sensory, motor)"
+                                        value={d.category}
+                                        onChange={e => updateDevelopment(idx, 'category', e.target.value)}
+                                        placeholder="sensory"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input label="Title (EN)" value={d.titleEn} onChange={e => updateDevelopment(idx, 'titleEn', e.target.value)} />
+                                        <Input label="Title (AM)" value={d.titleAm} onChange={e => updateDevelopment(idx, 'titleAm', e.target.value)} />
+                                        <Input label="Title (OM)" value={d.titleOm} onChange={e => updateDevelopment(idx, 'titleOm', e.target.value)} />
+                                        <Input label="Title (SO)" value={d.titleSo} onChange={e => updateDevelopment(idx, 'titleSo', e.target.value)} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
 
+                        {/* CHECKLIST */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-gray-800">Checklist Items</h4>
+                                <button type="button" onClick={addChecklistItem} className="text-xs px-3 py-1.5 bg-[#61183e] text-white rounded-lg font-semibold">
+                                    + Add Checklist Item
+                                </button>
+                            </div>
+                            {form.checklist.map((c, idx) => (
+                                <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                                    <button type="button" onClick={() => removeChecklistItem(idx)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 text-xs font-bold">✕</button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input label="Title (EN)" value={c.titleEn} onChange={e => updateChecklistItem(idx, 'titleEn', e.target.value)} />
+                                        <Input label="Title (AM)" value={c.titleAm} onChange={e => updateChecklistItem(idx, 'titleAm', e.target.value)} />
+                                        <Input label="Title (OM)" value={c.titleOm} onChange={e => updateChecklistItem(idx, 'titleOm', e.target.value)} />
+                                        <Input label="Title (SO)" value={c.titleSo} onChange={e => updateChecklistItem(idx, 'titleSo', e.target.value)} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* SENSES */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-gray-800">Senses</h4>
+                                <button type="button" onClick={addSense} className="text-xs px-3 py-1.5 bg-[#61183e] text-white rounded-lg font-semibold">
+                                    + Add Sense
+                                </button>
+                            </div>
+                            {form.senses.map((s, idx) => (
+                                <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                                    <button type="button" onClick={() => removeSense(idx)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 text-xs font-bold">✕</button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input label="Type (e.g. hearing, sight)" value={s.type} onChange={e => updateSense(idx, 'type', e.target.value)} placeholder="hearing" />
+                                        <Input label="Status (e.g. active, forming)" value={s.status} onChange={e => updateSense(idx, 'status', e.target.value)} placeholder="active" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <TextArea label="Description (EN)" value={s.descEn} onChange={e => updateSense(idx, 'descEn', e.target.value)} rows={2} />
+                                        <TextArea label="Description (AM)" value={s.descAm} onChange={e => updateSense(idx, 'descAm', e.target.value)} rows={2} />
+                                        <TextArea label="Description (OM)" value={s.descOm} onChange={e => updateSense(idx, 'descOm', e.target.value)} rows={2} />
+                                        <TextArea label="Description (SO)" value={s.descSo} onChange={e => updateSense(idx, 'descSo', e.target.value)} rows={2} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 {/* Navigation footer */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4">
                     <button

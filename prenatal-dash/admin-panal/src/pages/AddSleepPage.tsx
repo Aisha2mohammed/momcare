@@ -94,54 +94,39 @@ export interface SleepSection {
 interface BackendSleepRow {
     id: string | number;
     week?: number | string | null;
-    trimester?: string | null;
+    trimester?: string | number | null;
+    position?: string;
     type?: 'recommended' | 'avoid' | 'tip' | string;
     emoji?: string;
-    sleep_type?: string; sleepType?: string;
 
     title_en?: string; titleEn?: string;
     title_or?: string; titleOr?: string;
     title_so?: string; titleSo?: string;
     title_am?: string; titleAm?: string;
 
-    body_en?: string; bodyEn?: string;
-    body_or?: string; bodyOr?: string;
-    body_so?: string; bodySo?: string;
-    body_am?: string; bodyAm?: string;
     description_en?: string; descriptionEn?: string;
     description_or?: string; descriptionOr?: string;
+    description_so?: string; descriptionSo?: string;
     description_am?: string; descriptionAm?: string;
+
+    description_label_en?: string; description_label_am?: string;
+    description_label_or?: string; description_label_so?: string;
+    description_value_en?: string; description_value_am?: string;
+    description_value_or?: string; description_value_so?: string;
 
     why_important_en?: string; whyImportantEn?: string;
     why_important_or?: string; whyImportantOr?: string;
     why_important_so?: string; whyImportantSo?: string;
     why_important_am?: string; whyImportantAm?: string;
 
-    tips_en?: string; tipsEn?: string;
-    tips_or?: string; tipsOr?: string;
-    tips_so?: string; tipsSo?: string;
-    tips_am?: string; tipsAm?: string;
+    health_tips?: any[];
+    list_sleep?: any[];
 
+    illustration_url?: string; illustrationUrl?: string;
     image_url?: string; imageUrl?: string;
     video_url?: string; videoUrl?: string;
-    illustration_url?: string; illustrationUrl?: string;
-
-    benefit_value_en?: string; benefitValueEn?: string;
-    benefit_value_or?: string; benefitValueOr?: string;
-    benefit_value_so?: string; benefitValueSo?: string;
-    benefit_value_am?: string; benefitValueAm?: string;
-    // legacy single-language field (kept so old rows still load)
-    benefit_value?: string; benefitValue?: string;
-
-    benefit_label_en?: string; benefitLabelEn?: string;
-    benefit_label_or?: string; benefitLabelOr?: string;
-    benefit_label_so?: string; benefitLabelSo?: string;
-    benefit_label_am?: string; benefitLabelAm?: string;
 
     sleep_duration?: string; sleepDuration?: string;
-
-    sections_json?: any; sectionsJson?: any;
-    items_json?: any; itemsJson?: any;
     is_published?: boolean; isPublished?: boolean;
 }
 
@@ -259,172 +244,102 @@ export default function AddSleepPage() {
     }, [loadData]);
 
     // Flatten DB rows into SleepSection cards
-    const sleepList = useMemo(() => {
-        const list: SleepSection[] = [];
+ const sleepList = useMemo(() => {
+    const list: SleepSection[] = [];
 
-        rawRows.forEach(row => {
-            const weekNum = Number(row.week || 1);
-            const { month, trimester } = calculateMonthAndTrimester(weekNum);
-            const parentType = (row.type || 'recommended') as 'recommended' | 'avoid' | 'tip';
-            const isPub = row.is_published ?? row.isPublished ?? true;
+    rawRows.forEach(row => {
+        const weekNum = Number(row.week || 1);
+        const { month, trimester } = calculateMonthAndTrimester(weekNum);
+        const parentType = (row.type || 'recommended') as 'recommended' | 'avoid' | 'tip';
+        const isPub = row.is_published ?? row.isPublished ?? true;
 
-            let sections: any[] = [];
-            const rawSec = row.sections_json || row.sectionsJson;
-            if (rawSec) {
-                try { sections = typeof rawSec === 'string' ? JSON.parse(rawSec) : rawSec; } catch { sections = []; }
-            }
+        // Parse list_sleep (the real backend field)
+        const rawItems = row.list_sleep || (row as any).listSleep;
+        let parsedItems: any[] = [];
+        if (Array.isArray(rawItems)) parsedItems = rawItems;
+        else if (typeof rawItems === 'string') {
+            try { parsedItems = JSON.parse(rawItems); } catch { parsedItems = []; }
+        }
 
-            if (Array.isArray(sections) && sections.length > 0) {
-                sections.forEach((sec, idx) => {
-                    let itemsList: SleepItem[] = [];
-                    if (Array.isArray(sec.items)) {
-                        itemsList = sec.items.map((it: any) => ({
-                            id: it.id || `item-${Math.random()}`,
-                            nameEn: it.nameEn || it.name_en || it.name || '',
-                            nameOr: it.nameOr || it.name_or || '',
-                            nameSo: it.nameSo || it.name_so || '',
-                            nameAm: it.nameAm || it.name_am || '',
-                            descEn: it.descEn || it.desc_en || it.description || '',
-                            descOr: it.descOr || it.desc_or || '',
-                            descSo: it.descSo || it.desc_so || '',
-                            descAm: it.descAm || it.desc_am || '',
-                            labelEn: it.labelEn || it.label_en || '',
-                            labelOr: it.labelOr || it.label_or || '',
-                            labelSo: it.labelSo || it.label_so || '',
-                            labelAm: it.labelAm || it.label_am || '',
-                            imageUrl: it.imageUrl || it.image_url || '',
-                            videoUrl: it.videoUrl || it.video_url || '',
-                        }));
-                    }
+        const itemsList: SleepItem[] = parsedItems.map((it: any, ii: number) => ({
+            id: it.id || `item-${row.id}-${ii}`,
+            nameEn: it.name?.en || it.nameEn || '',
+            nameOr: it.name?.or || it.nameOr || '',
+            nameSo: it.name?.so || it.nameSo || '',
+            nameAm: it.name?.am || it.nameAm || '',
+            descEn: it.description?.en || it.descEn || '',
+            descOr: it.description?.or || it.descOr || '',
+            descSo: it.description?.so || it.descSo || '',
+            descAm: it.description?.am || it.descAm || '',
+            labelEn: it.label?.en || it.labelEn || '',
+            labelOr: it.label?.or || it.labelOr || '',
+            labelSo: it.label?.so || it.labelSo || '',
+            labelAm: it.label?.am || it.labelAm || '',
+            imageUrl: it.image?.url || it.imageUrl || '',
+            videoUrl: it.video?.url || it.videoUrl || '',
+        }));
 
-                    list.push({
-                        id: sec.id || `sec-${row.id}-${idx}`,
-                        parentId: row.id,
-                        week: weekNum,
-                        trimester: String(row.trimester || trimester),
-                        month,
-                        type: (sec.type || parentType) as any,
-                        sleepType: sec.sleepType || sec.sleep_type || row.sleep_type || 'Sleep Posture',
-                        emoji: sec.emoji || row.emoji || '🌙',
-                        isPublished: isPub,
+        // Parse health_tips
+        const rawTipsSource = row.health_tips || (row as any).healthTips;
+        let rawTipsFull: any[] = [];
+        if (Array.isArray(rawTipsSource)) rawTipsFull = rawTipsSource;
+        else if (typeof rawTipsSource === 'string') {
+            try { rawTipsFull = JSON.parse(rawTipsSource); } catch { rawTipsFull = []; }
+        }
+        const firstTip = rawTipsFull.length > 0 ? rawTipsFull[0] : null;
 
-                        titleEn: sec.titleEn || sec.title_en || row.title_en || row.titleEn || '',
-                        titleOr: sec.titleOr || sec.title_or || row.title_or || row.titleOr || '',
-                        titleSo: sec.titleSo || sec.title_so || row.title_so || row.titleSo || '',
-                        titleAm: sec.titleAm || sec.title_am || row.title_am || row.titleAm || '',
+        list.push({
+            id: `row-${row.id}`,
+            parentId: row.id,
+            week: weekNum,
+            trimester: String(row.trimester ?? trimester),
+            month,
+            type: parentType,
+            sleepType: (row as any).position || 'Sleep Posture',
+            emoji: row.emoji || '🌙',
+            isPublished: isPub,
 
-                        bodyEn: sec.bodyEn || sec.body_en || row.body_en || row.bodyEn || row.description_en || row.descriptionEn || '',
-                        bodyOr: sec.bodyOr || sec.body_or || row.body_or || row.bodyOr || row.description_or || row.descriptionOr || '',
-                        bodySo: sec.bodySo || sec.body_so || row.body_so || row.bodySo || '',
-                        bodyAm: sec.bodyAm || sec.body_am || row.body_am || row.bodyAm || row.description_am || row.descriptionAm || '',
+            titleEn: row.title_en || row.titleEn || '',
+            titleOr: row.title_or || row.titleOr || '',
+            titleSo: row.title_so || row.titleSo || '',
+            titleAm: row.title_am || row.titleAm || '',
 
-                        whyImportantEn: sec.whyImportantEn || sec.why_important_en || row.why_important_en || '',
-                        whyImportantOr: sec.whyImportantOr || sec.why_important_or || row.why_important_or || '',
-                        whyImportantSo: sec.whyImportantSo || sec.why_important_so || row.why_important_so || '',
-                        whyImportantAm: sec.whyImportantAm || sec.why_important_am || row.why_important_am || '',
+            bodyEn: row.description_en || row.descriptionEn || '',
+            bodyOr: row.description_or || row.descriptionOr || '',
+            bodySo: row.description_so || row.descriptionSo || '',
+            bodyAm: row.description_am || row.descriptionAm || '',
 
-                        tipsEn: sec.tipsEn || sec.tips_en || row.tips_en || '',
-                        tipsOr: sec.tipsOr || sec.tips_or || row.tips_or || '',
-                        tipsSo: sec.tipsSo || sec.tips_so || row.tips_so || '',
-                        tipsAm: sec.tipsAm || sec.tips_am || row.tips_am || '',
+            whyImportantEn: row.why_important_en || row.whyImportantEn || '',
+            whyImportantOr: row.why_important_or || row.whyImportantOr || '',
+            whyImportantSo: row.why_important_so || row.whyImportantSo || '',
+            whyImportantAm: row.why_important_am || row.whyImportantAm || '',
 
-                        imageUrl: sec.imageUrl || sec.image_url || row.image_url || row.imageUrl || row.illustration_url || row.illustrationUrl || '',
-                        videoUrl: sec.videoUrl || sec.video_url || row.video_url || row.videoUrl || '',
+            tipsEn: firstTip?.label?.en || '',
+            tipsOr: firstTip?.label?.or || '',
+            tipsSo: firstTip?.label?.so || '',
+            tipsAm: firstTip?.label?.am || '',
 
-                        benefitValueEn: sec.benefitValueEn || sec.benefit_value_en || row.benefit_value_en || sec.benefitValue || row.benefit_value || '',
-                        benefitValueOr: sec.benefitValueOr || sec.benefit_value_or || row.benefit_value_or || '',
-                        benefitValueSo: sec.benefitValueSo || sec.benefit_value_so || row.benefit_value_so || '',
-                        benefitValueAm: sec.benefitValueAm || sec.benefit_value_am || row.benefit_value_am || '',
-                        benefitLabelEn: sec.benefitLabelEn || sec.benefit_label_en || row.benefit_label_en || '',
-                        benefitLabelOr: sec.benefitLabelOr || sec.benefit_label_or || row.benefit_label_or || '',
-                        benefitLabelSo: sec.benefitLabelSo || sec.benefit_label_so || row.benefit_label_so || '',
-                        benefitLabelAm: sec.benefitLabelAm || sec.benefit_label_am || row.benefit_label_am || '',
+            imageUrl: row.illustration_url || (row as any).illustrationUrl || row.image_url || row.imageUrl || '',
+            videoUrl: row.video_url || row.videoUrl || '',
 
-                        sleepDuration: sec.sleepDuration || sec.sleep_duration || row.sleep_duration || row.sleepDuration || '',
+            benefitValueEn: (row as any).description_value_en || '',
+            benefitValueOr: (row as any).description_value_or || '',
+            benefitValueSo: (row as any).description_value_so || '',
+            benefitValueAm: (row as any).description_value_am || '',
 
-                        items: itemsList,
-                    });
-                });
-            } else {
-                let itemsList: SleepItem[] = [];
-                let rawItems = row.items_json || row.itemsJson;
-                if (rawItems) {
-                    try {
-                        const parsed = typeof rawItems === 'string' ? JSON.parse(rawItems) : rawItems;
-                        if (Array.isArray(parsed)) {
-                            itemsList = parsed.map((it: any) => ({
-                                id: it.id || `item-${Math.random()}`,
-                                nameEn: it.nameEn || it.name_en || it.name || '',
-                                nameOr: it.nameOr || it.name_or || '',
-                                nameSo: it.nameSo || it.name_so || '',
-                                nameAm: it.nameAm || it.name_am || '',
-                                descEn: it.descEn || it.desc_en || it.description || '',
-                                descOr: it.descOr || it.desc_or || '',
-                                descSo: it.descSo || it.desc_so || '',
-                                descAm: it.descAm || it.desc_am || '',
-                                labelEn: it.labelEn || it.label_en || '',
-                                labelOr: it.labelOr || it.label_or || '',
-                                labelSo: it.labelSo || it.label_so || '',
-                                labelAm: it.labelAm || it.label_am || '',
-                                imageUrl: it.imageUrl || it.image_url || '',
-                                videoUrl: it.videoUrl || it.video_url || '',
-                            }));
-                        }
-                    } catch {}
-                }
+            benefitLabelEn: (row as any).description_label_en || '',
+            benefitLabelOr: (row as any).description_label_or || '',
+            benefitLabelSo: (row as any).description_label_so || '',
+            benefitLabelAm: (row as any).description_label_am || '',
 
-                list.push({
-                    id: `row-${row.id}`,
-                    parentId: row.id,
-                    week: weekNum,
-                    trimester: String(row.trimester || trimester),
-                    month,
-                    type: parentType,
-                    sleepType: row.sleep_type || row.sleepType || 'Sleep Posture',
-                    emoji: row.emoji || '🌙',
-                    isPublished: isPub,
+            sleepDuration: row.sleep_duration || row.sleepDuration || '',
 
-                    titleEn: row.title_en || row.titleEn || '',
-                    titleOr: row.title_or || row.titleOr || '',
-                    titleSo: row.title_so || row.titleSo || '',
-                    titleAm: row.title_am || row.titleAm || '',
-
-                    bodyEn: row.body_en || row.bodyEn || row.description_en || row.descriptionEn || '',
-                    bodyOr: row.body_or || row.bodyOr || row.description_or || row.descriptionOr || '',
-                    bodySo: row.body_so || row.bodySo || '',
-                    bodyAm: row.body_am || row.bodyAm || row.description_am || row.descriptionAm || '',
-
-                    whyImportantEn: row.why_important_en || row.whyImportantEn || '',
-                    whyImportantOr: row.why_important_or || row.whyImportantOr || '',
-                    whyImportantSo: row.why_important_so || row.whyImportantSo || '',
-                    whyImportantAm: row.why_important_am || row.whyImportantAm || '',
-
-                    tipsEn: row.tips_en || row.tipsEn || '',
-                    tipsOr: row.tips_or || row.tipsOr || '',
-                    tipsSo: row.tips_so || row.tipsSo || '',
-                    tipsAm: row.tips_am || row.tipsAm || '',
-
-                    imageUrl: row.image_url || row.imageUrl || row.illustration_url || row.illustrationUrl || '',
-                    videoUrl: row.video_url || row.videoUrl || '',
-
-                    benefitValueEn: row.benefit_value_en || row.benefitValueEn || row.benefit_value || row.benefitValue || '',
-                    benefitValueOr: row.benefit_value_or || row.benefitValueOr || '',
-                    benefitValueSo: row.benefit_value_so || row.benefitValueSo || '',
-                    benefitValueAm: row.benefit_value_am || row.benefitValueAm || '',
-                    benefitLabelEn: row.benefit_label_en || row.benefitLabelEn || '',
-                    benefitLabelOr: row.benefit_label_or || row.benefitLabelOr || '',
-                    benefitLabelSo: row.benefit_label_so || row.benefitLabelSo || '',
-                    benefitLabelAm: row.benefit_label_am || row.benefitLabelAm || '',
-
-                    sleepDuration: row.sleep_duration || row.sleepDuration || '',
-
-                    items: itemsList,
-                });
-            }
+            items: itemsList,
         });
+    });
 
-        return list;
-    }, [rawRows]);
+    return list;
+}, [rawRows]);
 
     const createdWeeks = useMemo(() => {
         const set = new Set<number>();
@@ -517,112 +432,95 @@ export default function AddSleepPage() {
     };
 
     // Save Action
-    const handleSaveSleep = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!formData.sleepType.trim()) {
-            showToast('Please enter a Title / Category (e.g. Side Sleeping, Back Sleeping)', 'error');
-            return;
-        }
+   const handleSaveSleep = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.sleepType.trim()) {
+        showToast('Please enter a Title / Category (e.g. Side Sleeping, Back Sleeping)', 'error');
+        return;
+    }
 
-        setSubmitting(true);
-        try {
-            const payload = {
-                trimester: formData.trimester,
-                week: formData.week,
+    setSubmitting(true);
+    try {
+        const trimesterMap: Record<string, number> = { '1st': 1, '2nd': 2, '3rd': 3 };
+        const trimesterNumber = trimesterMap[formData.trimester] ?? Number(formData.trimester);
+
+        const payload = {
+            trimester: trimesterNumber,
+            position: formData.sleepType || 'other',
+            illustrationUrl: formData.imageUrl || '',
+            isPublished: true,
+
+            titleEn: formData.titleEn,
+            titleAm: formData.titleAm,
+            titleOr: formData.titleOr,
+            titleSo: formData.titleSo,
+
+            descriptionEn: formData.bodyEn,
+            descriptionAm: formData.bodyAm,
+            descriptionOr: formData.bodyOr,
+            descriptionSo: formData.bodySo,
+
+            descriptionLabelEn: formData.benefitLabelEn || '',
+            descriptionLabelAm: formData.benefitLabelAm || '',
+            descriptionLabelOr: formData.benefitLabelOr || '',
+            descriptionLabelSo: formData.benefitLabelSo || '',
+
+            descriptionValueEn: formData.benefitValueEn || '',
+            descriptionValueAm: formData.benefitValueAm || '',
+            descriptionValueOr: formData.benefitValueOr || '',
+            descriptionValueSo: formData.benefitValueSo || '',
+
+            whyImportantEn: formData.whyImportantEn,
+            whyImportantAm: formData.whyImportantAm,
+            whyImportantOr: formData.whyImportantOr,
+            whyImportantSo: formData.whyImportantSo,
+
+            healthTips: (formData.tipsEn || formData.tipsAm || formData.tipsOr || formData.tipsSo) ? [
+                {
+                    label: {
+                        en: formData.tipsEn || '',
+                        am: formData.tipsAm || '',
+                        or: formData.tipsOr || '',
+                        so: formData.tipsSo || ''
+                    }
+                }
+            ] : [],
+
+            listSleep: formData.items.map(item => ({
                 type: formData.type,
-                emoji: formData.emoji || '🌙',
-                sleepType: formData.sleepType,
-                titleEn: formData.titleEn,
-                titleAm: formData.titleAm,
-                titleOr: formData.titleOr,
-                titleSo: formData.titleSo,
-                bodyEn: formData.bodyEn,
-                bodyAm: formData.bodyAm,
-                bodyOr: formData.bodyOr,
-                bodySo: formData.bodySo,
-                whyImportantEn: formData.whyImportantEn,
-                whyImportantAm: formData.whyImportantAm,
-                whyImportantOr: formData.whyImportantOr,
-                whyImportantSo: formData.whyImportantSo,
-                tipsEn: formData.tipsEn,
-                tipsAm: formData.tipsAm,
-                tipsOr: formData.tipsOr,
-                tipsSo: formData.tipsSo,
-                imageUrl: formData.imageUrl,
-                illustrationUrl: formData.imageUrl,
-                videoUrl: formData.videoUrl,
-                benefitValueEn: formData.benefitValueEn,
-                benefitValueOr: formData.benefitValueOr,
-                benefitValueSo: formData.benefitValueSo,
-                benefitValueAm: formData.benefitValueAm,
-                benefitLabelEn: formData.benefitLabelEn,
-                benefitLabelAm: formData.benefitLabelAm,
-                benefitLabelOr: formData.benefitLabelOr,
-                benefitLabelSo: formData.benefitLabelSo,
-                sleepDuration: formData.sleepDuration,
-                sectionsJson: JSON.stringify([{
-                    id: formData.id && !formData.id.startsWith('row-') ? formData.id : `sec-${Date.now()}`,
-                    type: formData.type,
-                    sleepType: formData.sleepType,
-                    emoji: formData.emoji,
-                    titleEn: formData.titleEn,
-                    titleAm: formData.titleAm,
-                    titleOr: formData.titleOr,
-                    titleSo: formData.titleSo,
-                    bodyEn: formData.bodyEn,
-                    bodyAm: formData.bodyAm,
-                    bodyOr: formData.bodyOr,
-                    bodySo: formData.bodySo,
-                    whyImportantEn: formData.whyImportantEn,
-                    whyImportantAm: formData.whyImportantAm,
-                    whyImportantOr: formData.whyImportantOr,
-                    whyImportantSo: formData.whyImportantSo,
-                    tipsEn: formData.tipsEn,
-                    tipsAm: formData.tipsAm,
-                    tipsOr: formData.tipsOr,
-                    tipsSo: formData.tipsSo,
-                    imageUrl: formData.imageUrl,
-                    videoUrl: formData.videoUrl,
-                    benefitValueEn: formData.benefitValueEn,
-                    benefitValueOr: formData.benefitValueOr,
-                    benefitValueSo: formData.benefitValueSo,
-                    benefitValueAm: formData.benefitValueAm,
-                    benefitLabelEn: formData.benefitLabelEn,
-                    benefitLabelAm: formData.benefitLabelAm,
-                    benefitLabelOr: formData.benefitLabelOr,
-                    benefitLabelSo: formData.benefitLabelSo,
-                    sleepDuration: formData.sleepDuration,
-                    items: formData.items
-                }]),
-                itemsJson: JSON.stringify(formData.items),
-                isPublished: true
-            };
+                name: { en: item.nameEn, am: item.nameAm, or: item.nameOr, so: item.nameSo },
+                description: { en: item.descEn, am: item.descAm, or: item.descOr, so: item.descSo },
+                label: { en: item.labelEn, am: item.labelAm, or: item.labelOr, so: item.labelSo },
+                image: item.imageUrl ? { type: 'url', url: item.imageUrl } : null,
+                video: item.videoUrl ? { type: 'url', url: item.videoUrl } : null,
+            })),
+        };
 
-            if (isEditModalOpen && formData.parentId) {
-                await cmsClient.update('sleep', formData.parentId, payload);
-                setIsEditModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Sleep Guide Updated!',
-                    message: `Sleep position "${formData.sleepType}" for Week ${formData.week} updated.`
-                });
-            } else {
-                await cmsClient.create('sleep', payload);
-                setIsAddModalOpen(false);
-                setSuccessModal({
-                    open: true,
-                    title: 'Sleep Guide Created!',
-                    message: `Sleep position "${formData.sleepType}" added for Week ${formData.week}.`
-                });
-            }
-
-            await loadData();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to save sleep guide', 'error');
-        } finally {
-            setSubmitting(false);
+        if (isEditModalOpen && formData.parentId) {
+            await cmsClient.update('sleep', formData.parentId, payload);
+            setIsEditModalOpen(false);
+            setSuccessModal({
+                open: true,
+                title: 'Sleep Guide Updated!',
+                message: `Sleep position "${formData.sleepType}" for Week ${formData.week} updated.`
+            });
+        } else {
+            await cmsClient.create('sleep', payload);
+            setIsAddModalOpen(false);
+            setSuccessModal({
+                open: true,
+                title: 'Sleep Guide Created!',
+                message: `Sleep position "${formData.sleepType}" added for Week ${formData.week}.`
+            });
         }
-    };
+
+        await loadData();
+    } catch (err: any) {
+        showToast(err.message || 'Failed to save sleep guide', 'error');
+    } finally {
+        setSubmitting(false);
+    }
+};
 
     const handleDeleteConfirm = async () => {
         if (!itemToDelete || !itemToDelete.parentId) return;

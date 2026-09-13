@@ -8,6 +8,9 @@ const upload = require('../middlewares/upload'); // <--- Imported Multer upload 
 // Mother-facing
 router.get('/', paginationRules, validate, fetalController.getAll);
 router.get('/:week', fetalController.getByWeek);
+// Admin — full unlocalized list
+router.get('/admin/list', requireAdmin, paginationRules, validate, fetalController.getAllAdmin);
+router.get('/admin/:id', requireAdmin, fetalController.getByIdAdmin);   // ← add
 
 // Admin — main week record
 // 'upload.single("image")' parses multipart/form-data BEFORE validation rules

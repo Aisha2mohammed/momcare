@@ -331,3 +331,50 @@ async function insertChecklistItems(weekId, items) {
     );
   }
 }
+exports.getAllAdmin = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 50, includeInactive } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+    const whereClause = includeInactive === 'true' ? '' : 'WHERE is_active = true';
+
+    const countResult = await query(`SELECT COUNT(*) FROM fetal_weekly_content ${whereClause}`);
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const result = await query(
+      `SELECT * FROM fetal_weekly_content ${whereClause} ORDER BY week_number ASC LIMIT $1 OFFSET $2`,
+      [Number(limit), offset]
+    );
+
+    // raw rows, no localizeWeek — admin panel wants every language field
+    return sendPaginated(res, result.rows, page, limit, total);
+  } catch (err) {
+    next(err);
+  }
+};
+// ── GET /api/v1/fetal/admin/:id (admin) — full record incl. developments/checklist ──
+exports.getByIdAdmin = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const weekResult = await query('SELECT * FROM fetal_weekly_content WHERE id = $1', [id]);
+    if (weekResult.rows.length === 0) {
+      return sendError(res, 404, 'Fetal week data not found.');
+    }
+    const weekRow = weekResult.rows[0];
+
+    const [devItemsResult, checklistResult] = await Promise.all([
+      query('SELECT * FROM fetal_development_items WHERE week_id = $1 ORDER BY display_order ASC', [weekRow.id]),
+      query('SELECT * FROM fetal_checklist_items WHERE week_id = $1 ORDER BY display_order ASC', [weekRow.id]),
+    ]);
+
+    const payload = {
+      ...weekRow,               // raw columns: title_en, title_am, ..., senses (jsonb)
+      developments: devItemsResult.rows,
+      checklist: checklistResult.rows,
+    };
+
+    return sendSuccess(res, 200, 'Fetal week data', payload);
+  } catch (err) {
+    next(err);
+  }
+};
