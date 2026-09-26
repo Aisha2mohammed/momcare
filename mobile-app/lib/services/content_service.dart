@@ -52,7 +52,7 @@ class ContentService {
   static Future<List<dynamic>> getNutrition(int trimester) async {
     final lang = await _language();
     final response = await ApiService.get(
-      '/nutrition?trimester=$trimester&lang=$lang&limit=$_limit',
+      '/nutrition/tips?trimester=$trimester&lang=$lang&limit=$_limit',
     );
     return response['data'] as List<dynamic>;
   }
@@ -61,7 +61,7 @@ class ContentService {
   static Future<List<dynamic>> getExercises(int trimester) async {
     final lang = await _language();
     final response = await ApiService.get(
-      '/exercises?trimester=$trimester&lang=$lang&limit=$_limit',
+      '/exercise/tips?trimester=$trimester&lang=$lang&limit=$_limit',
     );
     return response['data'] as List<dynamic>;
   }
@@ -70,7 +70,7 @@ class ContentService {
   static Future<List<dynamic>> getSleepTips(int trimester) async {
     final lang = await _language();
     final response = await ApiService.get(
-      '/sleep-tips?trimester=$trimester&lang=$lang&limit=$_limit',
+      '/sleep/tips?trimester=$trimester&lang=$lang&limit=$_limit',
     );
     return response['data'] as List<dynamic>;
   }

@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { normalizeLang } = require('../utils/normalizeLang');
 
 const LANGS = ['en', 'am', 'om', 'so'];
 
@@ -54,7 +55,8 @@ function getAudioUrl(item, targetLang) {
 }
 
 function localize(item, lang) {
-  const targetLang = LANGS.includes(lang) ? lang : 'en';
+  const normalized = normalizeLang(lang);
+  const targetLang = LANGS.includes(normalized) ? normalized : 'en';
 
   return {
     id: item.id,
@@ -81,7 +83,7 @@ exports.getAll = async (req, res, next) => {
     let idx = 1;
 
     if (category) {
-      whereClause += ` AND mt.category = $${idx++}`;
+      whereClause += ` AND LOWER(mt.category) = LOWER($${idx++})`;
       params.push(category);
     }
     if (featured !== undefined) {

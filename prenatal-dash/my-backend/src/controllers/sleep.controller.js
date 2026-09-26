@@ -1,5 +1,19 @@
 const { query } = require('../config/db');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { normalizeLang } = require('../utils/normalizeLang');
+
+const LANGS = ['en', 'am', 'om', 'so'];
+const TRIMESTER_MAP = { '1st': 1, '2nd': 2, '3rd': 3 };
+
+const toTrimester = (value) => {
+  if (value === undefined || value === null || value === '') return 0;
+  if (typeof value === 'number') return value;
+  return TRIMESTER_MAP[String(value).toLowerCase()] !== undefined
+    ? TRIMESTER_MAP[String(value).toLowerCase()]
+    : Number(value);
+};
+
+const pickOm = (omVal, orVal) => (omVal !== undefined ? omVal : orVal);
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -45,34 +59,59 @@ exports.getOne = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const {
-      trimester = 0, position = 'other', illustrationUrl, isPublished = true,
-      titleEn, titleAm, titleOr, titleSo,
-      descriptionEn, descriptionAm, descriptionOr, descriptionSo,
-      descriptionLabelEn, descriptionLabelAm, descriptionLabelOr, descriptionLabelSo,
-      descriptionValueEn, descriptionValueAm, descriptionValueOr, descriptionValueSo,
-      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
-      healthTips = [], listSleep = []
-    } = req.body;
+    const body = req.body || {};
+    const trimester = toTrimester(body.trimester);
+    const week = body.week !== undefined ? body.week : null;
+    const month = body.month !== undefined ? body.month : null;
+    const type = body.type || 'generic';
+    const illustrationUrl = body.illustrationUrl || null;
+
+    const titleEn = body.titleEn || '';
+    const titleAm = body.titleAm || '';
+    const titleSo = body.titleSo || '';
+    const titleOm = pickOm(body.titleOm, body.titleOr);
+
+    const descriptionEn = pickOm(body.descriptionEn, body.bodyEn) || '';
+    const descriptionAm = pickOm(body.descriptionAm, body.bodyAm) || '';
+    const descriptionSo = pickOm(body.descriptionSo, body.bodySo) || '';
+    const descriptionOm = pickOm(
+      body.descriptionOm,
+      pickOm(body.bodyOm, pickOm(body.descriptionOr, body.bodyOr))
+    );
+
+    const whyImportantEn = body.whyImportantEn || '';
+    const whyImportantAm = body.whyImportantAm || '';
+    const whyImportantSo = body.whyImportantSo || '';
+    const whyImportantOm = pickOm(body.whyImportantOm, body.whyImportantOr);
+
+    const tipsEn = body.tipsEn || '';
+    const tipsAm = body.tipsAm || '';
+    const tipsSo = body.tipsSo || '';
+    const tipsOm = pickOm(body.tipsOm, body.tipsOr);
+
+    let sectionsJson = null;
+    if (body.sectionsJson) {
+      sectionsJson = typeof body.sectionsJson === 'string' ? body.sectionsJson : JSON.stringify(body.sectionsJson);
+    }
 
     const result = await query(
       `INSERT INTO sleep_tips (
-        trimester, position, illustration_url, is_published,
-        title_en, title_am, title_or, title_so,
-        description_en, description_am, description_or, description_so,
-        description_label_en, description_label_am, description_label_or, description_label_so,
-        description_value_en, description_value_am, description_value_or, description_value_so,
-        why_important_en, why_important_am, why_important_or, why_important_so,
-        health_tips, list_sleep
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING *`,
+        trimester, week, month, type, illustration_url,
+        title_en, title_am, title_om, title_so,
+        description_en, description_am, description_om, description_so,
+        why_important_en, why_important_am, why_important_om, why_important_so,
+        tips_en, tips_am, tips_om, tips_so,
+        sections_json
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
+      ) RETURNING *`,
       [
-        trimester, position, illustrationUrl, isPublished,
-        titleEn, titleAm, titleOr, titleSo,
-        descriptionEn, descriptionAm, descriptionOr, descriptionSo,
-        descriptionLabelEn, descriptionLabelAm, descriptionLabelOr, descriptionLabelSo,
-        descriptionValueEn, descriptionValueAm, descriptionValueOr, descriptionValueSo,
-        whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
-        JSON.stringify(healthTips), JSON.stringify(listSleep)
+        trimester, week, month, type, illustrationUrl,
+        titleEn, titleAm, titleOm, titleSo,
+        descriptionEn, descriptionAm, descriptionOm, descriptionSo,
+        whyImportantEn, whyImportantAm, whyImportantOm, whyImportantSo,
+        tipsEn, tipsAm, tipsOm, tipsSo,
+        sectionsJson
       ]
     );
 
@@ -93,52 +132,54 @@ exports.remove = async (req, res, next) => {
 };
 
 function localize(item, lang) {
-  const supportedLangs = ['en', 'am', 'or', 'so'];
-  const l = supportedLangs.includes(lang) ? lang : 'en';
+  const L = normalizeLang(lang);
+  const l = LANGS.includes(L) ? L : 'en';
+  const omValue = (base) => {
+    const v = item[`${base}_${l}`] || item[`${base}_en`] || '';
+    return v;
+  };
+
+  let sections = item.sections_json || [];
+  if (typeof sections === 'string') {
+    try { sections = JSON.parse(sections); } catch { sections = []; }
+  }
 
   return {
     id: item.id,
     trimester: item.trimester,
-    position: item.position,
-    illustration_url: item.illustration_url,
-    is_published: item.is_published,
-    isPublished: item.is_published,
-
-    // Localized convenience fields
-    title: item[`title_${l}`] || item.title_en || '',
-    description: item[`description_${l}`] || item.description_en || '',
-    description_label: item[`description_label_${l}`] || item.description_label_en || '',
-    description_value: item[`description_value_${l}`] || item.description_value_en || '',
-    why_important: item[`why_important_${l}`] || item.why_important_en || '',
-
-    // Raw multilingual fields (REQUIRED for admin edit forms)
+    week: item.week,
+    month: item.month,
+    type: item.type,
+    illustration_url: item.illustration_url || '',
+    title: omValue('title'),
+    description: omValue('description'),
+    why_important: omValue('why_important'),
+    tips: omValue('tips'),
+    sections_json: sections,
     title_en: item.title_en || '',
     title_am: item.title_am || '',
-    title_or: item.title_or || '',
+    title_om: item.title_om || '',
     title_so: item.title_so || '',
-
+    title_or: item.title_om || '',
     description_en: item.description_en || '',
     description_am: item.description_am || '',
-    description_or: item.description_or || '',
+    description_om: item.description_om || '',
     description_so: item.description_so || '',
-
-    description_label_en: item.description_label_en || '',
-    description_label_am: item.description_label_am || '',
-    description_label_or: item.description_label_or || '',
-    description_label_so: item.description_label_so || '',
-
-    description_value_en: item.description_value_en || '',
-    description_value_am: item.description_value_am || '',
-    description_value_or: item.description_value_or || '',
-    description_value_so: item.description_value_so || '',
-
+    description_or: item.description_om || '',
+    body_en: item.description_en || '',
+    body_am: item.description_am || '',
+    body_om: item.description_om || '',
+    body_so: item.description_so || '',
+    body_or: item.description_om || '',
     why_important_en: item.why_important_en || '',
     why_important_am: item.why_important_am || '',
-    why_important_or: item.why_important_or || '',
+    why_important_om: item.why_important_om || '',
     why_important_so: item.why_important_so || '',
-
-    // Raw JSON arrays
-    health_tips: item.health_tips || [],
-    list_sleep: item.list_sleep || [],
+    why_important_or: item.why_important_om || '',
+    tips_en: item.tips_en || '',
+    tips_am: item.tips_am || '',
+    tips_om: item.tips_om || '',
+    tips_so: item.tips_so || '',
+    tips_or: item.tips_om || ''
   };
 }

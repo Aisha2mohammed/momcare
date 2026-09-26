@@ -1,5 +1,8 @@
 const { query } = require('../config/db');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { normalizeLang } = require('../utils/normalizeLang');
+
+const LANGS = ['en', 'am', 'om', 'so'];
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -35,31 +38,38 @@ exports.create = async (req, res, next) => {
   try {
     const {
       trimester, category = 'other', durationMinutes, imageUrl, videoUrl, isPublished = true,
-      titleEn, titleAm, titleOr, titleSo,
-      descriptionEn, descriptionAm, descriptionOr, descriptionSo,
-      descriptionLabelEn, descriptionLabelAm, descriptionLabelOr, descriptionLabelSo,
-      descriptionValueEn, descriptionValueAm, descriptionValueOr, descriptionValueSo,
-      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
+      titleEn, titleAm, titleOr, titleOm, titleSo,
+      descriptionEn, descriptionAm, descriptionOr, descriptionOm, descriptionSo,
+      descriptionLabelEn, descriptionLabelAm, descriptionLabelOr, descriptionLabelOm, descriptionLabelSo,
+      descriptionValueEn, descriptionValueAm, descriptionValueOr, descriptionValueOm, descriptionValueSo,
+      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantOm, whyImportantSo,
       healthTips = [], listOfExercise = []
     } = req.body;
+
+    const pickOm = (omVal, orVal) => (omVal !== undefined ? omVal : orVal);
+    const finalTitleOm = pickOm(titleOm, titleOr);
+    const finalDescriptionOm = pickOm(descriptionOm, descriptionOr);
+    const finalDescriptionLabelOm = pickOm(descriptionLabelOm, descriptionLabelOr);
+    const finalDescriptionValueOm = pickOm(descriptionValueOm, descriptionValueOr);
+    const finalWhyImportantOm = pickOm(whyImportantOm, whyImportantOr);
 
     const result = await query(
       `INSERT INTO exercises (
         trimester, category, duration_minutes, image_url, video_url, is_published,
-        title_en, title_am, title_or, title_so,
-        description_en, description_am, description_or, description_so,
-        description_label_en, description_label_am, description_label_or, description_label_so,
-        description_value_en, description_value_am, description_value_or, description_value_so,
-        why_important_en, why_important_am, why_important_or, why_important_so,
+        title_en, title_am, title_om, title_so,
+        description_en, description_am, description_om, description_so,
+        description_label_en, description_label_am, description_label_om, description_label_so,
+        description_value_en, description_value_am, description_value_om, description_value_so,
+        why_important_en, why_important_am, why_important_om, why_important_so,
         health_tips, list_of_exercise
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28) RETURNING *`,
       [
         trimester, category, durationMinutes, imageUrl, videoUrl, isPublished,
-        titleEn, titleAm, titleOr, titleSo,
-        descriptionEn, descriptionAm, descriptionOr, descriptionSo,
-        descriptionLabelEn, descriptionLabelAm, descriptionLabelOr, descriptionLabelSo,
-        descriptionValueEn, descriptionValueAm, descriptionValueOr, descriptionValueSo,
-        whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
+        titleEn, titleAm, finalTitleOm, titleSo,
+        descriptionEn, descriptionAm, finalDescriptionOm, descriptionSo,
+        descriptionLabelEn, descriptionLabelAm, finalDescriptionLabelOm, descriptionLabelSo,
+        descriptionValueEn, descriptionValueAm, finalDescriptionValueOm, descriptionValueSo,
+        whyImportantEn, whyImportantAm, finalWhyImportantOm, whyImportantSo,
         JSON.stringify(healthTips), JSON.stringify(listOfExercise)
       ]
     );
@@ -71,18 +81,20 @@ exports.create = async (req, res, next) => {
 };
 
 function localize(item, lang) {
-  const l = ['en', 'am', 'or', 'so'].includes(lang) ? lang : 'en';
+  const L = normalizeLang(lang);
+  const l = LANGS.includes(L) ? L : 'en';
   return {
     id: item.id,
     trimester: item.trimester,
     category: item.category,
     duration_minutes: item.duration_minutes,
-    image_url: item.image_url,
-    video_url: item.video_url,
     is_published: item.is_published,
     isPublished: item.is_published,
-
-    // Localized convenience fields (single language, for public/mobile use)
+    image_url: item.image_url,
+    imageUrl: item.image_url,
+    video_url: item.video_url,
+    videoUrl: item.video_url,
+    // Localized convenience fields
     title: item[`title_${l}`] || item.title_en || '',
     description: item[`description_${l}`] || item.description_en || '',
     description_label: item[`description_label_${l}`] || item.description_label_en || '',
@@ -92,27 +104,27 @@ function localize(item, lang) {
     // Raw multilingual fields (REQUIRED for admin panel edit forms)
     title_en: item.title_en || '',
     title_am: item.title_am || '',
-    title_or: item.title_or || '',
+    title_or: item.title_om || '',
     title_so: item.title_so || '',
 
     description_en: item.description_en || '',
     description_am: item.description_am || '',
-    description_or: item.description_or || '',
+    description_or: item.description_om || '',
     description_so: item.description_so || '',
 
     description_label_en: item.description_label_en || '',
     description_label_am: item.description_label_am || '',
-    description_label_or: item.description_label_or || '',
+    description_label_or: item.description_label_om || '',
     description_label_so: item.description_label_so || '',
 
     description_value_en: item.description_value_en || '',
     description_value_am: item.description_value_am || '',
-    description_value_or: item.description_value_or || '',
+    description_value_or: item.description_value_om || '',
     description_value_so: item.description_value_so || '',
 
     why_important_en: item.why_important_en || '',
     why_important_am: item.why_important_am || '',
-    why_important_or: item.why_important_or || '',
+    why_important_or: item.why_important_om || '',
     why_important_so: item.why_important_so || '',
 
     // Raw JSON arrays for admin editing

@@ -76,7 +76,7 @@ const fetalRules = [
 ];
 
 const musicRules = [
-  body('category').optional().isIn(['relaxation', 'meditation', 'lullaby', 'classical', 'nature']).withMessage('Invalid category'),
+  body('category').optional().isIn(['relaxation', 'meditation', 'lullaby', 'classical', 'nature', 'stories']).withMessage('Invalid category'),
 ];
 
 const notificationRules = [

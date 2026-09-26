@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { normalizeLang } = require('../utils/normalizeLang');
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -23,7 +24,6 @@ exports.getAll = async (req, res, next) => {
       params
     );
 
-    // Return all raw fields (for admin panel) plus a localized convenience field
     const localized = result.rows.map(row => localize(row, lang));
     return sendPaginated(res, localized, page, limit, total);
   } catch (err) {
@@ -35,9 +35,9 @@ exports.create = async (req, res, next) => {
   try {
     const {
       trimester, month, week,
-      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
-      exerciseTipsEn, exerciseTipsAm, exerciseTipsOr, exerciseTipsSo,
-      tipsEn, tipsAm, tipsOr, tipsSo,
+      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantOm, whyImportantSo,
+      exerciseTipsEn, exerciseTipsAm, exerciseTipsOr, exerciseTipsOm, exerciseTipsSo,
+      tipsEn, tipsAm, tipsOr, tipsOm, tipsSo,
       titleEn, titleAm, titleOr, titleSo
     } = req.body;
 
@@ -52,19 +52,20 @@ exports.create = async (req, res, next) => {
 
     const finalTipsEn = exerciseTipsEn || tipsEn;
     const finalTipsAm = exerciseTipsAm || tipsAm;
-    const finalTipsOr = exerciseTipsOr || tipsOr;
+    const finalTipsOm = exerciseTipsOm || tipsOm || exerciseTipsOr || tipsOr;
     const finalTipsSo = exerciseTipsSo || tipsSo;
+    const finalWhyOm = whyImportantOm ?? whyImportantOr;
 
     const result = await query(
       `INSERT INTO exercise_weeks (
         trimester, month, week,
-        why_important_en, why_important_am, why_important_or, why_important_so,
-        exercise_tips_en, exercise_tips_am, exercise_tips_or, exercise_tips_so
+        why_important_en, why_important_am, why_important_om, why_important_so,
+        exercise_tips_en, exercise_tips_am, exercise_tips_om, exercise_tips_so
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
         normalizedTrimester, normalizedMonth, normalizedWeek,
-        whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
-        finalTipsEn, finalTipsAm, finalTipsOr, finalTipsSo
+        whyImportantEn, whyImportantAm, finalWhyOm, whyImportantSo,
+        finalTipsEn, finalTipsAm, finalTipsOm, finalTipsSo
       ]
     );
 
@@ -79,12 +80,14 @@ exports.update = async (req, res, next) => {
     const fieldMap = {
       trimester: 'trimester', month: 'month', week: 'week',
       whyImportantEn: 'why_important_en', whyImportantAm: 'why_important_am',
-      whyImportantOr: 'why_important_or', whyImportantSo: 'why_important_so',
+      whyImportantSo: 'why_important_so',
+      whyImportantOr: 'why_important_om', whyImportantOm: 'why_important_om',
       exerciseTipsEn: 'exercise_tips_en', exerciseTipsAm: 'exercise_tips_am',
-      exerciseTipsOr: 'exercise_tips_or', exerciseTipsSo: 'exercise_tips_so',
-      // Accept tipsEn/Am/Or/So as aliases
+      exerciseTipsSo: 'exercise_tips_so',
+      exerciseTipsOr: 'exercise_tips_om', exerciseTipsOm: 'exercise_tips_om',
       tipsEn: 'exercise_tips_en', tipsAm: 'exercise_tips_am',
-      tipsOr: 'exercise_tips_or', tipsSo: 'exercise_tips_so',
+      tipsSo: 'exercise_tips_so',
+      tipsOr: 'exercise_tips_om', tipsOm: 'exercise_tips_om',
       isPublished: 'is_published',
     };
     const updates = [];
@@ -119,7 +122,8 @@ exports.remove = async (req, res, next) => {
 };
 
 function localize(item, lang) {
-  const l = ['en', 'am', 'or', 'so'].includes(lang) ? lang : 'en';
+  const L = ['en', 'am', 'om', 'so'];
+  const l = L.includes(normalizeLang(lang)) ? normalizeLang(lang) : 'en';
   return {
     id: item.id,
     trimester: item.trimester,
@@ -127,24 +131,26 @@ function localize(item, lang) {
     week: item.week,
     is_published: item.is_published,
     isPublished: item.is_published,
-    // Raw multilingual fields (for admin panel use)
     why_important_en: item.why_important_en || '',
     why_important_am: item.why_important_am || '',
-    why_important_or: item.why_important_or || '',
+    why_important_om: item.why_important_om || '',
     why_important_so: item.why_important_so || '',
+    why_important_or: item.why_important_om || '',
     whyImportantEn: item.why_important_en || '',
     whyImportantAm: item.why_important_am || '',
-    whyImportantOr: item.why_important_or || '',
+    whyImportantOm: item.why_important_om || '',
     whyImportantSo: item.why_important_so || '',
+    whyImportantOr: item.why_important_om || '',
     exercise_tips_en: item.exercise_tips_en || '',
     exercise_tips_am: item.exercise_tips_am || '',
-    exercise_tips_or: item.exercise_tips_or || '',
+    exercise_tips_om: item.exercise_tips_om || '',
     exercise_tips_so: item.exercise_tips_so || '',
+    exercise_tips_or: item.exercise_tips_om || '',
     tipsEn: item.exercise_tips_en || '',
     tipsAm: item.exercise_tips_am || '',
-    tipsOr: item.exercise_tips_or || '',
+    tipsOm: item.exercise_tips_om || '',
     tipsSo: item.exercise_tips_so || '',
-    // Localized convenience fields
+    tipsOr: item.exercise_tips_om || '',
     why_important: item[`why_important_${l}`] || item.why_important_en || '',
     exercise_tips: item[`exercise_tips_${l}`] || item.exercise_tips_en || ''
   };

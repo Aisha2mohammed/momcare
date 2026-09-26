@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { normalizeLang } = require('../utils/normalizeLang');
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -35,22 +36,25 @@ exports.create = async (req, res, next) => {
   try {
     const {
       trimester, month, week,
-      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
-      hydrationEn, hydrationAm, hydrationOr, hydrationSo,
+      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantOm, whyImportantSo,
+      hydrationEn, hydrationAm, hydrationOr, hydrationOm, hydrationSo,
       // titleEn/Am/Or/So accepted for compatibility (not stored in DB schema, ignored)
       titleEn, titleAm, titleOr, titleSo
     } = req.body;
 
+    const finalWhyOm = whyImportantOm ?? whyImportantOr;
+    const finalHydrationOm = hydrationOm ?? hydrationOr;
+
     const result = await query(
       `INSERT INTO nutrition_weeks (
         trimester, month, week,
-        why_important_en, why_important_am, why_important_or, why_important_so,
-        hydration_en, hydration_am, hydration_or, hydration_so
+        why_important_en, why_important_am, why_important_om, why_important_so,
+        hydration_en, hydration_am, hydration_om, hydration_so
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
         trimester, month, week,
-        whyImportantEn, whyImportantAm, whyImportantOr, whyImportantSo,
-        hydrationEn, hydrationAm, hydrationOr, hydrationSo
+        whyImportantEn, whyImportantAm, finalWhyOm, whyImportantSo,
+        hydrationEn, hydrationAm, finalHydrationOm, hydrationSo
       ]
     );
 
@@ -65,9 +69,11 @@ exports.update = async (req, res, next) => {
     const fieldMap = {
       trimester: 'trimester', month: 'month', week: 'week',
       whyImportantEn: 'why_important_en', whyImportantAm: 'why_important_am',
-      whyImportantOr: 'why_important_or', whyImportantSo: 'why_important_so',
       hydrationEn: 'hydration_en', hydrationAm: 'hydration_am',
-      hydrationOr: 'hydration_or', hydrationSo: 'hydration_so',
+      whyImportantSo: 'why_important_so', hydrationSo: 'hydration_so',
+      // _om columns accept both *Or and *Om body keys (legacy + canonical aliases)
+      whyImportantOr: 'why_important_om', whyImportantOm: 'why_important_om',
+      hydrationOr: 'hydration_om', hydrationOm: 'hydration_om',
       isPublished: 'is_published',
     };
     const updates = [];
@@ -102,7 +108,7 @@ exports.remove = async (req, res, next) => {
 };
 
 function localize(item, lang) {
-  const l = ['en', 'am', 'or', 'so'].includes(lang) ? lang : 'en';
+  const l = ['en', 'am', 'om', 'so'].includes(normalizeLang(lang)) ? normalizeLang(lang) : 'en';
   return {
     id: item.id,
     trimester: item.trimester,
@@ -110,23 +116,27 @@ function localize(item, lang) {
     week: item.week,
     is_published: item.is_published,
     isPublished: item.is_published,
-    // Raw multilingual fields (for admin panel)
+    // Raw multilingual fields (for admin panel) — _om canonical, _or legacy alias
     why_important_en: item.why_important_en || '',
     why_important_am: item.why_important_am || '',
-    why_important_or: item.why_important_or || '',
+    why_important_om: item.why_important_om || '',
     why_important_so: item.why_important_so || '',
+    why_important_or: item.why_important_om || '',
     whyImportantEn: item.why_important_en || '',
     whyImportantAm: item.why_important_am || '',
-    whyImportantOr: item.why_important_or || '',
+    whyImportantOm: item.why_important_om || '',
     whyImportantSo: item.why_important_so || '',
+    whyImportantOr: item.why_important_om || '',
     hydration_en: item.hydration_en || '',
     hydration_am: item.hydration_am || '',
-    hydration_or: item.hydration_or || '',
+    hydration_om: item.hydration_om || '',
     hydration_so: item.hydration_so || '',
+    hydration_or: item.hydration_om || '',
     hydrationEn: item.hydration_en || '',
     hydrationAm: item.hydration_am || '',
-    hydrationOr: item.hydration_or || '',
+    hydrationOm: item.hydration_om || '',
     hydrationSo: item.hydration_so || '',
+    hydrationOr: item.hydration_om || '',
     // Localized convenience fields
     why_important: item[`why_important_${l}`] || item.why_important_en || '',
     hydration: item[`hydration_${l}`] || item.hydration_en || ''
