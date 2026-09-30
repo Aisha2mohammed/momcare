@@ -6,6 +6,19 @@ class AuthResult {
   final bool isNewUser;
 
   AuthResult({required this.token, required this.user, this.isNewUser = false});
+
+  /// Whether this user must complete the core profile (LMP date) before
+  /// entering the main app.
+  ///
+  /// The backend includes `lmpDate` in the auth response's `user` object only
+  /// for mothers that have an LMP date set (see getMotherProgress in
+  /// auth.controller.js), so an absent/empty `lmpDate` means "not set yet".
+  /// Non-mothers never get progress fields and must never be sent to setup.
+  bool get needsProfileSetup {
+    if (user['role'] != 'mother') return false;
+    final lmpDate = user['lmpDate'];
+    return lmpDate == null || lmpDate.toString().trim().isEmpty;
+  }
 }
 
 class AuthService {
