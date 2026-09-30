@@ -6,6 +6,22 @@ const { sendSuccess, sendError } = require('../utils/apiResponse');
 const { getPregnancyProgress } = require('../services/pregnancyCalculator');
 const { getIO } = require('../config/socket');
 
+// ── Helper: Pregnancy progress for mothers ─────────────────────────────
+// Returns {} for non-mothers and for mothers with no LMP date set, so
+// `lmpDate` is present in a login response only when the core profile is
+// complete. Shared by /auth/login and /auth/otp/verify so the two stay in sync.
+const getMotherProgress = async (userId, role) => {
+  if (role !== 'mother') return {};
+  const profileResult = await query(
+    'SELECT lmp_date FROM mother_profiles WHERE user_id = $1',
+    [userId]
+  );
+  if (profileResult.rows.length > 0 && profileResult.rows[0].lmp_date) {
+    return getPregnancyProgress(profileResult.rows[0].lmp_date);
+  }
+  return {};
+};
+
 // ── Helper: Generate JWT ───────────────────────────────────────────────
 const signToken = (id, role = 'user') => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, {
@@ -111,17 +127,8 @@ exports.login = async (req, res, next) => {
 
     const token = signToken(user.id, user.role);
 
-    // Get pregnancy progress if mother
-    let progress = null;
-    if (user.role === 'mother') {
-      const profileResult = await query(
-        'SELECT lmp_date FROM mother_profiles WHERE user_id = $1',
-        [user.id]
-      );
-      if (profileResult.rows.length > 0 && profileResult.rows[0].lmp_date) {
-        progress = getPregnancyProgress(profileResult.rows[0].lmp_date);
-      }
-    }
+    // Get pregnancy progress if mother (lmpDate present only when LMP is set)
+    const progress = await getMotherProgress(user.id, user.role);
 
     const { password_hash, ...safeUser } = user;
 
@@ -240,9 +247,12 @@ exports.verifyOtp = async (req, res, next) => {
     if (userResult.rows.length > 0) {
       const user = userResult.rows[0];
       token = signToken(user.id, user.role);
+      // Same contract as /auth/login: include pregnancy progress so clients
+      // can tell whether the mother has completed her core profile.
+      const progress = await getMotherProgress(user.id, user.role);
       return sendSuccess(res, 200, 'OTP verified. Login successful.', {
         token,
-        user,
+        user: { ...user, ...progress },
         isNewUser: false,
       });
     } else {
