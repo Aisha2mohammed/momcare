@@ -4,6 +4,7 @@ import 'package:pregnancy_appp/screens/auth/signup_page.dart';
 import 'package:pregnancy_appp/screens/auth/otp_verification_page.dart';
 import 'package:pregnancy_appp/screens/auth/forgot_password_page.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
+import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 
@@ -41,11 +42,18 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     try {
       final password = _passwordController.text.trim();
-      await AuthService.login(phone: phone, password: password.isNotEmpty ? password : null);
+      final result = await AuthService.login(
+        phone: phone,
+        password: password.isNotEmpty ? password : null,
+      );
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainScreen()),
+        MaterialPageRoute(
+          builder: (context) => result.needsProfileSetup
+              ? const ProfileSetupPage()
+              : const MainScreen(),
+        ),
       );
     } on ApiException catch (e) {
       if (!mounted) return;

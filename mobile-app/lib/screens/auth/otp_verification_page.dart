@@ -57,7 +57,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       );
       if (!mounted) return;
 
-      if (result.isNewUser) {
+      if (result.isNewUser || result.needsProfileSetup) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
