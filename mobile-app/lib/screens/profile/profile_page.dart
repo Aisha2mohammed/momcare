@@ -39,11 +39,29 @@ class _ProfilePageState extends State<ProfilePage> {
       final profile = data['profile'] as Map<String, dynamic>?;
 
       final assignedHospital = (profile?['assigned_hospital_name'] as String?) ?? '';
+
+      // Week + due date must come from a LIVE calculation based on the LMP date.
+      // The stored `gestational_week` column is a one-time snapshot written when
+      // the profile was saved and never refreshed, so reading it here made this
+      // screen disagree with home.dart (which uses /gestational-week).
+      var week = profile?['gestational_week'] as int? ?? 0;
+      var dueDate = profile?['due_date'] as String?;
+      try {
+        final progress = await MotherService.getGestationalWeek();
+        week = (progress['currentWeek'] as num?)?.toInt() ?? week;
+        final liveDueDate = progress['dueDate'] as String?;
+        if (liveDueDate != null && liveDueDate.isNotEmpty) dueDate = liveDueDate;
+      } catch (_) {
+        // Fall back to the stored profile values.
+      }
+
+      if (!mounted) return;
+
       setState(() {
         _name = (user['name'] as String?) ?? _name;
         _phone = (user['phone'] as String?) ?? '';
-        _gestationalWeek = profile?['gestational_week'] as int? ?? 0;
-        _dueDate = profile?['due_date'] as String?;
+        _gestationalWeek = week;
+        _dueDate = dueDate;
         _assignedHospital = assignedHospital.isEmpty ? null : assignedHospital;
       });
     } on ApiException catch (e) {
