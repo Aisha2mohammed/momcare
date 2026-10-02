@@ -150,7 +150,6 @@ interface ChecklistItem {
 
 interface SenseItem {
     type: string;
-    status: string;
     descEn: string; descAm: string; descOm: string; descSo: string;
 }
 type FormData = {
@@ -283,12 +282,11 @@ function entryToForm(e: FetalEntry): FormData {
             : [],
         senses: Array.isArray((e as any).senses)
             ? (e as any).senses.map((s: any) => ({
-                type: s.type || '',
-                status: s.status || '',
-                descEn: s.description?.en ?? '',
-                descAm: s.description?.am ?? '',
-                descOm: s.description?.om ?? '',
-                descSo: s.description?.so ?? '',
+                type: s.key || s.type || '',
+                descEn: s.labelEn ?? '',
+                descAm: s.labelAm ?? '',
+                descOm: s.labelOm ?? '',
+                descSo: s.labelSo ?? '',
             }))
             : [],
     };
@@ -483,7 +481,7 @@ export default function FetalDevelopmentManager() {
     function addSense() {
         setForm(f => ({
             ...f,
-            senses: [...f.senses, { type: '', status: '', descEn: '', descAm: '', descOm: '', descSo: '' }],
+            senses: [...f.senses, { type: '', descEn: '', descAm: '', descOm: '', descSo: '' }],
         }));
     }
     function removeSense(idx: number) {
@@ -544,9 +542,11 @@ export default function FetalDevelopmentManager() {
                     titleEn: c.titleEn, titleAm: c.titleAm, titleOm: c.titleOm, titleSo: c.titleSo,
                 })),
                 senses: form.senses.map(s => ({
-                    type: s.type,
-                    status: s.status,
-                    description: { en: s.descEn, am: s.descAm, om: s.descOm, so: s.descSo },
+                    key: s.type,
+                    labelEn: s.descEn,
+                    labelAm: s.descAm,
+                    labelOm: s.descOm,
+                    labelSo: s.descSo,
                 })),
             };
 
@@ -866,14 +866,13 @@ export default function FetalDevelopmentManager() {
                                 <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
                                     <button type="button" onClick={() => removeSense(idx)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 text-xs font-bold">✕</button>
                                     <div className="grid grid-cols-2 gap-2">
-                                        <Input label="Type (e.g. hearing, sight)" value={s.type} onChange={e => updateSense(idx, 'type', e.target.value)} placeholder="hearing" />
-                                        <Input label="Status (e.g. active, forming)" value={s.status} onChange={e => updateSense(idx, 'status', e.target.value)} placeholder="active" />
+                                        <Input label="Sense Key (e.g. hearing, sight)" value={s.type} onChange={e => updateSense(idx, 'type', e.target.value)} placeholder="hearing" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
-                                        <TextArea label="Description (EN)" value={s.descEn} onChange={e => updateSense(idx, 'descEn', e.target.value)} rows={2} />
-                                        <TextArea label="Description (AM)" value={s.descAm} onChange={e => updateSense(idx, 'descAm', e.target.value)} rows={2} />
-                                        <TextArea label="Description (OM)" value={s.descOm} onChange={e => updateSense(idx, 'descOm', e.target.value)} rows={2} />
-                                        <TextArea label="Description (SO)" value={s.descSo} onChange={e => updateSense(idx, 'descSo', e.target.value)} rows={2} />
+                                        <TextArea label="Label (EN)" value={s.descEn} onChange={e => updateSense(idx, 'descEn', e.target.value)} rows={2} />
+                                        <TextArea label="Label (AM)" value={s.descAm} onChange={e => updateSense(idx, 'descAm', e.target.value)} rows={2} />
+                                        <TextArea label="Label (OM)" value={s.descOm} onChange={e => updateSense(idx, 'descOm', e.target.value)} rows={2} />
+                                        <TextArea label="Label (SO)" value={s.descSo} onChange={e => updateSense(idx, 'descSo', e.target.value)} rows={2} />
                                     </div>
                                 </div>
                             ))}
