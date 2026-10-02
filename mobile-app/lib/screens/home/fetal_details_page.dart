@@ -394,6 +394,10 @@ class _OverviewTab extends StatelessWidget {
   const _OverviewTab({required this.data, required this.lang, required this.milestone});
 
   String _loc(String field) {
+    // The endpoint returns language-resolved base fields (e.g. `health_tip`),
+    // not `<field>_<lang>` variants, so check the base field first.
+    final base = data[field];
+    if (base is String && base.trim().isNotEmpty) return base.trim();
     for (final l in [lang, 'en', 'am']) {
       final v = data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -463,6 +467,8 @@ class _DevelopmentTab extends StatelessWidget {
   const _DevelopmentTab({required this.data, required this.lang, required this.senses});
 
   String _loc(String field) {
+    final base = data[field];
+    if (base is String && base.trim().isNotEmpty) return base.trim();
     for (final l in [lang, 'en', 'am']) {
       final v = data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -521,7 +527,15 @@ class _DevelopmentTab extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: senses.map((s) {
-                      final label = (s is Map) ? (s['label${lang[0].toUpperCase()}${lang.substring(1)}'] ?? s['labelEn'] ?? s['key'] ?? '') : s.toString();
+                      // The endpoint returns senses already localized as
+                      // `{key, label}`, so prefer `label` over the raw key.
+                      final label = (s is Map)
+                          ? (s['label'] ??
+                                s['label${lang[0].toUpperCase()}${lang.substring(1)}'] ??
+                                s['labelEn'] ??
+                                s['key'] ??
+                                '')
+                          : s.toString();
                       return Chip(
                         label: Text(label.toString(), style: const TextStyle(fontSize: 12)),
                         backgroundColor: const Color(0xFFF3E8FF),
@@ -548,6 +562,8 @@ class _MomTab extends StatelessWidget {
   const _MomTab({required this.data, required this.lang});
 
   String _loc(String field) {
+    final base = data[field];
+    if (base is String && base.trim().isNotEmpty) return base.trim();
     for (final l in [lang, 'en', 'am']) {
       final v = data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -639,6 +655,8 @@ class _ChecklistTabState extends State<_ChecklistTab> {
   final Set<int> _checked = {};
 
   String _loc(String field) {
+    final base = widget.data[field];
+    if (base is String && base.trim().isNotEmpty) return base.trim();
     for (final l in [widget.lang, 'en', 'am']) {
       final v = widget.data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();

@@ -148,9 +148,15 @@ class _ExerciseListState extends State<_ExerciseList> {
   }
 
   Widget _buildExerciseItem(dynamic item) {
-    final name = (item['name'] as String?) ?? '';
-    final safetyNotes = (item['safetyNotes'] as String?) ?? '';
-    final durationMin = (item['duration_min'] as num?)?.toInt() ?? 0;
+    // The endpoint localizes into base fields: `title`, `why_important`,
+    // `duration_minutes`. The old `name` / `safetyNotes` / `duration_min`
+    // keys no longer exist, so read the base fields first.
+    final name = (item['title'] as String?) ?? (item['name'] as String?) ?? '';
+    final safetyNotes =
+        (item['why_important'] as String?) ?? (item['safetyNotes'] as String?) ?? '';
+    final durationMin = (item['duration_minutes'] as num?)?.toInt() ??
+        (item['duration_min'] as num?)?.toInt() ??
+        0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
