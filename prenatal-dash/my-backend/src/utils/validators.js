@@ -15,7 +15,7 @@ const registerRules = [
   body('role').optional().isIn(['mother', 'doctor']).withMessage('Role must be mother or doctor'),
   body('phone').notEmpty().withMessage('Phone is required').trim(),
   body('name').optional().trim(),
-  body('language').optional().isIn(['am', 'or', 'en']).withMessage('Language must be am, or, or en'),
+  body('language').optional().isIn(['am', 'or', 'om', 'en', 'so']).withMessage('Language must be am, or, or en'),
   body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('firebaseToken').optional().isString(),
 ];
