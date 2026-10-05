@@ -218,7 +218,7 @@ exports.emergencyAlert = async (req, res, next) => {
       const io = require('../config/socket').getIO();
       if (io) {
         io.to(`doctor:${profile.rows[0].assigned_doctor_id}`).emit('emergency:alert', {
-          motherId: parseInt(id),
+          motherId: id,
           motherName: mother.rows[0]?.name,
           latitude,
           longitude,
