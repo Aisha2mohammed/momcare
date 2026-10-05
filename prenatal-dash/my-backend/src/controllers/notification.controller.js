@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { normalizeLang } = require('../utils/normalizeLang');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const notificationService = require('../services/notificationService');
 const { getIO } = require('../config/socket');
@@ -225,7 +226,7 @@ exports.markRead = async (req, res, next) => {
 // Mirrors the localization helper used by content controllers, but falls
 // back through all available languages so a user always sees something.
 function localize(item, lang) {
-  const l = lang === 'or' ? 'or' : lang === 'en' ? 'en' : 'am';
+  const l = normalizeLang(lang);
   return {
     ...item,
     title: item[`title_${l}`] || item.title_am || item.title_or || item.title_en || '',
