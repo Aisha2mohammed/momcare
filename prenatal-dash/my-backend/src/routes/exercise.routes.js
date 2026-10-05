@@ -29,6 +29,22 @@ router.post(
     exerciseController.create(req, res, next);
   }
 );
+router.put(
+  '/tips/:id',
+  requireAdmin,
+  upload.fields([
+    { name: 'imageUrl', maxCount: 1 },
+    { name: 'videoUrl', maxCount: 1 },
+    { name: 'pdfUrl', maxCount: 1 }
+  ]),
+  (req, res, next) => {
+    req.body.imageUrl = handleMedia(req, 'imageUrl');
+    req.body.videoUrl = handleMedia(req, 'videoUrl');
+    req.body.pdfUrl = handleMedia(req, 'pdfUrl');
+    exerciseController.update(req, res, next);
+  }
+);
+router.delete('/tips/:id', requireAdmin, exerciseController.remove);
 
 // --- EXERCISE WEEKS ---
 router.get('/weeks', exerciseWeekController.getAll);
