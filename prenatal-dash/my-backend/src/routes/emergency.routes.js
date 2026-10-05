@@ -1,14 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const emergencyController = require('../controllers/emergency.controller');
-const { validate, emergencyContactRules, paginationRules } = require('../utils/validators');
-const { requireAdmin } = require('../middlewares/roleGuard');
+const { validate, paginationRules } = require('../utils/validators');
 
-router.get('/contacts', paginationRules, validate, emergencyController.getContacts);
+// Per-mother emergency contacts live at /mothers/:id/emergency-contacts
+// (mother.controller.js). The old /emergency/contacts facility-directory
+// endpoints were removed — see the note in emergency.controller.js.
 router.get('/health-tips', paginationRules, validate, emergencyController.getHealthTips);
-router.post('/contacts', requireAdmin, emergencyContactRules, validate, emergencyController.createContact);
-router.put('/contacts/:id', requireAdmin, emergencyController.updateContact);
-router.delete('/contacts/:id', requireAdmin, emergencyController.deleteContact);
 
 module.exports = router;
 
