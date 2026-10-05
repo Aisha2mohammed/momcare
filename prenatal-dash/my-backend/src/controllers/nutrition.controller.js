@@ -18,7 +18,12 @@ exports.getAll = async (req, res, next) => {
       conditions.push(`nt.type = $${params.length}`);
     }
     if (nutritionWeekId) {
-      params.push(Number(nutritionWeekId));
+      // nutrition_tips.nutrition_week_id is a uuid column — must not be coerced
+      // with Number(), which yields NaN and makes Postgres reject the filter.
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(nutritionWeekId))) {
+        return sendError(res, 400, 'Invalid nutritionWeekId — must be a UUID.');
+      }
+      params.push(nutritionWeekId);
       conditions.push(`nt.nutrition_week_id = $${params.length}`);
     }
     if (trimester) {
