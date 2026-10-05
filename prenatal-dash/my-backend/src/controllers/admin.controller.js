@@ -189,7 +189,10 @@ exports.getStats = async (req, res, next) => {
   try {
     const [users, content, appointments] = await Promise.all([
       query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'active') as active, COUNT(*) FILTER (WHERE role = 'mother') as mothers, COUNT(*) FILTER (WHERE role = 'doctor') as doctors FROM users`),
-      query(`SELECT (SELECT COUNT(*) FROM nutrition_content WHERE is_published = true) as nutrition, (SELECT COUNT(*) FROM fetal_tracker_content) as fetal, (SELECT COUNT(*) FROM exercise_content WHERE is_published = true) as exercises, (SELECT COUNT(*) FROM sleep_tips) as sleep_tips, (SELECT COUNT(*) FROM music_tracks WHERE is_active = true) as music, (SELECT COUNT(*) FROM health_tips) as health_tips`),
+      // Count the tables actually served to the app, not the legacy ones
+      // (nutrition_content / fetal_tracker_content / exercise_content are
+      //  no longer written to and drift out of sync).
+      query(`SELECT (SELECT COUNT(*) FROM nutrition_tips WHERE is_published = true) as nutrition, (SELECT COUNT(*) FROM fetal_weekly_content) as fetal, (SELECT COUNT(*) FROM exercises WHERE is_published = true) as exercises, (SELECT COUNT(*) FROM sleep_tips) as sleep_tips, (SELECT COUNT(*) FROM music_tracks WHERE is_active = true) as music, (SELECT COUNT(*) FROM health_tips) as health_tips`),
       query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'pending') as pending, COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed, COUNT(*) FILTER (WHERE status = 'completed') as completed FROM appointments`),
     ]);
     return sendSuccess(res, 200, 'Stats retrieved', { users: users.rows[0], content: content.rows[0], appointments: appointments.rows[0] });
