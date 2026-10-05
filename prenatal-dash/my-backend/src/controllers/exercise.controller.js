@@ -80,6 +80,65 @@ exports.create = async (req, res, next) => {
   }
 };
 
+exports.update = async (req, res, next) => {
+  try {
+    const {
+      trimester, category = 'other', durationMinutes, imageUrl, videoUrl, isPublished = true,
+      titleEn, titleAm, titleOr, titleOm, titleSo,
+      descriptionEn, descriptionAm, descriptionOr, descriptionOm, descriptionSo,
+      descriptionLabelEn, descriptionLabelAm, descriptionLabelOr, descriptionLabelOm, descriptionLabelSo,
+      descriptionValueEn, descriptionValueAm, descriptionValueOr, descriptionValueOm, descriptionValueSo,
+      whyImportantEn, whyImportantAm, whyImportantOr, whyImportantOm, whyImportantSo,
+      healthTips = [], listOfExercise = []
+    } = req.body;
+
+    // Canonical _om columns accept both *Or (legacy) and *Om (canonical) body keys
+    const pickOm = (omVal, orVal) => (omVal !== undefined ? omVal : orVal);
+    const finalTitleOm = pickOm(titleOm, titleOr);
+    const finalDescriptionOm = pickOm(descriptionOm, descriptionOr);
+    const finalDescriptionLabelOm = pickOm(descriptionLabelOm, descriptionLabelOr);
+    const finalDescriptionValueOm = pickOm(descriptionValueOm, descriptionValueOr);
+    const finalWhyImportantOm = pickOm(whyImportantOm, whyImportantOr);
+
+    const result = await query(
+      `UPDATE exercises SET
+        trimester = $1, category = $2, duration_minutes = $3, image_url = $4, video_url = $5, is_published = $6,
+        title_en = $7, title_am = $8, title_om = $9, title_so = $10,
+        description_en = $11, description_am = $12, description_om = $13, description_so = $14,
+        description_label_en = $15, description_label_am = $16, description_label_om = $17, description_label_so = $18,
+        description_value_en = $19, description_value_am = $20, description_value_om = $21, description_value_so = $22,
+        why_important_en = $23, why_important_am = $24, why_important_om = $25, why_important_so = $26,
+        health_tips = $27, list_of_exercise = $28
+      WHERE id = $29 RETURNING *`,
+      [
+        trimester, category, durationMinutes, imageUrl, videoUrl, isPublished,
+        titleEn, titleAm, finalTitleOm, titleSo,
+        descriptionEn, descriptionAm, finalDescriptionOm, descriptionSo,
+        descriptionLabelEn, descriptionLabelAm, finalDescriptionLabelOm, descriptionLabelSo,
+        descriptionValueEn, descriptionValueAm, finalDescriptionValueOm, descriptionValueSo,
+        whyImportantEn, whyImportantAm, finalWhyImportantOm, whyImportantSo,
+        JSON.stringify(healthTips), JSON.stringify(listOfExercise),
+        req.params.id
+      ]
+    );
+
+    if (result.rows.length === 0) return sendError(res, 404, 'Exercise not found');
+    return sendSuccess(res, 200, 'Exercise updated', result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.remove = async (req, res, next) => {
+  try {
+    const result = await query('DELETE FROM exercises WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return sendError(res, 404, 'Exercise not found');
+    return sendSuccess(res, 200, 'Exercise deleted', { id: req.params.id });
+  } catch (err) {
+    next(err);
+  }
+};
+
 function localize(item, lang) {
   const L = normalizeLang(lang);
   const l = LANGS.includes(L) ? L : 'en';
