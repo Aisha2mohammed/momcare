@@ -121,6 +121,72 @@ exports.create = async (req, res, next) => {
   }
 };
 
+exports.update = async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const trimester = toTrimester(body.trimester);
+    const week = body.week !== undefined ? body.week : null;
+    const month = body.month !== undefined ? body.month : null;
+    const type = body.type || 'generic';
+    const illustrationUrl = body.illustrationUrl || null;
+
+    const titleEn = body.titleEn || '';
+    const titleAm = body.titleAm || '';
+    const titleSo = body.titleSo || '';
+    const titleOm = pickOm(body.titleOm, body.titleOr);
+
+    const descriptionEn = pickOm(body.descriptionEn, body.bodyEn) || '';
+    const descriptionAm = pickOm(body.descriptionAm, body.bodyAm) || '';
+    const descriptionSo = pickOm(body.descriptionSo, body.bodySo) || '';
+    const descriptionOm = pickOm(
+      body.descriptionOm,
+      pickOm(body.bodyOm, pickOm(body.descriptionOr, body.bodyOr))
+    );
+
+    const whyImportantEn = body.whyImportantEn || '';
+    const whyImportantAm = body.whyImportantAm || '';
+    const whyImportantSo = body.whyImportantSo || '';
+    const whyImportantOm = pickOm(body.whyImportantOm, body.whyImportantOr);
+
+    const tipsEn = body.tipsEn || '';
+    const tipsAm = body.tipsAm || '';
+    const tipsSo = body.tipsSo || '';
+    const tipsOm = pickOm(body.tipsOm, body.tipsOr);
+
+    let sectionsJson = null;
+    if (body.sectionsJson !== undefined) {
+      sectionsJson = body.sectionsJson === null
+        ? null
+        : (typeof body.sectionsJson === 'string' ? body.sectionsJson : JSON.stringify(body.sectionsJson));
+    }
+
+    const result = await query(
+      `UPDATE sleep_tips SET
+        trimester = $1, week = $2, month = $3, type = $4, illustration_url = $5,
+        title_en = $6, title_am = $7, title_om = $8, title_so = $9,
+        description_en = $10, description_am = $11, description_om = $12, description_so = $13,
+        why_important_en = $14, why_important_am = $15, why_important_om = $16, why_important_so = $17,
+        tips_en = $18, tips_am = $19, tips_om = $20, tips_so = $21,
+        sections_json = COALESCE($22, sections_json)
+      WHERE id = $23 RETURNING *`,
+      [
+        trimester, week, month, type, illustrationUrl,
+        titleEn, titleAm, titleOm, titleSo,
+        descriptionEn, descriptionAm, descriptionOm, descriptionSo,
+        whyImportantEn, whyImportantAm, whyImportantOm, whyImportantSo,
+        tipsEn, tipsAm, tipsOm, tipsSo,
+        sectionsJson,
+        req.params.id
+      ]
+    );
+
+    if (result.rows.length === 0) return sendError(res, 404, 'Sleep tip not found.');
+    return sendSuccess(res, 200, 'Sleep tip updated', result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.remove = async (req, res, next) => {
   try {
     const result = await query('DELETE FROM sleep_tips WHERE id = $1 RETURNING id', [req.params.id]);
