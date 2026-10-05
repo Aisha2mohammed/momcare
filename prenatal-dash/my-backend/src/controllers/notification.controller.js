@@ -187,12 +187,27 @@ exports.markRead = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const userRole = req.user.role;
 
-    const notification = await query(
-      'SELECT id FROM notifications WHERE id = $1 AND sent_at IS NOT NULL',
+    const existing = await query(
+      'SELECT id, target_group, target_user_id FROM notifications WHERE id = $1 AND sent_at IS NOT NULL',
       [id]
     );
-    if (notification.rows.length === 0) return sendError(res, 404, 'Notification not found.');
+    if (existing.rows.length === 0) return sendError(res, 404, 'Notification not found.');
+
+    // The notification must actually be in this caller's inbox. Uses the exact
+    // same scope predicate as getMyNotifications — without it, any authenticated
+    // user could mark (and thereby confirm the existence of) a notification
+    // addressed to somebody else.
+    const n = existing.rows[0];
+    const inScope =
+      n.target_group === 'all' ||
+      (n.target_group === 'mothers' && userRole === 'mother') ||
+      (n.target_group === 'doctors' && userRole === 'doctor') ||
+      n.target_user_id === userId;
+    if (!inScope) {
+      return sendError(res, 403, 'Forbidden. This notification does not belong to you.');
+    }
 
     await query(
       `INSERT INTO notification_reads (notification_id, user_id)
