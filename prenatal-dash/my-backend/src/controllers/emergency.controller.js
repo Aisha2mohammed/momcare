@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { normalizeLang } = require('../utils/normalizeLang');
 const { sendSuccess, sendPaginated } = require('../utils/apiResponse');
 
 // Note: this controller used to expose a "public facility directory" over the
@@ -24,7 +25,7 @@ exports.getHealthTips = async (req, res, next) => {
       [Number(limit), offset]
     );
 
-    const l = lang === 'or' ? 'or' : lang === 'en' ? 'en' : 'am';
+    const l = normalizeLang(lang);
     const localized = result.rows.map(r => ({
       ...r,
       title: r[`title_${l}`] || r.title_am || '',
