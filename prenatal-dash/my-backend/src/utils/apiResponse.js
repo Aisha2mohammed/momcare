@@ -21,18 +21,24 @@ const sendError = (res, statusCode = 500, message = 'Internal Server Error', err
 };
 
 const sendPaginated = (res, data, page, limit, total, message = 'Data retrieved successfully') => {
+  const pagination = {
+    total,
+    page: Number(page),
+    limit: Number(limit),
+    totalPages: Math.ceil(total / limit),
+    hasNext: page * limit < total,
+    hasPrev: page > 1,
+  };
   return res.status(200).json({
     success: true,
     message,
     data,
-    meta: {
-      total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / limit),
-      hasNext: page * limit < total,
-      hasPrev: page > 1,
-    },
+    // `meta` is the canonical key used by the mobile app. `pagination` is an
+    // identical alias kept because admin-panal's cmsClient.list reads
+    // res.pagination — without it every admin list falls back to
+    // { total: <current page length> } and reports wrong totals.
+    meta: pagination,
+    pagination,
   });
 };
 
