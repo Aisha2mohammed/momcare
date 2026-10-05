@@ -25,6 +25,15 @@ router.post(
     sleepController.create(req, res, next);
   }
 );
+router.put(
+  '/tips/:id',
+  requireAdmin,
+  upload.fields([{ name: 'illustrationUrl', maxCount: 1 }]),
+  (req, res, next) => {
+    req.body.illustrationUrl = handleMedia(req, 'illustrationUrl');
+    sleepController.update(req, res, next);
+  }
+);
 router.delete('/tips/:id', requireAdmin, sleepController.remove);
 
 // --- SLEEP WEEKS ---
