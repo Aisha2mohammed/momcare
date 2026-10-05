@@ -4,6 +4,7 @@ const doctorController = require('../controllers/doctor.controller');
 const { validate, doctorRegisterRules, paginationRules, appointmentRules } = require('../utils/validators');
 const auth = require('../middlewares/auth');
 const { requireRole, requireApprovedDoctor } = require('../middlewares/roleGuard');
+const { requireSelfOrAdmin } = require('../middlewares/ownership');
 
 // Public routes (no auth required - for mothers browsing doctors)
 router.get('/health-providers', doctorController.getHealthProviders);
@@ -12,8 +13,9 @@ router.get('/public/:id', doctorController.getDoctorPublicProfile);
 
 // Doctor registration & self-service (JWT-protected, role=doctor)
 router.post('/register', auth, doctorRegisterRules, validate, doctorController.registerDoctor);
-router.get('/:id/profile', auth, requireRole('doctor'), doctorController.getDoctorProfile);
-router.put('/:id/profile', auth, requireRole('doctor'), doctorController.updateDoctorProfile);
+// :id must be the caller's own doctor id (admins may read any).
+router.get('/:id/profile', auth, requireRole('doctor'), requireSelfOrAdmin('id'), doctorController.getDoctorProfile);
+router.put('/:id/profile', auth, requireRole('doctor'), requireSelfOrAdmin('id'), doctorController.updateDoctorProfile);
 // Any authenticated user (including mothers) may view a doctor's availability slots
 router.get('/:id/availability-slots', auth, doctorController.getAvailabilitySlots);
 router.post('/:id/availability-slots', auth, requireRole('doctor'), doctorController.createAvailabilitySlot);
