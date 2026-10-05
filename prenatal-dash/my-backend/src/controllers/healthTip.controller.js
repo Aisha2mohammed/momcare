@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { normalizeLang } = require('../utils/normalizeLang');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 
 exports.getAll = async (req, res, next) => {
@@ -100,7 +101,7 @@ exports.remove = async (req, res, next) => {
 };
 
 function localize(item, lang) {
-  const l = lang === 'or' ? 'or' : lang === 'en' ? 'en' : 'am';
+  const l = normalizeLang(lang);
   return {
     ...item,
     title: item[`title_${l}`] || item.title_am || '',
