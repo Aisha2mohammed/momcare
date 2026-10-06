@@ -128,8 +128,13 @@ class _HomePageState extends State<HomePage> {
                           scrollDirection: Axis.horizontal,
                           itemCount: 7,
                           itemBuilder: (context, index) {
+                            final now = DateTime.now();
+                            final monday = now.subtract(Duration(days: now.weekday - 1));
+                            final thisDay = monday.add(Duration(days: index));
                             final days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-                            bool isToday = index == 2;
+                            final bool isToday = thisDay.year == now.year &&
+                                                 thisDay.month == now.month &&
+                                                 thisDay.day == now.day;
                             return Container(
                               width: 55,
                               margin: const EdgeInsets.only(right: 10),
@@ -155,7 +160,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    "${12 + index}",
+                                    "${thisDay.day}",
                                     style: TextStyle(
                                       color: isToday ? Colors.white : Colors.black87,
                                       fontSize: 17,
