@@ -34,6 +34,8 @@ class MusicDetailPage extends StatelessWidget {
   }
 
   String _audioUrl(String lang) {
+    // Backend sends the flat camelCase key `audioUrl` (see GET /api/v1/music).
+    if (_pick('audioUrl').isNotEmpty) return _pick('audioUrl');
     if (_pick('audio_url').isNotEmpty) return _pick('audio_url');
     final direct = _pick('audio_${lang}_url');
     if (direct.isNotEmpty) return direct;
