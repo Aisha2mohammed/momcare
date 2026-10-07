@@ -101,4 +101,19 @@ class MotherService {
     );
     return response['data'] as Map<String, dynamic>;
   }
+
+  static Future<Map<String, dynamic>> sendEmergencyAlert(
+    double latitude,
+    double longitude,
+  ) async {
+    final id = await _motherId();
+    final response = await ApiService.post(
+      '/mothers/$id/emergency-alert',
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+      },
+    );
+    return response['data'] as Map<String, dynamic>;
+  }
 }
