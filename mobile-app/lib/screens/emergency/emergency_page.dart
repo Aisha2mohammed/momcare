@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class EmergencyPage extends StatefulWidget {
   const EmergencyPage({super.key});
@@ -118,6 +120,70 @@ class _EmergencyPageState extends State<EmergencyPage> {
     }
   }
 
+  Future<void> _emergencyCall() async {
+    try {
+      await launchUrl(Uri.parse('tel:911'), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start the phone call.')),
+      );
+    }
+  }
+
+  Future<void> _shareLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location services are turned off. Please enable them.')),
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission was denied.')),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final result = await MotherService.sendEmergencyAlert(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (!mounted) return;
+      final notified = result['contactsNotified'];
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            notified == null
+                ? 'Location shared with your emergency contacts.'
+                : 'Location shared with $notified emergency contact(s) and your doctor.',
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not share your location. Please try again.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -166,7 +232,7 @@ class _EmergencyPageState extends State<EmergencyPage> {
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: _emergencyCall,
                     icon: const Icon(Icons.phone_rounded),
                     label: Text(AppStrings.of(context, 'emergency_call')),
                     style: ElevatedButton.styleFrom(
@@ -179,7 +245,7 @@ class _EmergencyPageState extends State<EmergencyPage> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: _shareLocation,
                     icon: const Icon(Icons.location_on_rounded),
                     label: Text(AppStrings.of(context, 'gps_share')),
                     style: OutlinedButton.styleFrom(
