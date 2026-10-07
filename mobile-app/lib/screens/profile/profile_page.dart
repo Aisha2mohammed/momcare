@@ -3,6 +3,8 @@ import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/auth/login_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/l10n/l10n.dart';
+import 'package:provider/provider.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -41,9 +43,6 @@ class _ProfilePageState extends State<ProfilePage> {
       final assignedHospital = (profile?['assigned_hospital_name'] as String?) ?? '';
 
       // Week + due date must come from a LIVE calculation based on the LMP date.
-      // The stored `gestational_week` column is a one-time snapshot written when
-      // the profile was saved and never refreshed, so reading it here made this
-      // screen disagree with home.dart (which uses /gestational-week).
       var week = profile?['gestational_week'] as int? ?? 0;
       var dueDate = profile?['due_date'] as String?;
       try {
@@ -283,9 +282,21 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 25),
 
             _buildSettingsSection("App Settings", [
-              _buildSettingsTile(Icons.notifications_none_rounded, "Notifications", onTap: () {}),
-              _buildSettingsTile(Icons.language_rounded, "Language Settings", onTap: () {}),
-              _buildSettingsTile(Icons.security_rounded, "Privacy & Security", onTap: () {}),
+              _buildSettingsTile(
+                Icons.notifications_none_rounded,
+                "Notifications",
+                onTap: _showNotificationsScreen,
+              ),
+              _buildSettingsTile(
+                Icons.language_rounded,
+                "Language Settings",
+                onTap: _showLanguagePicker,
+              ),
+              _buildSettingsTile(
+                Icons.security_rounded,
+                "Privacy & Security",
+                onTap: _showPrivacyScreen,
+              ),
             ]),
 
             const SizedBox(height: 30),
@@ -345,6 +356,167 @@ class _ProfilePageState extends State<ProfilePage> {
       title: Text(title, style: const TextStyle(fontSize: 15)),
       trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
       onTap: onTap,
+    );
+  }
+
+  // ── Language picker ──────────────────────────────────────────────────
+  void _showLanguagePicker() {
+    final provider = Provider.of<LocaleProvider>(context, listen: false);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Select Language",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              for (final locale in L10n.all)
+                ListTile(
+                  leading: Icon(
+                    provider.locale?.languageCode == locale.languageCode
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: AppColors.primary,
+                  ),
+                  title: Text(L10n.getLanguageName(locale.languageCode)),
+                  onTap: () {
+                    provider.setLocale(locale);
+                    Navigator.pop(context);
+                  },
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Notifications screen ─────────────────────────────────────────────
+  void _showNotificationsScreen() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Notifications",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const ListTile(
+                leading: Icon(Icons.notifications_active_outlined, color: AppColors.primary),
+                title: Text("Push notifications"),
+                subtitle: Text("Managed by your phone settings"),
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined, color: AppColors.primary),
+                title: const Text("Open system settings"),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Open your phone Settings → Apps → Pregnancy App → Notifications")),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Privacy & Security screen ────────────────────────────────────────
+  void _showPrivacyScreen() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Privacy & Security",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.lock_reset_outlined, color: AppColors.primary),
+                title: const Text("Change password"),
+                subtitle: const Text("We will email you a reset link"),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Password reset link will be sent to your email")),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.primary),
+                title: const Text("Privacy policy"),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Privacy policy screen coming soon")),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded, color: Colors.red),
+                title: const Text("Log out", style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _logout();
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
     );
   }
 }
