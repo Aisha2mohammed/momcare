@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
-import 'package:provider/provider.dart';
-import 'package:pregnancy_appp/l10n/l10n.dart';
 
 /// Full-detail screen for a single music track.
 /// Receives the raw multi-lingual track map from the backend.
