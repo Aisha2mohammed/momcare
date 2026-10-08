@@ -3,8 +3,6 @@ import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
-import 'package:provider/provider.dart';
-import 'package:pregnancy_appp/l10n/l10n.dart';
 
 class FetalDetailsPage extends StatefulWidget {
   const FetalDetailsPage({super.key});

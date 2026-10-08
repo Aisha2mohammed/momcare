@@ -58,7 +58,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         _nameController.text = (user['name'] as String?) ?? '';
         final code = user['language'] as String?;
         if (code != null && _languageCodes.containsValue(code)) {
-          _selectedLanguage = code;
+          setState(() {
+            _selectedLanguage = code;
+          });
         }
       }
       final profile = data['profile'];
@@ -241,7 +243,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               const Text('Preferences', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                initialValue: _selectedLanguage,
+                value: _selectedLanguage,
                 decoration: InputDecoration(
                   labelText: 'Preferred Language',
                   filled: true,
