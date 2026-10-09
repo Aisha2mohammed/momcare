@@ -49,28 +49,31 @@ class ContentService {
   }
 
   // ── Nutrition ─────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getNutrition(int trimester) async {
+  static Future<List<dynamic>> getNutrition(int trimester, {int? week}) async {
     final lang = await _language();
+    final weekParam = week != null ? '&week=$week' : '';
     final response = await ApiService.get(
-      '/nutrition/tips?trimester=$trimester&lang=$lang&limit=$_limit',
+      '/nutrition/tips?trimester=$trimester$weekParam&lang=$lang&limit=$_limit',
     );
     return response['data'] as List<dynamic>;
   }
 
   // ── Exercises ─────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getExercises(int trimester) async {
+  static Future<List<dynamic>> getExercises(int trimester, {int? week}) async {
     final lang = await _language();
+    final weekParam = week != null ? '&week=$week' : '';
     final response = await ApiService.get(
-      '/exercise/tips?trimester=$trimester&lang=$lang&limit=$_limit',
+      '/exercise/tips?trimester=$trimester$weekParam&lang=$lang&limit=$_limit',
     );
     return response['data'] as List<dynamic>;
   }
 
   // ── Sleep tips ────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getSleepTips(int trimester) async {
+  static Future<List<dynamic>> getSleepTips(int trimester, {int? week}) async {
     final lang = await _language();
+    final weekParam = week != null ? '&week=$week' : '';
     final response = await ApiService.get(
-      '/sleep/tips?trimester=$trimester&lang=$lang&limit=$_limit',
+      '/sleep/tips?trimester=$trimester$weekParam&lang=$lang&limit=$_limit',
     );
     return response['data'] as List<dynamic>;
   }

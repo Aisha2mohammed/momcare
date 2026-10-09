@@ -3,6 +3,8 @@ import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
+import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/week_selector.dart';
 
 class SleepTipsPage extends StatefulWidget {
   const SleepTipsPage({super.key});
@@ -15,17 +17,37 @@ class _SleepTipsPageState extends State<SleepTipsPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  // 0 = not loaded yet → no week filter is applied.
+  int _currentWeek = 0;
+  int _selectedWeek = 0;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _selectCurrentTrimester();
+    _loadWeek();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadWeek() async {
+    try {
+      final data = await MotherService.getGestationalWeek();
+      final week = (data['currentWeek'] as int?) ?? 0;
+      if (!mounted || week <= 0) return;
+      setState(() {
+        _currentWeek = week;
+        _selectedWeek = week;
+      });
+    } catch (_) {
+      // Keep 0 → the week selector still renders, the current-week chip is
+      // simply not highlighted and no week filter is applied.
+    }
   }
 
   Future<void> _selectCurrentTrimester() async {
@@ -55,12 +77,25 @@ class _SleepTipsPageState extends State<SleepTipsPage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [
-          _SleepTipsList(trimester: 1),
-          _SleepTipsList(trimester: 2),
-          _SleepTipsList(trimester: 3),
+      body: Column(
+        children: [
+          WeekSelector(
+            mode: 'week',
+            selected: _selectedWeek,
+            currentWeek: _currentWeek,
+            onSelected: (v) => setState(() => _selectedWeek = v),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _SleepTipsList(trimester: 1, selectedWeek: _selectedWeek),
+                _SleepTipsList(trimester: 2, selectedWeek: _selectedWeek),
+                _SleepTipsList(trimester: 3, selectedWeek: _selectedWeek),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -69,8 +104,9 @@ class _SleepTipsPageState extends State<SleepTipsPage>
 
 class _SleepTipsList extends StatefulWidget {
   final int trimester;
+  final int selectedWeek;
 
-  const _SleepTipsList({required this.trimester});
+  const _SleepTipsList({required this.trimester, required this.selectedWeek});
 
   @override
   State<_SleepTipsList> createState() => _SleepTipsListState();
@@ -87,14 +123,37 @@ class _SleepTipsListState extends State<_SleepTipsList> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant _SleepTipsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedWeek != widget.selectedWeek) {
+      _load();
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final items = await ContentService.getSleepTips(widget.trimester);
+      final week = widget.selectedWeek > 0 ? widget.selectedWeek : null;
+      final fetched = await ContentService.getSleepTips(widget.trimester, week: week);
       if (!mounted) return;
+
+      // Client-side week filter. `sleep_tips.week` is currently NULL for every
+      // row, so this usually finds nothing — in that case keep the whole
+      // trimester list rather than showing an empty screen.
+      List<dynamic> items = fetched;
+      if (week != null) {
+        final matches = fetched.where((it) {
+          final w = it['week'];
+          return w != null &&
+              (w == week || w.toString() == week.toString());
+        }).toList();
+        if (matches.isNotEmpty) items = matches;
+      }
+
       setState(() => _items = items);
     } on ApiException catch (e) {
       if (!mounted) return;

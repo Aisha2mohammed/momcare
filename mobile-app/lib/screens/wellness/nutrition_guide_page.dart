@@ -5,6 +5,7 @@ import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/week_selector.dart';
 import 'nutrient_detail_page.dart';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -165,7 +166,7 @@ class _NutritionGuidePageState extends State<NutritionGuidePage> {
                 current: _periodMode,
                 onChanged: _setPeriodMode,
               ),
-              _PeriodChipRow(
+              WeekSelector(
                 mode: _periodMode,
                 selected: _selectedValue,
                 currentWeek: _currentWeek,
@@ -244,137 +245,6 @@ class _PeriodModeRow extends StatelessWidget {
                         selected ? FontWeight.w600 : FontWeight.normal,
                     fontSize: 13,
                   ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Period Chip Row
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-class _PeriodChipRow extends StatelessWidget {
-  final String mode;
-  final int selected;
-  final int currentWeek;
-  final int currentTrimester;
-  final int currentMonth;
-  final ValueChanged<int> onSelected;
-
-  const _PeriodChipRow({
-    required this.mode,
-    required this.selected,
-    required this.currentWeek,
-    required this.currentTrimester,
-    required this.currentMonth,
-    required this.onSelected,
-  });
-
-  List<int> get _values {
-    switch (mode) {
-      case 'month':
-        return List.generate(9, (i) => i + 1);
-      case 'week':
-        return List.generate(40, (i) => i + 1);
-      default:
-        return [1, 2, 3];
-    }
-  }
-
-  String _label(int v) {
-    switch (mode) {
-      case 'month':
-        return 'M$v';
-      case 'week':
-        return 'W$v';
-      default:
-        return v == 1
-            ? '1st'
-            : v == 2
-                ? '2nd'
-                : '3rd';
-    }
-  }
-
-  bool _isCurrent(int v) {
-    switch (mode) {
-      case 'month':
-        return v == currentMonth;
-      case 'week':
-        return v == currentWeek;
-      default:
-        return v == currentTrimester;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: _values.map((v) {
-          final isSelected = v == selected;
-          final isCurrent = _isCurrent(v);
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onSelected(v),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary
-                      : isCurrent
-                          ? AppColors.primary.withValues(alpha: 0.12)
-                          : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primary
-                        : isCurrent
-                            ? AppColors.primary.withValues(alpha: 0.4)
-                            : Colors.grey.shade200,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _label(v),
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : isCurrent
-                                ? AppColors.primary
-                                : Colors.grey[600],
-                        fontWeight: isSelected || isCurrent
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (isCurrent) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color:
-                              isSelected ? Colors.white : AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ],
                 ),
               ),
             ),

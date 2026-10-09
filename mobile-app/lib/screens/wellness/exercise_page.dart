@@ -3,6 +3,8 @@ import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
+import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/week_selector.dart';
 
 class ExercisePage extends StatefulWidget {
   const ExercisePage({super.key});
@@ -15,17 +17,37 @@ class _ExercisePageState extends State<ExercisePage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  // 0 = not loaded yet → no week filter is applied.
+  int _currentWeek = 0;
+  int _selectedWeek = 0;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _selectCurrentTrimester();
+    _loadWeek();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadWeek() async {
+    try {
+      final data = await MotherService.getGestationalWeek();
+      final week = (data['currentWeek'] as int?) ?? 0;
+      if (!mounted || week <= 0) return;
+      setState(() {
+        _currentWeek = week;
+        _selectedWeek = week;
+      });
+    } catch (_) {
+      // Keep 0 → the week selector still renders, the current-week chip is
+      // simply not highlighted and no week filter is applied.
+    }
   }
 
   Future<void> _selectCurrentTrimester() async {
@@ -55,12 +77,25 @@ class _ExercisePageState extends State<ExercisePage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [
-          _ExerciseList(trimester: 1),
-          _ExerciseList(trimester: 2),
-          _ExerciseList(trimester: 3),
+      body: Column(
+        children: [
+          WeekSelector(
+            mode: 'week',
+            selected: _selectedWeek,
+            currentWeek: _currentWeek,
+            onSelected: (v) => setState(() => _selectedWeek = v),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _ExerciseList(trimester: 1, selectedWeek: _selectedWeek),
+                _ExerciseList(trimester: 2, selectedWeek: _selectedWeek),
+                _ExerciseList(trimester: 3, selectedWeek: _selectedWeek),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -69,8 +104,9 @@ class _ExercisePageState extends State<ExercisePage>
 
 class _ExerciseList extends StatefulWidget {
   final int trimester;
+  final int selectedWeek;
 
-  const _ExerciseList({required this.trimester});
+  const _ExerciseList({required this.trimester, required this.selectedWeek});
 
   @override
   State<_ExerciseList> createState() => _ExerciseListState();
@@ -87,14 +123,38 @@ class _ExerciseListState extends State<_ExerciseList> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant _ExerciseList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedWeek != widget.selectedWeek) {
+      _load();
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final items = await ContentService.getExercises(widget.trimester);
+      final week = widget.selectedWeek > 0 ? widget.selectedWeek : null;
+      final fetched = await ContentService.getExercises(widget.trimester, week: week);
       if (!mounted) return;
+
+      // Client-side week filter. The `exercises` table has no `week` column
+      // yet, so nothing ever matches — we keep the full trimester list rather
+      // than showing an empty screen. Once rows carry week values this starts
+      // matching with no further code change.
+      List<dynamic> items = fetched;
+      if (week != null) {
+        final matches = fetched.where((it) {
+          final w = it['week'];
+          return w != null &&
+              (w == week || w.toString() == week.toString());
+        }).toList();
+        if (matches.isNotEmpty) items = matches;
+      }
+
       setState(() => _items = items);
     } on ApiException catch (e) {
       if (!mounted) return;
