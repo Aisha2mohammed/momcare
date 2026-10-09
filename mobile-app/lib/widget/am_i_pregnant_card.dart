@@ -2,16 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/fetal_details_page.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
-import 'package:pregnancy_appp/services/mother_service.dart';
 
 class AmIPregnantCard extends StatefulWidget {
-  const AmIPregnantCard({super.key, required int week, required int daysRemaining});
+  final int week;
+  final int daysRemaining;
+
+  const AmIPregnantCard({
+    super.key,
+    required this.week,
+    required this.daysRemaining,
+  });
 
   @override
   State<AmIPregnantCard> createState() => _AmIPregnantCardState();
 }
 
 class _AmIPregnantCardState extends State<AmIPregnantCard> {
+  // Loading-frame placeholders only: initState overwrites week and
+  // daysRemaining from the widget before the first build, and _load()
+  // overwrites the per-week fields. None of these are used as fallbacks.
   int _week = 12;
   int _daysRemaining = 196;
   String _sizeComparison = "Plum";
@@ -21,23 +30,34 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
   @override
   void initState() {
     super.initState();
+    _week = widget.week;
+    _daysRemaining = widget.daysRemaining;
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant AmIPregnantCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.week != widget.week) {
+      _week = widget.week;
+      _daysRemaining = widget.daysRemaining;
+      _load();
+    }
+  }
+
+  /// Fetches per-week data only (heart rate + size comparison) for the week
+  /// home.dart passed in. Gestational progress is NOT fetched here — that is
+  /// home.dart's job, and it hands us the live week and daysRemaining.
   Future<void> _load() async {
     try {
-      final progress = await MotherService.getGestationalWeek();
-      final week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
-      final data = await ContentService.getFetalByWeek(week);
-      
+      final data = await ContentService.getFetalByWeek(widget.week);
       if (!mounted) return;
 
+      final heartRate = (data['heartRate'] as num?)?.toInt();
+      final sizeRaw = data['size_comparison'] ?? data['size_comparison_en'];
+
       setState(() {
-        _week = week;
-        _daysRemaining = (data['days_remaining'] as num?)?.toInt() ?? _daysRemaining;
-        _heartRate = (data['heart_rate'] as num?)?.toInt() ?? _heartRate;
-        
-        final sizeRaw = data['size_comparison'] ?? data['size_comparison_en'];
+        if (heartRate != null) _heartRate = heartRate;
         if (sizeRaw != null && sizeRaw.toString().isNotEmpty) {
           _sizeComparison = sizeRaw.toString();
         }
