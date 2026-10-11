@@ -9,14 +9,14 @@ class NotificationService {
     int limit = _limit,
   }) async {
     final response = await ApiService.get(
-      '/notifications/me?page=$page&limit=$limit',
+      ApiEndpoints.myNotifications(page: page, limit: limit),
     );
     return response['data'] as List<dynamic>? ?? [];
   }
 
   // ── Mark one as read (idempotent upsert server-side) ─────────────────
   static Future<Map<String, dynamic>> markRead(String notificationId) async {
-    final response = await ApiService.put('/notifications/$notificationId/read');
+    final response = await ApiService.put(ApiEndpoints.notificationRead(notificationId));
     return response['data'] as Map<String, dynamic>? ?? {};
   }
 }

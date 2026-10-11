@@ -11,7 +11,7 @@ class MotherService {
 
   static Future<Map<String, dynamic>> getProfile() async {
     final id = await _motherId();
-    final response = await ApiService.get('/mothers/$id/profile');
+    final response = await ApiService.get(ApiEndpoints.motherProfile(id));
     return response['data'] as Map<String, dynamic>;
   }
 
@@ -31,12 +31,12 @@ class MotherService {
     if (profilePhoto != null && profilePhoto.isNotEmpty) {
       body['profilePhoto'] = profilePhoto;
     }
-    await ApiService.put('/mothers/$id/profile', body: body);
+    await ApiService.put(ApiEndpoints.motherProfile(id), body: body);
   }
 
   static Future<Map<String, dynamic>> getGestationalWeek() async {
     final id = await _motherId();
-    final response = await ApiService.get('/mothers/$id/gestational-week');
+    final response = await ApiService.get(ApiEndpoints.motherGestationalWeek(id));
     final data = response['data'] as Map<String, dynamic>;
     // Normalize numeric/date fields for easy display
     return {
@@ -56,7 +56,7 @@ class MotherService {
 
   static Future<List<dynamic>> getHealthLogs() async {
     final id = await _motherId();
-    final response = await ApiService.get('/mothers/$id/health-logs');
+    final response = await ApiService.get(ApiEndpoints.motherHealthLogs(id));
     return response['data'] as List<dynamic>;
   }
 
@@ -72,13 +72,13 @@ class MotherService {
     if (mood != null && mood.isNotEmpty) body['mood'] = mood;
     if (symptoms != null && symptoms.isNotEmpty) body['symptomsJson'] = symptoms;
     if (symptomSeverity != null) body['symptomSeverity'] = symptomSeverity;
-    final response = await ApiService.post('/mothers/$id/health-logs', body: body);
+    final response = await ApiService.post(ApiEndpoints.motherHealthLogs(id), body: body);
     return response['data'] as Map<String, dynamic>;
   }
 
   static Future<List<dynamic>> getEmergencyContacts() async {
     final id = await _motherId();
-    final response = await ApiService.get('/mothers/$id/emergency-contacts');
+    final response = await ApiService.get(ApiEndpoints.motherEmergencyContacts(id));
     return response['data'] as List<dynamic>;
   }
 
@@ -96,7 +96,7 @@ class MotherService {
       body['relationship'] = relationship;
     }
     final response = await ApiService.post(
-      '/mothers/$id/emergency-contacts',
+      ApiEndpoints.motherEmergencyContacts(id),
       body: body,
     );
     return response['data'] as Map<String, dynamic>;
@@ -108,7 +108,7 @@ class MotherService {
   ) async {
     final id = await _motherId();
     final response = await ApiService.post(
-      '/mothers/$id/emergency-alert',
+      ApiEndpoints.motherEmergencyAlert(id),
       body: {
         'latitude': latitude,
         'longitude': longitude,

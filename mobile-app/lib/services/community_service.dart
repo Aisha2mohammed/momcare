@@ -3,7 +3,7 @@ import 'api_service.dart';
 class CommunityService {
   // ── Groups ────────────────────────────────────────────────────────────
   static Future<List<dynamic>> getGroups() async {
-    final response = await ApiService.get('/community/groups');
+    final response = await ApiService.get(ApiEndpoints.communityGroups);
     return response['data'] as List<dynamic>? ?? [];
   }
 
@@ -14,7 +14,7 @@ class CommunityService {
     int limit = 50,
   }) async {
     final response = await ApiService.get(
-      '/community/groups/$groupId/posts?page=$page&limit=$limit',
+      ApiEndpoints.groupPosts(groupId, page: page, limit: limit),
     );
     return response['data'] as List<dynamic>? ?? [];
   }
@@ -26,7 +26,7 @@ class CommunityService {
     bool isAnonymous = false,
   }) async {
     final response = await ApiService.post(
-      '/community/posts',
+      ApiEndpoints.communityPosts,
       body: {
         'groupId': groupId,
         'content': content,
@@ -42,7 +42,7 @@ class CommunityService {
     String content,
   ) async {
     final response = await ApiService.post(
-      '/community/posts/$postId/comments',
+      ApiEndpoints.postCommentsCreate(postId),
       body: {'content': content},
     );
     return response['data'] as Map<String, dynamic>;
@@ -55,7 +55,7 @@ class CommunityService {
     int limit = 50,
   }) async {
     final response = await ApiService.get(
-      '/community/posts/$postId/comments?page=$page&limit=$limit',
+      ApiEndpoints.postComments(postId, page: page, limit: limit),
     );
     return response['data'] as List<dynamic>? ?? [];
   }
@@ -63,7 +63,7 @@ class CommunityService {
   // ── Like a post ───────────────────────────────────────────────────────
   // Returns persisted like state + count from the server.
   static Future<Map<String, dynamic>> likePost(String postId) async {
-    final response = await ApiService.put('/community/posts/$postId/like');
+    final response = await ApiService.put(ApiEndpoints.postLike(postId));
     return response['data'] as Map<String, dynamic>? ?? {};
   }
 }

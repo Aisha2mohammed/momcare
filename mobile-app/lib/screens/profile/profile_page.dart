@@ -287,10 +287,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 "Notifications",
                 onTap: _showNotificationsScreen,
               ),
-              _buildSettingsTile(
-                Icons.language_rounded,
-                "Language Settings",
-                onTap: _showLanguagePicker,
+              Consumer<LocaleProvider>(
+                builder: (context, localeProvider, _) {
+                  final code = localeProvider.locale?.languageCode ?? 'en';
+                  final langName = L10n.getLanguageName(code);
+                  return _buildSettingsTile(
+                    Icons.language_rounded,
+                    AppStrings.of(context, 'language'),
+                    subtitle: langName,
+                    onTap: _showLanguagePicker,
+                  );
+                },
               ),
               _buildSettingsTile(
                 Icons.security_rounded,
@@ -350,10 +357,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSettingsTile(IconData icon, String title, {VoidCallback? onTap}) {
+  Widget _buildSettingsTile(IconData icon, String title, {String? subtitle, VoidCallback? onTap}) {
     return ListTile(
       leading: Icon(icon, color: AppColors.primary, size: 22),
       title: Text(title, style: const TextStyle(fontSize: 15)),
+      subtitle: subtitle != null
+          ? Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600))
+          : null,
       trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
       onTap: onTap,
     );
@@ -381,9 +391,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Select Language",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppStrings.of(context, 'language'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               for (final locale in L10n.all)
@@ -394,9 +404,17 @@ class _ProfilePageState extends State<ProfilePage> {
                         : Icons.radio_button_unchecked,
                     color: AppColors.primary,
                   ),
-                  title: Text(L10n.getLanguageName(locale.languageCode)),
+                  title: Text(
+                    L10n.getLanguageName(locale.languageCode),
+                    style: TextStyle(
+                      fontWeight: provider.locale?.languageCode == locale.languageCode
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
                   onTap: () {
                     provider.setLocale(locale);
+                    MotherService.updateProfile(language: locale.languageCode).catchError((_) {});
                     Navigator.pop(context);
                   },
                 ),

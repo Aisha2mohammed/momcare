@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pregnancy_appp/constants/color.dart';
@@ -5,12 +6,43 @@ import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/app_video_player.dart';
 import 'package:pregnancy_appp/widget/week_selector.dart';
+import 'package:pregnancy_appp/widget/wellness_info_card.dart';
+import 'package:pregnancy_appp/widget/wellness_type_filter_row.dart';
 import 'nutrient_detail_page.dart';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// URL resolver
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+String _safeExtractMedia(dynamic source) {
+  if (source == null) return '';
+  if (source is String) return source.trim();
+  if (source is Map) {
+    if (source['url'] != null) return _safeExtractMedia(source['url']);
+    if (source['uri'] != null) return _safeExtractMedia(source['uri']);
+    if (source['path'] != null) return _safeExtractMedia(source['path']);
+    if (source['en'] != null) return _safeExtractMedia(source['en']);
+  }
+  return source.toString();
+}
+
+String _safeStr(dynamic val, [String fallback = '']) {
+  if (val == null) return fallback;
+  if (val is String) {
+    final trimmed = val.trim();
+    return trimmed.isNotEmpty ? trimmed : fallback;
+  }
+  if (val is Map) {
+    for (final key in ['label', 'value', 'text', 'title', 'name', 'tip', 'desc', 'description', 'en', 'am', 'om', 'or', 'so']) {
+      final v = val[key];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is Map) {
+        final inner = _safeStr(v);
+        if (inner.isNotEmpty) return inner;
+      }
+    }
+  }
+  return val.toString();
+}
 
 String _resolveUrl(String? url) {
   if (url == null || url.trim().isEmpty) return '';
@@ -18,19 +50,16 @@ String _resolveUrl(String? url) {
   
   String resolved = trimmed;
   if (resolved.contains('localhost')) {
-    resolved = resolved.replaceAll('localhost', '192.168.0.199');
+    resolved = resolved.replaceAll('localhost', '192.168.1.4');
   }
 
   if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
     return resolved;
   }
-  const host = 'http://192.168.0.199:5000';
+  const host = 'http://192.168.1.4:5000';
   return resolved.startsWith('/') ? '$host$resolved' : '$host/$resolved';
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Localized-text extractor
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 String _loc(
   dynamic source,
@@ -42,21 +71,43 @@ String _loc(
   List<String> defaultKeys = const [],
   String fallback = '',
 }) {
-  if (source is! Map) {
-    if (source is String && source.trim().isNotEmpty) return source.trim();
-    return fallback;
+  if (source == null) return fallback;
+  if (source is String) return source.trim().isNotEmpty ? source.trim() : fallback;
+  if (source is! Map) return source.toString();
+
+  final l = (lang == 'om' || lang == 'or') ? 'om' : lang;
+
+  if (source[l] != null && source[l].toString().trim().isNotEmpty) {
+    final v = source[l];
+    if (v is String) return v.trim();
+    if (v is Map) return _loc(v, lang, fallback: fallback);
   }
+  if ((lang == 'om' || lang == 'or') && source['or'] != null && source['or'].toString().trim().isNotEmpty) {
+    final v = source['or'];
+    if (v is String) return v.trim();
+  }
+
   String? check(List<String> keys) {
     for (final k in keys) {
       final v = source[k];
       if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is Map) {
+        final inner = _loc(v, lang, fallback: '');
+        if (inner.isNotEmpty) return inner;
+      }
     }
     return null;
   }
 
   String? match;
   if (lang == 'am') match = check(amKeys);
-  if (lang == 'or') match = check(orKeys);
+  if (lang == 'or' || lang == 'om') {
+    match = check(orKeys);
+    if (match == null) {
+      final omKeys = orKeys.map((k) => k.replaceAll('or', 'om').replaceAll('Or', 'Om')).toList();
+      match = check(omKeys);
+    }
+  }
   if (lang == 'so') match = check(soKeys);
   if (lang == 'en') match = check(enKeys);
   if (match != null && match.isNotEmpty) return match;
@@ -66,6 +117,7 @@ String _loc(
       check(orKeys) ??
       check(soKeys) ??
       check(defaultKeys) ??
+      check(['en', 'am', 'om', 'or', 'so']) ??
       fallback;
 }
 
@@ -80,7 +132,7 @@ class NutritionGuidePage extends StatefulWidget {
 
 class _NutritionGuidePageState extends State<NutritionGuidePage> {
   // Period filter
-  String _periodMode = 'trimester'; // 'trimester' | 'month' | 'week'
+  String _periodMode = 'week'; // Default to week based on profile LMP
   int _currentWeek = 1;
   int _currentTrimester = 1;
   int _currentMonth = 1;
@@ -105,8 +157,8 @@ class _NutritionGuidePageState extends State<NutritionGuidePage> {
         _currentWeek = week;
         _currentTrimester = trimester;
         _currentMonth = month;
-        _selectedValue = trimester;
-        _periodMode = 'trimester';
+        _selectedValue = week;
+        _periodMode = 'week';
       });
     } catch (_) {
     } finally {
@@ -198,9 +250,6 @@ class _NutritionGuidePageState extends State<NutritionGuidePage> {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Period Mode Row
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _PeriodModeRow extends StatelessWidget {
   final String current;
@@ -210,10 +259,10 @@ class _PeriodModeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const modes = [
-      ('month', 'Month'),
-      ('trimester', 'Trimester'),
-      ('week', 'Week'),
+    final modes = [
+      ('month', AppStrings.of(context, 'period_month')),
+      ('trimester', AppStrings.of(context, 'period_trimester')),
+      ('week', AppStrings.of(context, 'period_week')),
     ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -255,9 +304,6 @@ class _PeriodModeRow extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Nutrition Content (week guides list)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _NutritionContent extends StatefulWidget {
   final int trimester;
@@ -278,6 +324,8 @@ class _NutritionContent extends StatefulWidget {
 
 class _NutritionContentState extends State<_NutritionContent> {
   List<dynamic> _guides = [];
+  Map<String, dynamic>? _weekInfo;
+  String _currentType = 'eat'; // 'eat' | 'avoid'
   bool _loading = true;
   String? _error;
 
@@ -292,9 +340,24 @@ class _NutritionContentState extends State<_NutritionContent> {
     super.didUpdateWidget(old);
     if (old.trimester != widget.trimester ||
         old.periodMode != widget.periodMode ||
-        old.periodValue != widget.periodValue) {
+        old.periodValue != widget.periodValue ||
+        old.userLang != widget.userLang) {
       _load();
     }
+  }
+
+  static String _defaultNutritionWhy(String lang) {
+    if (lang == 'am') return 'በብረት እና ፕሮቲን የበለፀገ የተመጣጠነ ምግብ መመገብ ለልጅዎ ጤናማ እድገት መሰረት ነው።';
+    if (lang == 'om' || lang == 'or') return 'Nyaata sirnaa, sibiila fi pirootiinii qabu nyaachuun daa’ima kee guddina fayyaa qabaachuuf bu’uura dha.';
+    if (lang == 'so') return 'Cunida cunto dheellis ah oo qani ah ayaa ku siisa ilmagaguaga koritaanka caafimaadka.';
+    return 'Eating a balanced, iron- and protein-rich diet now gives your baby the building blocks for healthy growth.';
+  }
+
+  static String _defaultHydration(String lang) {
+    if (lang == 'am') return 'በየቀኑ ከ8 እስከ 10 ብርጭቆ ውሃ ይጠጡ። የሰውነት ፈሳሽ መጠንን እና የምግብ መፈጨትን ይረዳል::';
+    if (lang == 'om' || lang == 'or') return 'Guyyaatti bishaan galaana 8–10 dhugaa. Bishaan dhuguun dhiiga fi bishaan daa’imaa ni deeggara.';
+    if (lang == 'so') return 'Cab 8-10 koob oo biyo ah maalin kasta. Fuuq-celintu waxay caawisaa dheefshiidka iyo caafimaadka.';
+    return 'Drink 8–10 glasses of water daily. Staying hydrated supports blood volume, amniotic fluid and digestion.';
   }
 
   Future<void> _load() async {
@@ -303,30 +366,76 @@ class _NutritionContentState extends State<_NutritionContent> {
       _error = null;
     });
     try {
-      final items = await ContentService.getNutrition(widget.trimester);
+      final weekNum = widget.periodMode == 'week' ? widget.periodValue : null;
+      final monthNum = widget.periodMode == 'month'
+          ? widget.periodValue
+          : (widget.periodMode == 'week' ? ((widget.periodValue / 4.33).ceil()).clamp(1, 9) : null);
+
+      final itemsFuture = ContentService.getNutrition(
+        widget.trimester,
+        month: widget.periodMode == 'month' ? widget.periodValue : null,
+        week: weekNum,
+        type: _currentType,
+        lang: widget.userLang,
+      );
+      final weekFuture = ContentService.getNutritionWeek(
+        widget.trimester,
+        month: monthNum,
+        week: weekNum,
+        lang: widget.userLang,
+      );
+
+      final results = await Future.wait([itemsFuture, weekFuture]);
       if (!mounted) return;
+
+      final items = results[0] as List<dynamic>;
+      final weekData = results[1] as Map<String, dynamic>?;
 
       List<dynamic> displayItems = items;
 
       if (widget.periodMode == 'week') {
         final weekMatches = items.where((it) {
-          final w = it['week'];
+          final w = it['week'] ??
+              (weekData != null && it['nutrition_week_id'] != null && it['nutrition_week_id'] == weekData['id']
+                  ? weekData['week']
+                  : null);
           return w != null &&
               (w == widget.periodValue ||
                   w.toString() == widget.periodValue.toString());
         }).toList();
-        if (weekMatches.isNotEmpty) displayItems = weekMatches;
+        if (weekMatches.isNotEmpty) {
+          displayItems = weekMatches;
+        } else if (items.isNotEmpty) {
+          displayItems = items;
+        }
       } else if (widget.periodMode == 'month') {
-        final startWeek = ((widget.periodValue - 1) * 4.33).round() + 1;
-        final endWeek = (widget.periodValue * 4.33).round();
         final monthMatches = items.where((it) {
-          final w = int.tryParse(it['week']?.toString() ?? '') ?? 0;
+          final m = it['month'] ??
+              (weekData != null && it['nutrition_week_id'] != null && it['nutrition_week_id'] == weekData['id']
+                  ? weekData['month']
+                  : null);
+          if (m != null && (m == widget.periodValue || m.toString() == widget.periodValue.toString())) {
+            return true;
+          }
+          final w = int.tryParse(it['week']?.toString() ?? '') ??
+              (weekData != null && it['nutrition_week_id'] != null && it['nutrition_week_id'] == weekData['id']
+                  ? int.tryParse(weekData['week']?.toString() ?? '') ?? 0
+                  : 0);
+          final startWeek = ((widget.periodValue - 1) * 4.33).round() + 1;
+          final endWeek = (widget.periodValue * 4.33).round();
           return w >= startWeek && w <= endWeek;
         }).toList();
-        if (monthMatches.isNotEmpty) displayItems = monthMatches;
+        if (monthMatches.isNotEmpty) {
+          displayItems = monthMatches;
+        } else if (items.isNotEmpty) {
+          displayItems = items;
+        }
       }
 
-      setState(() => _guides = displayItems);
+      setState(() {
+        _guides = displayItems;
+        _weekInfo = weekData;
+      });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -356,277 +465,194 @@ class _NutritionContentState extends State<_NutritionContent> {
         ),
       );
     }
-    if (_guides.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.restaurant_menu_rounded,
-                size: 72, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(
-              'No nutrition guides available for this period.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[500], fontSize: 15),
-            ),
-          ],
-        ),
-      );
-    }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      itemCount: _guides.length,
-      itemBuilder: (_, i) =>
-          _WeekGuideCard(guide: _guides[i], userLang: widget.userLang),
-    );
-  }
-}
+    // Resolve whyImportant & hydration from weekInfo, items, or fallback
+    String whyImportant = '';
+    String hydration = '';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Week Guide Card
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-class _WeekGuideCard extends StatelessWidget {
-  final dynamic guide;
-  final String userLang;
-
-  const _WeekGuideCard({required this.guide, required this.userLang});
-
-  Map? get _map => guide is Map ? guide as Map : null;
-
-  int get _week => int.tryParse(_map?['week']?.toString() ?? '') ?? 0;
-  int get _trimester =>
-      int.tryParse(_map?['trimester']?.toString() ?? '') ?? 0;
-  int get _month => _week > 0 ? ((_week / 4.33).ceil()).clamp(1, 9) : 0;
-
-  String _trimesterLabel(int t) {
-    if (t == 1) return '1st Trimester';
-    if (t == 2) return '2nd Trimester';
-    return '3rd Trimester';
-  }
-
-  String get _hydration => _loc(
-        _map,
-        userLang,
-        amKeys: ['hydrationAm', 'hydration_am'],
-        orKeys: ['hydrationOr', 'hydration_or'],
-        soKeys: ['hydrationSo', 'hydration_so'],
-        enKeys: ['hydrationEn', 'hydration_en'],
-        defaultKeys: ['hydration'],
-        fallback: '',
-      );
-
-  String get _whyImportant => _loc(
-        _map,
-        userLang,
+    if (_weekInfo != null) {
+      whyImportant = _loc(
+        _weekInfo,
+        widget.userLang,
         amKeys: ['whyImportantAm', 'why_important_am'],
-        orKeys: ['whyImportantOr', 'why_important_or'],
+        orKeys: ['whyImportantOr', 'why_important_or', 'whyImportantOm', 'why_important_om'],
         soKeys: ['whyImportantSo', 'why_important_so'],
         enKeys: ['whyImportantEn', 'why_important_en'],
         defaultKeys: ['why_important', 'whyImportant'],
         fallback: '',
       );
-
-  List<Map<String, dynamic>> get _sections {
-    final raw = _map?['nutrientSectionsJson'] ??
-        _map?['nutrient_sections_json'] ??
-        _map?['sections'];
-    if (raw is List && raw.isNotEmpty) {
-      return raw
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      hydration = _loc(
+        _weekInfo,
+        widget.userLang,
+        amKeys: ['hydrationAm', 'hydration_am'],
+        orKeys: ['hydrationOr', 'hydration_or', 'hydrationOm', 'hydration_om'],
+        soKeys: ['hydrationSo', 'hydration_so'],
+        enKeys: ['hydrationEn', 'hydration_en'],
+        defaultKeys: ['hydration'],
+        fallback: '',
+      );
     }
-    return [];
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final sections = _sections;
+    if (whyImportant.isEmpty && _guides.isNotEmpty) {
+      for (final g in _guides) {
+        if (g is Map) {
+          final candidate = _loc(
+            g,
+            widget.userLang,
+            amKeys: ['whyImportantAm', 'why_important_am'],
+            orKeys: ['whyImportantOr', 'why_important_or', 'whyImportantOm', 'why_important_om'],
+            soKeys: ['whyImportantSo', 'why_important_so'],
+            enKeys: ['whyImportantEn', 'why_important_en'],
+            defaultKeys: ['why_important', 'whyImportant'],
+            fallback: '',
+          );
+          if (candidate.isNotEmpty) {
+            whyImportant = candidate;
+            break;
+          }
+        }
+      }
+    }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          _WeekHeader(
-            week: _week,
-            trimester: _trimester,
-            month: _month,
-            trimesterLabel: _trimesterLabel(_trimester),
-          ),
+    if (hydration.isEmpty && _guides.isNotEmpty) {
+      for (final g in _guides) {
+        if (g is Map) {
+          final candidate = _loc(
+            g,
+            widget.userLang,
+            amKeys: ['hydrationAm', 'hydration_am'],
+            orKeys: ['hydrationOr', 'hydration_or', 'hydrationOm', 'hydration_om'],
+            soKeys: ['hydrationSo', 'hydration_so'],
+            enKeys: ['hydrationEn', 'hydration_en'],
+            defaultKeys: ['hydration'],
+            fallback: '',
+          );
+          if (candidate.isNotEmpty) {
+            hydration = candidate;
+            break;
+          }
+        }
+      }
+    }
 
-          // â”€â”€ Nutrient section rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          if (sections.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                'No nutrient information for this week yet.',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              itemCount: sections.length,
-              separatorBuilder: (_, __) =>
-                  Divider(height: 1, color: Colors.grey.shade100),
-              itemBuilder: (ctx, i) => _NutrientSectionRow(
-                section: sections[i],
-                userLang: userLang,
-                onTap: () {
-                  Navigator.push(
-                    ctx,
-                    MaterialPageRoute(
-                      builder: (_) => NutrientDetailPage(
-                        nutrient: sections[i],
-                        weekGuide: _map != null
-                            ? Map<String, dynamic>.from(_map!)
-                            : {},
-                        initialLang: userLang,
+    if (whyImportant.isEmpty) {
+      whyImportant = _defaultNutritionWhy(widget.userLang);
+    }
+    if (hydration.isEmpty) {
+      hydration = _defaultHydration(widget.userLang);
+    }
+
+    // Collect and filter nutrient items for active tab (eat vs avoid)
+    final List<Map<String, dynamic>> allItems = [];
+    for (final g in _guides) {
+      if (g is! Map) continue;
+      final gMap = Map<String, dynamic>.from(g);
+      final gType = (gMap['type'] ?? 'eat').toString().toLowerCase();
+      final isAvoid = gType == 'avoid' || gMap['isAvoid'] == true || gMap['is_avoid'] == true;
+      if (_currentType == 'avoid' ? isAvoid : !isAvoid) {
+        allItems.add(gMap);
+      }
+    }
+
+    return Column(
+      children: [
+        // ── Tab Switcher: What to Eat / What to Avoid ────────────────
+        WellnessTypeFilterRow(
+          currentType: _currentType,
+          firstKey: 'eat',
+          firstLabel: AppStrings.of(context, 'what_to_eat'),
+          firstIcon: '🥗',
+          secondKey: 'avoid',
+          secondLabel: AppStrings.of(context, 'what_not_to_eat'),
+          secondIcon: '🚫',
+          onChanged: (newType) {
+            if (_currentType != newType) {
+              setState(() => _currentType = newType);
+              _load();
+            }
+          },
+        ),
+
+        // ── Main List & Bottom Cards ─────────────────────────────────
+        Expanded(
+          child: allItems.isEmpty
+              ? ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                  children: [
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _currentType == 'avoid'
+                                  ? Icons.do_not_disturb_alt_rounded
+                                  : Icons.restaurant_menu_rounded,
+                              size: 72,
+                              color: Colors.grey[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _currentType == 'avoid'
+                                  ? 'No foods to avoid listed for this period.'
+                                  : 'No nutrition guides available for this period.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey[500], fontSize: 15),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-
-          const SizedBox(height: 12),
-
-          // â”€â”€ Hydration strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          if (_hydration.isNotEmpty)
-            _InfoStrip(icon: 'ðŸ’§', text: _hydration, color: const Color(0xFFE3F2FD), textColor: const Color(0xFF1565C0)),
-
-          // â”€â”€ Why important strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          if (_whyImportant.isNotEmpty)
-            _InfoStrip(icon: 'ðŸ’¡', text: _whyImportant, color: AppColors.primary.withValues(alpha: 0.07), textColor: Colors.grey.shade800),
-
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-}
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Week Header
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-class _WeekHeader extends StatelessWidget {
-  final int week;
-  final int trimester;
-  final int month;
-  final String trimesterLabel;
-
-  const _WeekHeader({
-    required this.week,
-    required this.trimester,
-    required this.month,
-    required this.trimesterLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary,
-            AppColors.primary.withValues(alpha: 0.78),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  week > 0 ? '$week' : 'â€”',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 20,
-                    height: 1,
-                  ),
-                ),
-                const Text(
-                  'WK',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  week > 0 ? 'Week $week Nutrition Guide' : 'Nutrition Guide',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    if (trimester > 0)
-                      _HeaderChip(
-                          icon: Icons.timeline_rounded,
-                          label: trimesterLabel),
-                    if (month > 0)
-                      _HeaderChip(
-                          icon: Icons.calendar_month_rounded,
-                          label: 'Month $month'),
+                    WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                    WellnessInfoCard.hydration(context: context, content: hydration),
                   ],
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                  itemCount: allItems.length + 1,
+                  itemBuilder: (context, i) {
+                    // At the bottom of the list of nutrition items
+                    if (i == allItems.length) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                          WellnessInfoCard.hydration(context: context, content: hydration),
+                        ],
+                      );
+                    }
+
+                    final section = allItems[i];
+                    return _NutrientSectionRow(
+                      section: section,
+                      userLang: widget.userLang,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NutrientDetailPage(
+                              nutrient: section,
+                              weekGuide: _weekInfo ?? section,
+                              isAvoid: _currentType == 'avoid',
+                              initialLang: widget.userLang,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
+
+
+// ignore: unused_element
 class _HeaderChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -648,10 +674,9 @@ class _HeaderChip extends StatelessWidget {
     );
   }
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // Nutrient Section Row
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _NutrientSectionRow extends StatelessWidget {
   final Map<String, dynamic> section;
@@ -666,88 +691,284 @@ class _NutrientSectionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emoji = (section['emoji'] as String?) ?? 'ðŸŒ¿';
+    final emoji = _safeStr(section['emoji'], '🥗');
     final title = _loc(
       section,
       userLang,
-      amKeys: ['titleAm', 'title_am'],
-      orKeys: ['titleOr', 'title_or'],
-      soKeys: ['titleSo', 'title_so'],
-      enKeys: ['titleEn', 'title_en'],
+      amKeys: ['titleAm', 'title_am', 'nameAm', 'name_am'],
+      orKeys: ['titleOr', 'title_or', 'nameOr', 'name_or', 'titleOm', 'title_om'],
+      soKeys: ['titleSo', 'title_so', 'nameSo', 'name_so'],
+      enKeys: ['titleEn', 'title_en', 'nameEn', 'name_en'],
       defaultKeys: ['title', 'name', 'nutrientType'],
-      fallback: 'Nutrient',
+      fallback: 'Nutrition Guide',
     );
     final body = _loc(
       section,
       userLang,
-      amKeys: ['bodyAm', 'body_am'],
-      orKeys: ['bodyOr', 'body_or'],
-      soKeys: ['bodySo', 'body_so'],
-      enKeys: ['bodyEn', 'body_en'],
-      defaultKeys: ['body', 'description'],
+      amKeys: ['descriptionAm', 'description_am', 'bodyAm', 'body_am', 'descAm', 'desc_am'],
+      orKeys: ['descriptionOr', 'description_or', 'descriptionOm', 'description_om', 'bodyOr', 'body_or'],
+      soKeys: ['descriptionSo', 'description_so', 'bodySo', 'body_so'],
+      enKeys: ['descriptionEn', 'description_en', 'bodyEn', 'body_en'],
+      defaultKeys: ['body', 'description', 'desc'],
       fallback: '',
     );
     final imageUrl =
-        _resolveUrl((section['imageUrl'] ?? section['image_url']) as String?);
+        _resolveUrl(_safeExtractMedia(section['imageUrl'] ?? section['image_url'] ?? section['image']));
+    final videoUrl =
+        _resolveUrl(_safeExtractMedia(section['videoUrl'] ?? section['video_url'] ?? section['video']));
 
-    return InkWell(
+    final descLabel = _loc(
+      section,
+      userLang,
+      amKeys: ['descriptionLabelAm', 'description_label_am', 'benefitLabelAm', 'benefit_label_am'],
+      orKeys: ['descriptionLabelOr', 'description_label_or', 'descriptionLabelOm', 'description_label_om'],
+      soKeys: ['descriptionLabelSo', 'description_label_so', 'benefitLabelSo', 'benefit_label_so'],
+      enKeys: ['descriptionLabelEn', 'description_label_en', 'benefitLabelEn', 'benefit_label_en'],
+      defaultKeys: ['description_label', 'benefit_label', 'label'],
+      fallback: '',
+    );
+    final descValue = _loc(
+      section,
+      userLang,
+      amKeys: ['descriptionValueAm', 'description_value_am', 'benefitValueAm', 'benefit_value_am'],
+      orKeys: ['descriptionValueOr', 'description_value_or', 'descriptionValueOm', 'description_value_om'],
+      soKeys: ['descriptionValueSo', 'description_value_so', 'benefitValueSo', 'benefit_value_so'],
+      enKeys: ['descriptionValueEn', 'description_value_en', 'benefitValueEn', 'benefit_value_en'],
+      defaultKeys: ['description_value', 'benefit_value', 'value'],
+      fallback: '',
+    );
+
+    final isAvoid = (section['type'] ?? '').toString().toLowerCase() == 'avoid' ||
+        section['isAvoid'] == true ||
+        section['is_avoid'] == true;
+
+    dynamic foodsRaw = section['list_food'] ?? section['listFood'] ?? section['foods'];
+    if (foodsRaw is String && foodsRaw.trim().startsWith('[')) {
+      try {
+        foodsRaw = jsonDecode(foodsRaw);
+      } catch (_) {}
+    }
+    final List<dynamic> foods = foodsRaw is List ? foodsRaw : [];
+
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Nutrient icon / image badge
-            Container(
-              width: 46,
-              height: 46,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
-                    )
-                  : Center(
-                      child: Text(emoji, style: const TextStyle(fontSize: 22))),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Hero In-UI Video or Image ──────────────────────────────────
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(22),
+                topRight: Radius.circular(22),
+              ),
+              child: videoUrl.isNotEmpty
+                  ? AppVideoPlayer(
+                      videoUrl: videoUrl,
+                      title: title,
+                      aspectRatio: 16 / 9,
+                      thumbnailUrl: imageUrl.isNotEmpty ? imageUrl : null,
+                    )
+                  : (imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          height: 175,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _NutrientPlaceholder(emoji: emoji),
+                        )
+                      : _NutrientPlaceholder(emoji: emoji)),
+            ),
+
+            // ── Text & Metadata Content ───────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                  // Badges
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isAvoid ? const Color(0xFFFFEBEE) : const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          isAvoid ? '🚫 WHAT TO AVOID' : '🥗 WHAT TO EAT',
+                          style: TextStyle(
+                            color: isAvoid ? const Color(0xFFC62828) : const Color(0xFF2E7D32),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                      if (descValue.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isAvoid ? const Color(0xFFFFF3E0) : const Color(0xFFE3F2FD),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            descLabel.isNotEmpty ? '$descLabel: $descValue' : descValue,
+                            style: TextStyle(
+                              color: isAvoid ? const Color(0xFFE65100) : const Color(0xFF1565C0),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      if (foods.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${foods.length} items',
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  if (body.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        body,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                            height: 1.4),
+                  const SizedBox(height: 10),
+
+                  // Title & chevron
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.grey.shade600,
+                          size: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Description
+                  if (body.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      body,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 13,
+                        height: 1.4,
                       ),
                     ),
+                  ],
+
+                  // Food items preview tags
+                  if (foods.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: foods.take(4).map((f) {
+                        final fName = _loc(
+                          f,
+                          userLang,
+                          amKeys: ['nameAm', 'name_am'],
+                          orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om'],
+                          soKeys: ['nameSo', 'name_so'],
+                          enKeys: ['nameEn', 'name_en'],
+                          defaultKeys: ['name', 'title'],
+                          fallback: 'Item',
+                        );
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isAvoid ? const Color(0xFFFFF5F5) : const Color(0xFFF1F8E9),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isAvoid ? const Color(0xFFFFCDD2) : const Color(0xFFDCEDC8),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            fName,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: isAvoid ? const Color(0xFFB71C1C) : const Color(0xFF1B5E20),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded,
-                color: Colors.grey.shade400, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NutrientPlaceholder extends StatelessWidget {
+  final String emoji;
+  const _NutrientPlaceholder({required this.emoji});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 160,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.8),
+            AppColors.primary.withValues(alpha: 0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(emoji, style: const TextStyle(fontSize: 48)),
       ),
     );
   }
@@ -757,42 +978,5 @@ class _NutrientSectionRow extends StatelessWidget {
 // Info Strip (Hydration / Why Important)
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-class _InfoStrip extends StatelessWidget {
-  final String icon;
-  final String text;
-  final Color color;
-  final Color textColor;
 
-  const _InfoStrip({
-    required this.icon,
-    required this.text,
-    required this.color,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(icon, style: const TextStyle(fontSize: 18)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 12.5, color: textColor, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 

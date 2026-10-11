@@ -18,7 +18,6 @@ class _MusicPageState extends State<MusicPage>
 
   // Music category tabs + Story tab
   static const List<String> _musicCategories = ['relaxation', 'classical', 'lullaby', 'stories'];
-  static const List<String> _tabLabels = ['Relaxation', 'Classical', 'Lullaby', 'Stories'];
 
   @override
   void initState() {
@@ -49,16 +48,16 @@ class _MusicPageState extends State<MusicPage>
           indicatorWeight: 3,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          tabs: _tabLabels.map((c) {
-            if (c == 'Stories') {
-              return const Tab(
-                icon: Icon(Icons.auto_stories_rounded, size: 16),
-                text: 'Stories',
-                iconMargin: EdgeInsets.only(bottom: 2),
-              );
-            }
-            return Tab(text: c);
-          }).toList(),
+          tabs: [
+            Tab(text: AppStrings.of(context, 'music_relaxation')),
+            Tab(text: AppStrings.of(context, 'music_classical')),
+            Tab(text: AppStrings.of(context, 'music_lullaby')),
+            Tab(
+              icon: const Icon(Icons.auto_stories_rounded, size: 16),
+              text: AppStrings.of(context, 'music_stories'),
+              iconMargin: const EdgeInsets.only(bottom: 2),
+            ),
+          ],
         ),
       ),
       body: TabBarView(
@@ -86,6 +85,7 @@ class _MusicListTabState extends State<_MusicListTab>
   List<Map<String, dynamic>> _tracks = [];
   bool _loading = true;
   String? _error;
+  String? _lastLang;
 
   @override
   bool get wantKeepAlive => true; // keep state when switching tabs
@@ -96,13 +96,22 @@ class _MusicListTabState extends State<_MusicListTab>
     _load();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newLang = _safeLocale();
+    if (_lastLang != null && _lastLang != newLang) {
+      _load();
+    }
+    _lastLang = newLang;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      // Fetch with lang=null so we get full multi-lingual payload from backend
       final localeCode = _safeLocale();
       final response = await ApiService.get(
         '/music?category=${Uri.encodeComponent(widget.category)}&lang=$localeCode&limit=100',
@@ -129,7 +138,6 @@ class _MusicListTabState extends State<_MusicListTab>
     try {
       final ctx = context;
       final code = Localizations.localeOf(ctx).languageCode;
-      // backend uses 'om' for Oromo, 'so' for Somali
       if (['en', 'am', 'om', 'so'].contains(code)) return code;
     } catch (_) {}
     return 'en';
@@ -141,9 +149,15 @@ class _MusicListTabState extends State<_MusicListTab>
       return (v is String && v.trim().isNotEmpty) ? v.trim() : '';
     }
 
-    // Try current lang, then en, then am, then any
-    for (final k in ['title_$lang', 'title${lang[0].toUpperCase()}${lang.substring(1)}',
-        'titleEn', 'title_en', 'titleAm', 'title_am']) {
+    final lKey = lang == 'or' ? 'om' : lang;
+    final altKey = lKey == 'om' ? 'or' : 'om';
+
+    for (final k in [
+      'title_$lKey', 'title${lKey[0].toUpperCase()}${lKey.substring(1)}',
+      'title_$altKey', 'title${altKey[0].toUpperCase()}${altKey.substring(1)}',
+      'title_$lang',
+      'titleEn', 'title_en', 'titleAm', 'title_am',
+    ]) {
       final v = pick(k);
       if (v.isNotEmpty) return v;
     }
@@ -405,6 +419,7 @@ class _TrackCard extends StatelessWidget {
 // Story Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ignore: unused_element
 class _StoryTab extends StatelessWidget {
   const _StoryTab();
 

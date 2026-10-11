@@ -17,18 +17,45 @@ class MusicDetailPage extends StatelessWidget {
 
   /// Resolve title based on current language code
   String _title(String lang) {
-    if (_pick('title').isNotEmpty) return _pick('title');
-    return _pick('title_$lang') != '' ? _pick('title_$lang') : (_pick('titleEn') != '' ? _pick('titleEn') : _pick('title_en'));
+    final lKey = lang == 'or' ? 'om' : lang;
+    final altKey = lKey == 'om' ? 'or' : 'om';
+    for (final k in [
+      'title_$lKey', 'title${lKey[0].toUpperCase()}${lKey.substring(1)}',
+      'title_$altKey', 'title${altKey[0].toUpperCase()}${altKey.substring(1)}',
+      'title_$lang', 'titleEn', 'title_en', 'titleAm', 'title_am',
+    ]) {
+      final v = _pick(k);
+      if (v.isNotEmpty) return v;
+    }
+    return _pick('title');
   }
 
   String _description(String lang) {
-    if (_pick('description').isNotEmpty) return _pick('description');
-    return _pick('description_$lang') != '' ? _pick('description_$lang') : (_pick('descriptionEn') != '' ? _pick('descriptionEn') : _pick('description_en'));
+    final lKey = lang == 'or' ? 'om' : lang;
+    final altKey = lKey == 'om' ? 'or' : 'om';
+    for (final k in [
+      'description_$lKey', 'description${lKey[0].toUpperCase()}${lKey.substring(1)}',
+      'description_$altKey', 'description${altKey[0].toUpperCase()}${altKey.substring(1)}',
+      'description_$lang', 'descriptionEn', 'description_en', 'descriptionAm', 'description_am',
+    ]) {
+      final v = _pick(k);
+      if (v.isNotEmpty) return v;
+    }
+    return _pick('description');
   }
 
   String _benefits(String lang) {
-    if (_pick('benefits').isNotEmpty) return _pick('benefits');
-    return _pick('benefits_$lang') != '' ? _pick('benefits_$lang') : (_pick('benefitsEn') != '' ? _pick('benefitsEn') : _pick('benefits_en'));
+    final lKey = lang == 'or' ? 'om' : lang;
+    final altKey = lKey == 'om' ? 'or' : 'om';
+    for (final k in [
+      'benefits_$lKey', 'benefits${lKey[0].toUpperCase()}${lKey.substring(1)}',
+      'benefits_$altKey', 'benefits${altKey[0].toUpperCase()}${altKey.substring(1)}',
+      'benefits_$lang', 'benefitsEn', 'benefits_en', 'benefitsAm', 'benefits_am',
+    ]) {
+      final v = _pick(k);
+      if (v.isNotEmpty) return v;
+    }
+    return _pick('benefits');
   }
 
   String _audioUrl(String lang) {

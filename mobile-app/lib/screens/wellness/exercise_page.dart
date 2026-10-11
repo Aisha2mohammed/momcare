@@ -4,7 +4,60 @@ import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/app_video_player.dart';
 import 'package:pregnancy_appp/widget/week_selector.dart';
+import 'package:pregnancy_appp/widget/wellness_info_card.dart';
+import 'package:pregnancy_appp/widget/wellness_type_filter_row.dart';
+import 'exercise_detail_page.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// URL resolver
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _safeExtractMedia(dynamic source) {
+  if (source == null) return '';
+  if (source is String) return source.trim();
+  if (source is Map) {
+    if (source['url'] != null) return _safeExtractMedia(source['url']);
+    if (source['uri'] != null) return _safeExtractMedia(source['uri']);
+    if (source['path'] != null) return _safeExtractMedia(source['path']);
+    if (source['en'] != null) return _safeExtractMedia(source['en']);
+  }
+  return source.toString();
+}
+
+String _safeStr(dynamic val, [String fallback = '']) {
+  if (val == null) return fallback;
+  if (val is String) {
+    final trimmed = val.trim();
+    return trimmed.isNotEmpty ? trimmed : fallback;
+  }
+  if (val is Map) {
+    for (final key in ['label', 'value', 'text', 'title', 'name', 'tip', 'desc', 'description', 'en', 'am', 'om', 'or', 'so']) {
+      final v = val[key];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is Map) {
+        final inner = _safeStr(v);
+        if (inner.isNotEmpty) return inner;
+      }
+    }
+  }
+  return val.toString();
+}
+
+String _resolveUrl(String? url) {
+  if (url == null || url.trim().isEmpty) return '';
+  final trimmed = url.trim();
+  String resolved = trimmed;
+  if (resolved.contains('localhost')) {
+    resolved = resolved.replaceAll('localhost', '192.168.1.4');
+  }
+  if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
+    return resolved;
+  }
+  const host = 'http://192.168.1.4:5000';
+  return resolved.startsWith('/') ? '$host$resolved' : '$host/$resolved';
+}
 
 class ExercisePage extends StatefulWidget {
   const ExercisePage({super.key});
@@ -70,10 +123,10 @@ class _ExercisePageState extends State<ExercisePage>
           labelColor: AppColors.primary,
           unselectedLabelColor: Colors.grey,
           indicatorColor: AppColors.primary,
-          tabs: const [
-            Tab(text: "1st Trimester"),
-            Tab(text: "2nd Trimester"),
-            Tab(text: "3rd Trimester"),
+          tabs: [
+            Tab(text: AppStrings.of(context, 'trimester_1')),
+            Tab(text: AppStrings.of(context, 'trimester_2')),
+            Tab(text: AppStrings.of(context, 'trimester_3')),
           ],
         ),
       ),
@@ -116,6 +169,24 @@ class _ExerciseListState extends State<_ExerciseList> {
   List<dynamic> _items = [];
   bool _loading = true;
   String? _error;
+  String? _lastLang;
+  String _currentType = 'do';
+
+  Map<String, dynamic>? _weekInfo;
+
+  static String _defaultExerciseWhy(String lang) {
+    if (lang == 'am') return 'መደበኛ ቀላል እንቅስቃሴ የደም ዝውውርን ያሻሽላል፣ የወገብ ህመምን ያቃልላል።';
+    if (lang == 'om' || lang == 'or') return 'Sochii salphaa yeroo yerootiin hojjechuun dhiiga sochoodhaa, cinaacha dugdaa hir’isa.';
+    if (lang == 'so') return 'Dhaqdhaqaaq fudud oo joogto ah waxa uu horumariyaa wareega dhiigga.';
+    return 'Regular gentle movement improves circulation, eases back pain and helps you sleep better.';
+  }
+
+  static String _defaultExerciseTips(String lang) {
+    if (lang == 'am') return 'በቂ ውሃ ይጠጡ፣ የሰውነትዎን ስሜት ያዳምጡ፣ እና ከፍተኛ ጫና ያላቸውን እንቅስቃሴዎች ያስወግዱ።';
+    if (lang == 'om' || lang == 'or') return 'Bishaan gahaa dhugaa, qaama kee dhagaggeeffadhu, sochii humna ol ta\'e irraa fagaadhu.';
+    if (lang == 'so') return 'Cab biyo kugu filan, dhegeyso jirkaaga, kana fogow dhaqdhaqaaqyada culculus.';
+    return 'Stay hydrated, listen to your body, and avoid high-impact activities or lying flat on your back.';
+  }
 
   @override
   void initState() {
@@ -124,9 +195,20 @@ class _ExerciseListState extends State<_ExerciseList> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newLang = Localizations.localeOf(context).languageCode;
+    if (_lastLang != null && _lastLang != newLang) {
+      _load();
+    }
+    _lastLang = newLang;
+  }
+
+  @override
   void didUpdateWidget(covariant _ExerciseList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedWeek != widget.selectedWeek) {
+    if (oldWidget.selectedWeek != widget.selectedWeek ||
+        oldWidget.trimester != widget.trimester) {
       _load();
     }
   }
@@ -138,13 +220,28 @@ class _ExerciseListState extends State<_ExerciseList> {
     });
     try {
       final week = widget.selectedWeek > 0 ? widget.selectedWeek : null;
-      final fetched = await ContentService.getExercises(widget.trimester, week: week);
+      final month = week != null ? ((week / 4.33).ceil()).clamp(1, 9) : null;
+      final currentLang = Localizations.localeOf(context).languageCode;
+      final exFuture = ContentService.getExercises(
+        widget.trimester,
+        week: week,
+        type: _currentType,
+        lang: currentLang,
+      );
+      final weekFuture = ContentService.getExerciseWeek(
+        widget.trimester,
+        month: month,
+        week: week,
+        lang: currentLang,
+      );
+
+      final results = await Future.wait([exFuture, weekFuture]);
       if (!mounted) return;
 
-      // Client-side week filter. The `exercises` table has no `week` column
-      // yet, so nothing ever matches — we keep the full trimester list rather
-      // than showing an empty screen. Once rows carry week values this starts
-      // matching with no further code change.
+      final fetched = results[0] as List<dynamic>;
+      final weekData = results[1] as Map<String, dynamic>?;
+
+      // Client-side week filter.
       List<dynamic> items = fetched;
       if (week != null) {
         final matches = fetched.where((it) {
@@ -155,7 +252,20 @@ class _ExerciseListState extends State<_ExerciseList> {
         if (matches.isNotEmpty) items = matches;
       }
 
-      setState(() => _items = items);
+      // Filter by type (do vs avoid)
+      final typeMatches = items.where((it) {
+        if (it is! Map) return _currentType == 'do';
+        final t = (it['type'] ?? it['category_type'] ?? it['category'] ?? '').toString().toLowerCase();
+        final isAvoid = t == 'avoid' || it['isAvoid'] == true || it['is_avoid'] == true;
+        return _currentType == 'avoid' ? isAvoid : !isAvoid;
+      }).toList();
+
+      items = typeMatches;
+
+      setState(() {
+        _items = items;
+        _weekInfo = weekData;
+      });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -179,96 +289,313 @@ class _ExerciseListState extends State<_ExerciseList> {
           children: [
             Text(_error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 12),
-            OutlinedButton(onPressed: _load, child: const Text('Retry')),
+            OutlinedButton(onPressed: _load, child: Text(AppStrings.of(context, 'retry'))),
           ],
         ),
       );
     }
-    if (_items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.fitness_center_rounded, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No exercises available yet.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600], fontSize: 15),
-            ),
-          ],
-        ),
-      );
+
+    final currentLang = Localizations.localeOf(context).languageCode;
+    final lKey = currentLang == 'or' ? 'om' : currentLang;
+
+    String resolveStr(Map? map, List<String> keys) {
+      if (map == null) return '';
+      for (final k in keys) {
+        final v = map[k];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+      return '';
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: _items.length,
-      itemBuilder: (context, index) => _buildExerciseItem(_items[index]),
+
+    String whyImportant = resolveStr(_weekInfo, [
+      'why_important_$lKey', 'why_important_$currentLang',
+      'whyImportant$lKey', 'whyImportant$currentLang',
+      'why_important', 'whyImportant',
+    ]);
+    if (whyImportant.isEmpty) {
+      for (final it in _items) {
+        if (it is Map) {
+          final candidate = resolveStr(it, [
+            'why_important_$lKey', 'why_important_$currentLang',
+            'why_important', 'whyImportant',
+          ]);
+          if (candidate.isNotEmpty) {
+            whyImportant = candidate;
+            break;
+          }
+        }
+      }
+    }
+    if (whyImportant.isEmpty) {
+      whyImportant = _defaultExerciseWhy(currentLang);
+    }
+
+    String exerciseTips = resolveStr(_weekInfo, [
+      'exercise_tips_$lKey', 'exercise_tips_$currentLang',
+      'exerciseTips$lKey', 'exerciseTips$currentLang',
+      'exercise_tips', 'exerciseTips',
+      'tips_$lKey', 'tips_$currentLang',
+      'tips',
+    ]);
+    if (exerciseTips.isEmpty) {
+      for (final it in _items) {
+        if (it is Map) {
+          final candidate = resolveStr(it, [
+            'exercise_tips_$lKey', 'exercise_tips_$currentLang',
+            'exercise_tips', 'exerciseTips',
+            'tips_$lKey', 'tips_$currentLang',
+            'tips',
+          ]);
+          if (candidate.isNotEmpty) {
+            exerciseTips = candidate;
+            break;
+          }
+        }
+      }
+    }
+    if (exerciseTips.isEmpty) {
+      exerciseTips = _defaultExerciseTips(currentLang);
+    }
+
+    final listView = _items.isEmpty
+        ? ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.fitness_center_rounded, size: 64, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        AppStrings.of(context, 'no_data'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 15),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+              WellnessInfoCard.exerciseTips(context: context, content: exerciseTips),
+            ],
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: _items.length + 1,
+            itemBuilder: (context, index) {
+              if (index == _items.length) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                    WellnessInfoCard.exerciseTips(context: context, content: exerciseTips),
+                  ],
+                );
+              }
+              return _buildExerciseItem(context, _items[index]);
+            },
+          );
+
+    return Column(
+      children: [
+        WellnessTypeFilterRow(
+          currentType: _currentType,
+          firstKey: 'do',
+          firstLabel: AppStrings.of(context, 'what_to_do'),
+          firstIcon: '💪',
+          secondKey: 'avoid',
+          secondLabel: AppStrings.of(context, 'what_not_to_do'),
+          secondIcon: '🚫',
+          onChanged: (newType) {
+            setState(() {
+              _currentType = newType;
+            });
+            _load();
+          },
+        ),
+        Expanded(child: listView),
+      ],
     );
   }
 
-  Widget _buildExerciseItem(dynamic item) {
-    // The endpoint localizes into base fields: `title`, `why_important`,
-    // `duration_minutes`. The old `name` / `safetyNotes` / `duration_min`
-    // keys no longer exist, so read the base fields first.
-    final name = (item['title'] as String?) ?? (item['name'] as String?) ?? '';
-    final safetyNotes =
-        (item['why_important'] as String?) ?? (item['safetyNotes'] as String?) ?? '';
+  Widget _buildExerciseItem(BuildContext context, dynamic item) {
+    final lang = Localizations.localeOf(context).languageCode;
+    final lKey = lang == 'or' ? 'om' : lang;
+
+    String resolve(List<String> keys) {
+      if (item is! Map) return '';
+      for (final k in keys) {
+        final v = item[k];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+        if (v is Map) {
+          final s = _safeStr(v);
+          if (s.isNotEmpty) return s;
+        }
+      }
+      return '';
+    }
+
+    final name = resolve([
+      'title_$lKey', 'title_$lang', 'name_$lKey', 'name_$lang',
+      'title', 'name', 'title_en', 'title_am',
+    ]);
+    final safetyNotes = resolve([
+      'why_important_$lKey', 'why_important_$lang', 'safety_notes_$lKey', 'safety_notes_$lang',
+      'why_important', 'safetyNotes', 'safety_notes', 'description_$lKey', 'description',
+    ]);
     final durationMin = (item['duration_minutes'] as num?)?.toInt() ??
         (item['duration_min'] as num?)?.toInt() ??
         0;
+    final imageUrl =
+        _resolveUrl(_safeExtractMedia(item['image_url'] ?? item['imageUrl'] ?? item['image']));
+    final videoUrl =
+        _resolveUrl(_safeExtractMedia(item['video_url'] ?? item['videoUrl'] ?? item['video']));
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExerciseDetailPage(
+              exercise: Map<String, dynamic>.from(item as Map),
+              isAvoid: _currentType == 'avoid',
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.fitness_center_rounded, color: AppColors.primary, size: 28),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Image or In-UI Video player ─────────────────────────────────
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(25),
+                topRight: Radius.circular(25),
               ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (name.isNotEmpty)
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    if (durationMin > 0) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'About $durationMin min',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              child: videoUrl.isNotEmpty
+                  ? AppVideoPlayer(
+                      videoUrl: videoUrl,
+                      title: name,
+                      aspectRatio: 16 / 9,
+                      thumbnailUrl: imageUrl.isNotEmpty ? imageUrl : null,
+                    )
+                  : (imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _ExercisePlaceholder(),
+                        )
+                      : _ExercisePlaceholder()),
+            ),
+
+            // ── Text content ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (name.isNotEmpty)
+                              Text(
+                                name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 17),
+                              ),
+                            if (durationMin > 0) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.timer_rounded,
+                                      size: 13, color: Colors.grey[500]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    AppStrings.of(context, 'about_min').replaceAll('%d', '$durationMin'),
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[500]),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.chevron_right_rounded,
+                            color: AppColors.primary, size: 20),
                       ),
                     ],
+                  ),
+                  if (safetyNotes.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      safetyNotes,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: Colors.grey[600], height: 1.4, fontSize: 13),
+                    ),
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
-          if (safetyNotes.isNotEmpty) ...[
-            const SizedBox(height: 15),
-            Text(safetyNotes, style: TextStyle(color: Colors.grey[700], height: 1.5)),
+            ),
           ],
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExercisePlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 180,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.8),
+            AppColors.primary.withValues(alpha: 0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.fitness_center_rounded,
+          color: Colors.white.withValues(alpha: 0.5),
+          size: 56,
+        ),
       ),
     );
   }

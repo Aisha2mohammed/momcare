@@ -2,9 +2,169 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Centralized API endpoint registry and URL builder for the entire application.
+class ApiEndpoints {
+  // Base server connection
+  static const String serverHost = 'http://192.168.1.4:5000';
+  static const String baseUrl = '$serverHost/api/v1';
+
+  // ── Media & Upload URL Resolver ───────────────────────────────────────────
+  static String resolveUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return '';
+    final trimmed = url.trim();
+    if (trimmed.startsWith('assets/')) return trimmed;
+    String resolved = trimmed;
+    if (resolved.contains('localhost')) {
+      resolved = resolved.replaceAll('localhost', '192.168.1.4');
+    }
+    if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
+      return resolved;
+    }
+    return resolved.startsWith('/') ? '$serverHost$resolved' : '$serverHost/$resolved';
+  }
+
+  // ── Auth Endpoints ────────────────────────────────────────────────────────
+  static const String login = '/auth/login';
+  static const String register = '/auth/register';
+  static const String otpSend = '/auth/otp/send';
+  static const String otpVerify = '/auth/otp/verify';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
+
+  // ── Mother Endpoints ──────────────────────────────────────────────────────
+  static String motherProfile(String motherId) => '/mothers/$motherId/profile';
+  static String motherGestationalWeek(String motherId) => '/mothers/$motherId/gestational-week';
+  static String motherHealthLogs(String motherId) => '/mothers/$motherId/health-logs';
+  static String motherEmergencyContacts(String motherId) => '/mothers/$motherId/emergency-contacts';
+  static String motherEmergencyAlert(String motherId) => '/mothers/$motherId/emergency-alert';
+
+  // ── Content & Wellness Endpoints ──────────────────────────────────────────
+  static String fetalByWeek(int week, String lang) => '/fetal/$week?lang=$lang';
+
+  static String nutritionTips({
+    required int trimester,
+    int? month,
+    int? week,
+    String? type,
+    required String lang,
+    int limit = 100,
+  }) {
+    final monthParam = month != null ? '&month=$month' : '';
+    final weekParam = week != null ? '&week=$week' : '';
+    final typeParam = type != null && type.isNotEmpty ? '&type=$type' : '';
+    return '/nutrition/tips?trimester=$trimester$monthParam$weekParam$typeParam&lang=$lang&limit=$limit';
+  }
+
+  static String nutritionWeeks({
+    required int trimester,
+    int? month,
+    int? week,
+    required String lang,
+    int limit = 10,
+  }) {
+    final monthParam = month != null ? '&month=$month' : '';
+    final weekParam = week != null ? '&week=$week' : '';
+    return '/nutrition/weeks?trimester=$trimester$monthParam$weekParam&lang=$lang&limit=$limit';
+  }
+
+  static String exerciseTips({
+    required int trimester,
+    int? month,
+    int? week,
+    String? type,
+    required String lang,
+    int limit = 100,
+  }) {
+    final monthParam = month != null ? '&month=$month' : '';
+    final weekParam = week != null ? '&week=$week' : '';
+    final typeParam = type != null && type.isNotEmpty ? '&type=$type' : '';
+    return '/exercise/tips?trimester=$trimester$monthParam$weekParam$typeParam&lang=$lang&limit=$limit';
+  }
+
+  static String exerciseWeeks({
+    required int trimester,
+    int? month,
+    int? week,
+    required String lang,
+    int limit = 10,
+  }) {
+    final monthParam = month != null ? '&month=$month' : '';
+    final weekParam = week != null ? '&week=$week' : '';
+    return '/exercise/weeks?trimester=$trimester$monthParam$weekParam&lang=$lang&limit=$limit';
+  }
+
+  static String sleepTips({
+    required int trimester,
+    int? month,
+    int? week,
+    String? type,
+    required String lang,
+    int limit = 100,
+  }) {
+    final monthParam = month != null ? '&month=$month' : '';
+    final weekParam = week != null ? '&week=$week' : '';
+    final typeParam = type != null && type.isNotEmpty ? '&type=$type' : '';
+    return '/sleep/tips?trimester=$trimester$monthParam$weekParam$typeParam&lang=$lang&limit=$limit';
+  }
+
+  static String sleepWeeks({
+    required int trimester,
+    int? month,
+    int? week,
+    required String lang,
+    int limit = 10,
+  }) {
+    final monthParam = month != null ? '&month=$month' : '';
+    final weekParam = week != null ? '&week=$week' : '';
+    return '/sleep/weeks?trimester=$trimester$monthParam$weekParam&lang=$lang&limit=$limit';
+  }
+
+  static String music({String? category, required String lang, int limit = 100}) {
+    final query = category != null && category.isNotEmpty
+        ? '?category=${Uri.encodeComponent(category)}&lang=$lang&limit=$limit'
+        : '?lang=$lang&limit=$limit';
+    return '/music$query';
+  }
+
+  static String healthTips({required String lang, int limit = 100}) =>
+      '/health-tips?lang=$lang&limit=$limit';
+
+  // ── Doctor & Appointment Endpoints ────────────────────────────────────────
+  static const String healthProviders = '/doctors/health-providers';
+  static String providerDoctors(String providerId) => '/doctors/health-providers/$providerId/doctors';
+  static String doctorPublicProfile(String doctorId) => '/doctors/public/$doctorId';
+  static String doctorAvailabilitySlots(String doctorId) => '/doctors/$doctorId/availability-slots';
+  static const String appointments = '/appointments';
+  static String appointmentById(String id) => '/appointments/$id';
+
+  // ── Community Endpoints ───────────────────────────────────────────────────
+  static const String communityGroups = '/community/groups';
+  static const String communityPosts = '/community/posts';
+  static String groupPosts(String groupId, {int page = 1, int limit = 50}) =>
+      '/community/groups/$groupId/posts?page=$page&limit=$limit';
+  static String postComments(String postId, {int page = 1, int limit = 50}) =>
+      '/community/posts/$postId/comments?page=$page&limit=$limit';
+  static String postCommentsCreate(String postId) => '/community/posts/$postId/comments';
+  static String postLike(String postId) => '/community/posts/$postId/like';
+
+  // ── Notification Endpoints ────────────────────────────────────────────────
+  static String myNotifications({int page = 1, int limit = 50}) =>
+      '/notifications/me?page=$page&limit=$limit';
+  static String notificationRead(String id) => '/notifications/$id/read';
+
+  // ── Chat & Chatbot Endpoints ──────────────────────────────────────────────
+  static String chatMessages(String motherId, String doctorId, {int page = 1, int limit = 50}) =>
+      '/chat/$motherId/$doctorId/messages?page=$page&limit=$limit';
+  static String chatSendMessage(String motherId, String doctorId) =>
+      '/chat/$motherId/$doctorId/messages';
+  static const String chatbotAsk = '/chatbot/ask';
+}
+
 class ApiService {
-  // static const String _baseUrl = 'http://localhost:5000/api/v1';
-  static const String _baseUrl = 'http://192.168.1.3:5000/api/v1';
+  static String get baseUrl => ApiEndpoints.baseUrl;
+  static String get serverHost => ApiEndpoints.serverHost;
+  static String resolveUrl(String? url) => ApiEndpoints.resolveUrl(url);
+
   static const String _tokenKey = 'jwt_token';
   static const String _userIdKey = 'user_id';
 
@@ -55,7 +215,7 @@ class ApiService {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = Uri.parse('$baseUrl$path');
     final response = await http.post(
       uri,
       headers: await _headers(),
@@ -65,7 +225,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> get(String path) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = Uri.parse('$baseUrl$path');
     final response = await http.get(uri, headers: await _headers());
     return _handleResponse(response);
   }
@@ -74,12 +234,18 @@ class ApiService {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = Uri.parse('$baseUrl$path');
     final response = await http.put(
       uri,
       headers: await _headers(),
       body: body != null ? jsonEncode(body) : null,
     );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> delete(String path) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await http.delete(uri, headers: await _headers());
     return _handleResponse(response);
   }
 
