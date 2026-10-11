@@ -16,7 +16,7 @@ class ChatService {
   }) async {
     final motherId = await _motherId();
     final response = await ApiService.get(
-      '/chat/$motherId/$doctorId/messages?page=$page&limit=$limit',
+      ApiEndpoints.chatMessages(motherId, doctorId, page: page, limit: limit),
     );
     return response['data'] as List<dynamic>;
   }
@@ -27,7 +27,7 @@ class ChatService {
   ) async {
     final motherId = await _motherId();
     final response = await ApiService.post(
-      '/chat/$motherId/$doctorId/messages',
+      ApiEndpoints.chatSendMessage(motherId, doctorId),
       body: {'messageText': messageText},
     );
     return response['data'] as Map<String, dynamic>;

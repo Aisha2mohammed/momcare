@@ -1,52 +1,59 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
-import 'package:url_launcher/url_launcher.dart';
-// Multilingual & URL Utility Helpers
+import 'package:pregnancy_appp/widget/app_video_player.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multilingual & Safe String Utility Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-String _resolveUrl(String? url) {
-  if (url == null || url.trim().isEmpty) return '';
-  final trimmed = url.trim();
-  
-  String resolved = trimmed;
-  if (resolved.contains('localhost')) {
-    resolved = resolved.replaceAll('localhost', '192.168.0.199');
+String _safeStr(dynamic val, [String fallback = '']) {
+  if (val == null) return fallback;
+  if (val is String) {
+    final trimmed = val.trim();
+    return trimmed.isNotEmpty ? trimmed : fallback;
   }
-
-  if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
-    return resolved;
+  if (val is Map) {
+    for (final key in [
+      'label',
+      'value',
+      'text',
+      'title',
+      'name',
+      'tip',
+      'desc',
+      'description',
+      'benefit',
+      'en',
+      'am',
+      'om',
+      'or',
+      'so',
+      'url'
+    ]) {
+      final v = val[key];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is Map) {
+        final inner = _safeStr(v);
+        if (inner.isNotEmpty) return inner;
+      }
+    }
   }
-  // If backend stored relative /uploads path
-  const host = 'http://192.168.0.199:5000';
-  if (resolved.startsWith('/')) {
-    return '$host$resolved';
-  }
-  return '$host/$resolved';
+  return val.toString();
 }
 
-Future<void> _launchMediaUrl(BuildContext context, String url) async {
-  if (url.trim().isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Media link is not available.')),
-    );
-    return;
+String _safeExtractMedia(dynamic source) {
+  if (source == null) return '';
+  if (source is String) return source.trim();
+  if (source is Map) {
+    if (source['url'] != null) return _safeExtractMedia(source['url']);
+    if (source['uri'] != null) return _safeExtractMedia(source['uri']);
+    if (source['path'] != null) return _safeExtractMedia(source['path']);
+    if (source['en'] != null) return _safeExtractMedia(source['en']);
   }
-  try {
-    final uri = Uri.parse(_resolveUrl(url));
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      await launchUrl(uri, mode: LaunchMode.platformDefault);
-    }
-  } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open media: $e')),
-      );
-    }
-  }
+  return source.toString();
 }
 
 String _extractLocalized(
@@ -59,38 +66,71 @@ String _extractLocalized(
   List<String> defaultKeys = const [],
   String fallback = '',
 }) {
-  if (source is! Map) {
-    if (source is String && source.trim().isNotEmpty) return source.trim();
-    return fallback;
+  if (source == null) return fallback;
+  if (source is String) return source.trim().isNotEmpty ? source.trim() : fallback;
+  if (source is! Map) return source.toString();
+
+  final l = (lang == 'om' || lang == 'or') ? 'or' : lang;
+  if (source[l] != null) {
+    final v = source[l];
+    if (v is String && v.trim().isNotEmpty) return v.trim();
+    if (v is Map) {
+      final inner = _safeStr(v);
+      if (inner.isNotEmpty) return inner;
+    }
+  }
+  if (lang == 'or' || lang == 'om') {
+    final alt = source['om'] ?? source['or'];
+    if (alt is String && alt.trim().isNotEmpty) return alt.trim();
   }
 
   String? check(List<String> keys) {
     for (final k in keys) {
       final v = source[k];
       if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is Map) {
+        final inner = _extractLocalized(
+          v,
+          lang,
+          amKeys: ['am'],
+          orKeys: ['or', 'om'],
+          soKeys: ['so'],
+          enKeys: ['en'],
+          fallback: _safeStr(v),
+        );
+        if (inner.isNotEmpty) return inner;
+      }
     }
     return null;
   }
 
   String? match;
   if (lang == 'am') match = check(amKeys);
-  if (lang == 'or') match = check(orKeys);
+  if (lang == 'or' || lang == 'om') {
+    match = check(orKeys);
+    if (match == null) {
+      final omKeys = orKeys.map((k) => k.replaceAll('or', 'om').replaceAll('Or', 'Om')).toList();
+      match = check(omKeys);
+    }
+  }
   if (lang == 'so') match = check(soKeys);
   if (lang == 'en') match = check(enKeys);
 
   if (match != null && match.isNotEmpty) return match;
 
-  // Fallbacks: current language keys -> en -> am -> or -> so -> defaults -> first available
-  return check(enKeys) ??
-      check(amKeys) ??
-      check(orKeys) ??
-      check(soKeys) ??
-      check(defaultKeys) ??
-      fallback;
+  final def = check(defaultKeys);
+  if (def != null && def.isNotEmpty) return def;
+  final strL = _safeStr(source[l]);
+  if (strL.isNotEmpty) return strL;
+  final strEn = _safeStr(source['en']);
+  if (strEn.isNotEmpty) return strEn;
+  final strAm = _safeStr(source['am']);
+  if (strAm.isNotEmpty) return strAm;
+  return fallback;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Nutrient Detail Page  (Details tab + Video tab)
+// Nutrient Detail Page (Details Tab + In-UI Video Tab)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class NutrientDetailPage extends StatefulWidget {
@@ -114,6 +154,10 @@ class NutrientDetailPage extends StatefulWidget {
 class _NutrientDetailPageState extends State<NutrientDetailPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+
+  static const String _defaultNutritionVideo =
+      'http://192.168.1.4:5000/uploads/file-1789254638769-685033131.mp4';
+
   @override
   void initState() {
     super.initState();
@@ -126,77 +170,162 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
     super.dispose();
   }
 
+  bool get _isItemAvoid {
+    if (widget.isAvoid) return true;
+    final t = (widget.nutrient['type'] ?? widget.nutrient['nutrientType'] ?? widget.nutrient['nutrient_type'] ?? '')
+        .toString()
+        .toLowerCase();
+    return t == 'avoid' || widget.nutrient['isAvoid'] == true || widget.nutrient['is_avoid'] == true;
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  String _getTitle(String _userLang) => _extractLocalized(
+  String _getTitle(String userLang) => _extractLocalized(
         widget.nutrient,
-        _userLang,
+        userLang,
         amKeys: ['titleAm', 'title_am', 'nameAm', 'name_am'],
-        orKeys: ['titleOr', 'title_or', 'nameOr', 'name_or'],
+        orKeys: ['titleOr', 'title_or', 'nameOr', 'name_or', 'titleOm', 'title_om'],
         soKeys: ['titleSo', 'title_so', 'nameSo', 'name_so'],
         enKeys: ['titleEn', 'title_en', 'nameEn', 'name_en'],
         defaultKeys: ['title', 'name'],
-        fallback: widget.isAvoid ? 'Foods to Avoid' : 'Nutrient Guide',
+        fallback: _isItemAvoid ? 'Foods to Avoid' : 'Nutrient Guide',
       );
 
-  String _getBody(String _userLang) => _extractLocalized(
+  String _getBody(String userLang) => _extractLocalized(
         widget.nutrient,
-        _userLang,
-        amKeys: ['bodyAm', 'body_am', 'descAm', 'desc_am', 'descriptionAm'],
-        orKeys: ['bodyOr', 'body_or', 'descOr', 'desc_or', 'descriptionOr'],
-        soKeys: ['bodySo', 'body_so', 'descSo', 'desc_so', 'descriptionSo'],
-        enKeys: ['bodyEn', 'body_en', 'descEn', 'desc_en', 'descriptionEn'],
+        userLang,
+        amKeys: ['bodyAm', 'body_am', 'descAm', 'desc_am', 'descriptionAm', 'description_am'],
+        orKeys: ['bodyOr', 'body_or', 'descOr', 'desc_or', 'descriptionOr', 'description_or'],
+        soKeys: ['bodySo', 'body_so', 'descSo', 'desc_so', 'descriptionSo', 'description_so'],
+        enKeys: ['bodyEn', 'body_en', 'descEn', 'desc_en', 'descriptionEn', 'description_en'],
         defaultKeys: ['body', 'description', 'desc'],
         fallback: '',
       );
 
-  String _getImageUrl() => _resolveUrl(
-        (widget.nutrient['imageUrl'] ?? widget.nutrient['image_url']) as String?,
+  String _getImageUrl() {
+    final raw = _safeExtractMedia(
+      widget.nutrient['imageUrl'] ?? widget.nutrient['image_url'] ?? widget.nutrient['image'],
+    );
+    return resolveVideoUrl(raw);
+  }
+
+  String _getVideoUrl() {
+    final raw = _safeExtractMedia(
+      widget.nutrient['videoUrl'] ?? widget.nutrient['video_url'] ?? widget.nutrient['video'],
+    );
+    return resolveVideoUrl(raw.isNotEmpty ? raw : _defaultNutritionVideo);
+  }
+
+  String _getPdfUrl() => _safeExtractMedia(
+        widget.nutrient['pdfUrl'] ?? widget.nutrient['pdf_url'],
       );
 
-  String _getPdfUrl() => _resolveUrl(
-        (widget.nutrient['pdfUrl'] ?? widget.nutrient['pdf_url']) as String?,
-      );
+  String _getNutrientType() {
+    final t = _safeStr(widget.nutrient['nutrientType'] ?? widget.nutrient['nutrient_type'] ?? widget.nutrient['type']);
+    return t.isNotEmpty ? t : (_isItemAvoid ? 'AVOID' : 'RECOMMENDED');
+  }
 
-  String _getNutrientType() =>
-      ((widget.nutrient['nutrientType'] ?? widget.nutrient['nutrient_type'])
-          as String?) ??
-      '';
+  String _getEmoji() {
+    final emoji = _safeStr(widget.nutrient['emoji']);
+    if (emoji.isNotEmpty) return emoji;
+    return _isItemAvoid ? '🚫' : '🥗';
+  }
 
-  String _getEmoji() =>
-      (widget.nutrient['emoji'] as String?) ?? (widget.isAvoid ? '🚫' : '🥗');
-
-  String _getReason(String _userLang) => _extractLocalized(
+  String _getReason(String userLang) => _extractLocalized(
         widget.nutrient,
-        _userLang,
+        userLang,
         amKeys: ['whyImportantAm', 'why_important_am', 'reasonAm', 'reason_am'],
-        orKeys: ['whyImportantOr', 'why_important_or', 'reasonOr', 'reason_or'],
+        orKeys: ['whyImportantOr', 'why_important_or', 'whyImportantOm', 'why_important_om'],
         soKeys: ['whyImportantSo', 'why_important_so', 'reasonSo', 'reason_so'],
         enKeys: ['whyImportantEn', 'why_important_en', 'reasonEn', 'reason_en'],
-        defaultKeys: ['why_important', 'whyImportant', 'reason', 'body'],
-        fallback: _getBody(_userLang),
+        defaultKeys: ['why_important', 'whyImportant', 'reason', 'description'],
+        fallback: _getBody(userLang),
       );
 
-  List<Map<String, dynamic>> _getNutrientSections(String _userLang) {
-    final raw = widget.nutrient['nutrientSectionsJson'] ??
+  String _getDescriptionBadge(String userLang) {
+    final labelFromBackend = _extractLocalized(
+      widget.nutrient,
+      userLang,
+      amKeys: ['descriptionLabelAm', 'description_label_am', 'benefitLabelAm', 'benefit_label_am'],
+      orKeys: ['descriptionLabelOr', 'description_label_or', 'benefitLabelOr', 'benefit_label_or'],
+      soKeys: ['descriptionLabelSo', 'description_label_so', 'benefitLabelSo', 'benefit_label_so'],
+      enKeys: ['descriptionLabelEn', 'description_label_en', 'benefitLabelEn', 'benefit_label_en'],
+      defaultKeys: ['description_label', 'benefit_label', 'benefitLabel', 'label'],
+      fallback: '',
+    );
+    final valFromBackend = _extractLocalized(
+      widget.nutrient,
+      userLang,
+      amKeys: ['descriptionValueAm', 'description_value_am', 'benefitValueAm', 'benefit_value_am'],
+      orKeys: ['descriptionValueOr', 'description_value_or', 'benefitValueOr', 'benefit_value_or'],
+      soKeys: ['descriptionValueSo', 'description_value_so', 'benefitValueSo', 'benefit_value_so'],
+      enKeys: ['descriptionValueEn', 'description_value_en', 'benefitValueEn', 'benefit_value_en'],
+      defaultKeys: ['description_value', 'benefit_value', 'benefitValue'],
+      fallback: '',
+    );
+    if (valFromBackend.isNotEmpty) {
+      return labelFromBackend.isNotEmpty ? '$labelFromBackend: $valFromBackend' : valFromBackend;
+    }
+    return _isItemAvoid ? 'Risk: Avoid Entirely' : 'Daily Essential Nutrient';
+  }
+
+  String _getHealthTips(String userLang) {
+    final rawTips = widget.nutrient['health_tips'] ?? widget.nutrient['healthTips'] ?? widget.nutrient['tips'];
+    if (rawTips is List && rawTips.isNotEmpty) {
+      final formatted = rawTips.map((e) => _safeStr(e)).where((s) => s.isNotEmpty).join(' • ');
+      if (formatted.isNotEmpty) return formatted;
+    }
+    return _extractLocalized(
+      widget.nutrient,
+      userLang,
+      amKeys: ['helpfulTipsAm', 'helpful_tips_am', 'tipsAm', 'tips_am'],
+      orKeys: ['helpfulTipsOr', 'helpful_tips_or', 'tipsOr', 'tips_or'],
+      soKeys: ['helpfulTipsSo', 'helpful_tips_so', 'tipsSo', 'tips_so'],
+      enKeys: ['helpfulTipsEn', 'helpful_tips_en', 'tipsEn', 'tips_en'],
+      defaultKeys: ['helpful_tips', 'helpfulTips', 'tips'],
+      fallback: _isItemAvoid
+          ? 'Always wash fresh produce thoroughly and ensure meat, fish, and eggs are cooked completely.'
+          : 'Eat a colorful variety of whole foods daily and drink plenty of clean water.',
+    );
+  }
+
+  List<Map<String, dynamic>> _getNutrientSections(String userLang) {
+    dynamic raw = widget.nutrient['nutrientSectionsJson'] ??
         widget.nutrient['nutrient_sections_json'] ??
-        widget.nutrient['nutrient_sections'] ??
-        widget.nutrient['sections'];
+        widget.nutrient['sections'] ??
+        widget.nutrient['sections_json'];
+
+    if (raw is String && raw.trim().startsWith('[')) {
+      try {
+        raw = jsonDecode(raw);
+      } catch (_) {}
+    }
 
     if (raw is List && raw.isNotEmpty) {
       return raw.map((item) {
         if (item is Map) return Map<String, dynamic>.from(item);
-        return <String, dynamic>{'title': item.toString()};
+        return <String, dynamic>{'nutrientType': item.toString(), 'foods': []};
       }).toList();
     }
 
-    final foods = widget.nutrient['foods'] ?? widget.nutrient['foods_json'];
+    dynamic foods = widget.nutrient['foods'] ??
+        widget.nutrient['list_food'] ??
+        widget.nutrient['listFood'] ??
+        widget.nutrient['food_items'] ??
+        widget.nutrient['items'];
+
+    if (foods is String && foods.trim().startsWith('[')) {
+      try {
+        foods = jsonDecode(foods);
+      } catch (_) {}
+    }
+
     final foodList = foods is List ? foods.cast<dynamic>() : <dynamic>[];
 
     return [
       {
         'id': 'sec-0',
-        'nutrientType': _getNutrientType().isNotEmpty ? _getNutrientType() : _getTitle(_userLang),
+        'nutrientType': _getNutrientType().isNotEmpty ? _getNutrientType() : _getTitle(userLang),
         'emoji': _getEmoji(),
         'titleEn': _extractLocalized(widget.nutrient, 'en', enKeys: ['titleEn', 'title_en'], defaultKeys: ['title']),
         'titleAm': _extractLocalized(widget.nutrient, 'am', amKeys: ['titleAm', 'title_am'], defaultKeys: ['title']),
@@ -206,9 +335,11 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
         'bodyAm': _extractLocalized(widget.nutrient, 'am', amKeys: ['bodyAm', 'body_am'], defaultKeys: ['body']),
         'bodyOr': _extractLocalized(widget.nutrient, 'or', orKeys: ['bodyOr', 'body_or'], defaultKeys: ['body']),
         'bodySo': _extractLocalized(widget.nutrient, 'so', soKeys: ['bodySo', 'body_so'], defaultKeys: ['body']),
-        'description': _getBody(_userLang),
+        'description': _getBody(userLang),
+        'description_badge': _getDescriptionBadge(userLang),
+        'health_tips': _getHealthTips(userLang),
         'foods': foodList,
-        'video_url': widget.nutrient['video_url'] ?? widget.nutrient['videoUrl'],
+        'video_url': _getVideoUrl(),
         'video_title': widget.nutrient['video_title'] ?? widget.nutrient['videoTitle'],
       },
     ];
@@ -218,15 +349,18 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
   Widget build(BuildContext context) {
     return Consumer<LocaleProvider>(
       builder: (context, localeProvider, child) {
-        String _userLang = localeProvider.locale?.languageCode ?? 'am';
-        if (_userLang == 'om') _userLang = 'or'; // 'om' is used for Oromo, but code uses 'or'
-        
+        String userLang = localeProvider.locale?.languageCode ?? 'am';
+        if (userLang == 'om') userLang = 'or';
+
+        final sections = _getNutrientSections(userLang);
+        final defaultVid = _getVideoUrl();
+
         return Scaffold(
           backgroundColor: const Color(0xFFF5F0F3),
           body: Column(
             children: [
-              // ── Header image / gradient banner ──────────────────────────────
-              _buildHeader(context, _userLang),
+              // ── Header Banner ──────────────────────────────────────────────
+              _buildHeader(context, userLang),
 
               // ── TabBar directly below header ─────────────────────────────────
               Container(
@@ -237,20 +371,17 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
                   unselectedLabelColor: Colors.grey,
                   indicatorColor: AppColors.primary,
                   indicatorWeight: 3,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  tabs: const [
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  tabs: [
                     Tab(
-                      icon: Icon(Icons.list_alt_rounded, size: 18),
-                      text: 'Details',
-                      iconMargin: EdgeInsets.only(bottom: 2),
+                      icon: const Icon(Icons.list_alt_rounded, size: 18),
+                      text: AppStrings.of(context, 'details_tab'),
+                      iconMargin: const EdgeInsets.only(bottom: 2),
                     ),
                     Tab(
-                      icon: Icon(Icons.play_circle_outline_rounded, size: 18),
-                      text: 'Video',
-                      iconMargin: EdgeInsets.only(bottom: 2),
+                      icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+                      text: AppStrings.of(context, 'video_tab'),
+                      iconMargin: const EdgeInsets.only(bottom: 2),
                     ),
                   ],
                 ),
@@ -262,14 +393,16 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
                   controller: _tabController,
                   children: [
                     _DetailsTab(
-                      nutrientSections: _getNutrientSections(_userLang),
-                      isAvoid: widget.isAvoid,
-                      reason: _getReason(_userLang),
-                      userLang: _userLang,
+                      nutrientSections: sections,
+                      isAvoid: _isItemAvoid,
+                      reason: _getReason(userLang),
+                      descriptionBadge: _getDescriptionBadge(userLang),
+                      healthTips: _getHealthTips(userLang),
+                      userLang: userLang,
                       pdfUrl: _getPdfUrl(),
                       whyImportantText: _extractLocalized(
                         widget.weekGuide,
-                        _userLang,
+                        userLang,
                         amKeys: ['whyImportantAm', 'why_important_am'],
                         orKeys: ['whyImportantOr', 'why_important_or'],
                         soKeys: ['whyImportantSo', 'why_important_so'],
@@ -279,7 +412,7 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
                       ),
                       hydrationText: _extractLocalized(
                         widget.weekGuide,
-                        _userLang,
+                        userLang,
                         amKeys: ['hydrationAm', 'hydration_am'],
                         orKeys: ['hydrationOr', 'hydration_or'],
                         soKeys: ['hydrationSo', 'hydration_so'],
@@ -289,9 +422,9 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
                       ),
                     ),
                     _VideoTab(
-                      nutrientSections: _getNutrientSections(_userLang),
-                      userLang: _userLang,
-                      defaultVideoUrl: (widget.nutrient['videoUrl'] ?? widget.nutrient['video_url']) as String?,
+                      nutrientSections: sections,
+                      userLang: userLang,
+                      defaultVideoUrl: defaultVid,
                     ),
                   ],
                 ),
@@ -303,20 +436,19 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
     );
   }
 
-  Widget _buildHeader(BuildContext context, String _userLang) {
-    final title = _getTitle(_userLang);
+  Widget _buildHeader(BuildContext context, String userLang) {
+    final title = _getTitle(userLang);
     final imageUrl = _getImageUrl();
     final emoji = _getEmoji();
     final nutrientType = _getNutrientType();
-    final pdfUrl = _getPdfUrl();
 
     return Stack(
       children: [
         // Background: image or gradient
         SizedBox(
           width: double.infinity,
-          height: imageUrl.isNotEmpty ? 210 : 130,
-          child: imageUrl.isNotEmpty
+          height: imageUrl.isNotEmpty && !imageUrl.endsWith('.mp4') ? 210 : 130,
+          child: imageUrl.isNotEmpty && !imageUrl.endsWith('.mp4')
               ? Image.network(
                   imageUrl,
                   fit: BoxFit.cover,
@@ -360,43 +492,44 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
             ),
           ),
         ),
-        // PDF action button if PDF URL present
-        if (pdfUrl.isNotEmpty)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            right: 12,
-            child: GestureDetector(
-              onTap: () => _launchMediaUrl(context, pdfUrl),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 16),
-                    SizedBox(width: 4),
-                    Text(
-                      'PDF Guide',
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+        // Video button top right
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 8,
+          right: 12,
+          child: GestureDetector(
+            onTap: () => _tabController.animateTo(1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'Watch Video',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        // Title + emoji
+        ),
+        // Bottom header info
         Positioned(
-          bottom: 16,
           left: 16,
           right: 16,
+          bottom: 14,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 32)),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,38 +539,36 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
                       title,
                       style: const TextStyle(
                         color: Colors.white,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                        shadows: [
-                          Shadow(blurRadius: 4, color: Colors.black54),
-                        ],
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (nutrientType.isNotEmpty)
                       Text(
                         nutrientType.toUpperCase(),
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
+                          color: Colors.white.withValues(alpha: 0.85),
                           fontSize: 11,
-                          letterSpacing: 1.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                   ],
                 ),
               ),
-              // Eat / Avoid badge
+              // What to Eat vs What to Avoid badge
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: widget.isAvoid
-                      ? Colors.red.withValues(alpha: 0.85)
-                      : Colors.green.withValues(alpha: 0.85),
+                  color: _isItemAvoid
+                      ? Colors.red.withValues(alpha: 0.9)
+                      : AppColors.primary.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  widget.isAvoid ? '🚫 Avoid' : '✅ Eat',
+                  _isItemAvoid ? '🚫 What to Avoid' : '🥗 What to Eat',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,
@@ -456,7 +587,10 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)],
+          colors: [
+            AppColors.primary,
+            AppColors.primary.withValues(alpha: 0.7),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -476,6 +610,8 @@ class _DetailsTab extends StatelessWidget {
   final List<Map<String, dynamic>> nutrientSections;
   final bool isAvoid;
   final String reason;
+  final String descriptionBadge;
+  final String healthTips;
   final String userLang;
   final String pdfUrl;
   final String whyImportantText;
@@ -485,10 +621,12 @@ class _DetailsTab extends StatelessWidget {
     required this.nutrientSections,
     required this.isAvoid,
     required this.reason,
+    required this.descriptionBadge,
+    required this.healthTips,
     required this.userLang,
     required this.pdfUrl,
-    this.whyImportantText = '',
-    this.hydrationText = '',
+    required this.whyImportantText,
+    required this.hydrationText,
   });
 
   @override
@@ -498,139 +636,71 @@ class _DetailsTab extends StatelessWidget {
       children: [
         if (reason.isNotEmpty)
           _ReasonBanner(reason: reason, isAvoid: isAvoid),
+
+        // Description / Benefit badge
+        if (descriptionBadge.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Text(isAvoid ? '⚠️' : '🥗', style: const TextStyle(fontSize: 16)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    descriptionBadge,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isAvoid ? Colors.red.shade900 : AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Health Tips
+        if (healthTips.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('💡', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    healthTips,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.amber.shade900,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Nutrient sections
         ...nutrientSections.map(
-          (section) => _NutrientSection(
+          (section) => _NutrientSectionCard(
             section: section,
             isAvoid: isAvoid,
             userLang: userLang,
           ),
         ),
-        // ── Hydration from weekly guide ───────────────────────────
-        if (hydrationText.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8, bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE3F2FD),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('💧', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Hydration',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Color(0xFF1565C0))),
-                      const SizedBox(height: 3),
-                      Text(hydrationText,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF1565C0),
-                              height: 1.4)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        // ── Why Important from weekly guide ───────────────────────
-        if (whyImportantText.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8, bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('💡', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Why This Is Important',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: AppColors.primary)),
-                      const SizedBox(height: 3),
-                      Text(whyImportantText,
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[700],
-                              height: 1.4)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (pdfUrl.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.picture_as_pdf_rounded, color: Colors.red.shade700, size: 24),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Full PDF Nutrition Guide',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Download or view full official dietary booklet',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _launchMediaUrl(context, pdfUrl),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                  child: const Text('Open', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -668,7 +738,9 @@ class _ReasonBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isAvoid ? 'Why to Avoid' : 'Why This Is Important',
+                  isAvoid
+                      ? AppStrings.of(context, 'why_to_avoid')
+                      : AppStrings.of(context, 'why_this_is_important'),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -694,15 +766,15 @@ class _ReasonBanner extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Nutrient Section card (e.g. 🥩 IRON / 🥛 CALCIUM)
+// Nutrient Section Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _NutrientSection extends StatelessWidget {
+class _NutrientSectionCard extends StatelessWidget {
   final Map<String, dynamic> section;
   final bool isAvoid;
   final String userLang;
 
-  const _NutrientSection({
+  const _NutrientSectionCard({
     required this.section,
     required this.isAvoid,
     required this.userLang,
@@ -710,45 +782,33 @@ class _NutrientSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rawType = (section['nutrientType'] ?? section['nutrient_type'] ?? section['type'] ?? '') as String;
-    final emoji = (section['emoji'] as String?) ?? (isAvoid ? '🚫' : '🌿');
+    final rawType = _safeStr(section['nutrientType'] ?? section['nutrient_type'] ?? section['type']);
+    final emoji = _safeStr(section['emoji'], isAvoid ? '🚫' : '🌿');
+    final foods = (section['foods'] as List<dynamic>?) ?? [];
 
-    final title = _extractLocalized(
+    String sectionTitle = _extractLocalized(
       section,
       userLang,
-      amKeys: ['titleAm', 'title_am', 'nameAm', 'name_am'],
-      orKeys: ['titleOr', 'title_or', 'nameOr', 'name_or'],
-      soKeys: ['titleSo', 'title_so', 'nameSo', 'name_so'],
-      enKeys: ['titleEn', 'title_en', 'nameEn', 'name_en'],
-      defaultKeys: ['title', 'name', 'type', 'nutrientType'],
-      fallback: rawType.isNotEmpty ? rawType : (isAvoid ? 'AVOID' : 'NUTRIENT'),
+      amKeys: ['titleAm', 'title_am'],
+      orKeys: ['titleOr', 'title_or', 'titleOm', 'title_om'],
+      soKeys: ['titleSo', 'title_so'],
+      enKeys: ['titleEn', 'title_en'],
+      defaultKeys: ['title', 'nutrientType'],
+      fallback: rawType.isNotEmpty ? rawType : (isAvoid ? 'Foods to Avoid' : 'Nutrient Guide'),
     );
 
-    final description = _extractLocalized(
+    String sectionBody = _extractLocalized(
       section,
       userLang,
-      amKeys: ['bodyAm', 'body_am', 'descAm', 'descriptionAm'],
-      orKeys: ['bodyOr', 'body_or', 'descOr', 'descriptionOr'],
-      soKeys: ['bodySo', 'body_so', 'descSo', 'descriptionSo'],
-      enKeys: ['bodyEn', 'body_en', 'descEn', 'descriptionEn'],
-      defaultKeys: ['body', 'description', 'desc'],
+      amKeys: ['bodyAm', 'body_am', 'descriptionAm', 'description_am'],
+      orKeys: ['bodyOr', 'body_or', 'descriptionOr', 'description_or'],
+      soKeys: ['bodySo', 'body_so', 'descriptionSo', 'description_so'],
+      enKeys: ['bodyEn', 'body_en', 'descriptionEn', 'description_en'],
+      defaultKeys: ['body', 'description'],
       fallback: '',
     );
 
-    final benefitVal = (section['benefitValue'] ?? section['benefit_value'] ?? '') as String;
-    final benefitLabel = _extractLocalized(
-      section,
-      userLang,
-      amKeys: ['benefitLabelAm', 'benefit_label_am'],
-      orKeys: ['benefitLabelOr', 'benefit_label_or'],
-      soKeys: ['benefitLabelSo', 'benefit_label_so'],
-      enKeys: ['benefitLabelEn', 'benefit_label_en'],
-      defaultKeys: ['benefitLabel', 'benefit_label'],
-      fallback: 'Daily requirement',
-    );
-
-    final tips = (section['helpfulTips'] ?? section['helpful_tips'] ?? section['tip'] ?? '') as String;
-    final foods = (section['foods'] as List<dynamic>?) ?? [];
+    final defaultVid = resolveVideoUrl(_safeExtractMedia(section['video_url'] ?? section['videoUrl']));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -766,13 +826,11 @@ class _NutrientSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ───────────────────────────────────────────
+          // Header
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isAvoid
-                  ? Colors.red.shade50
-                  : AppColors.primary.withValues(alpha: 0.06),
+              color: isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(20),
                 topRight: Radius.circular(20),
@@ -788,7 +846,7 @@ class _NutrientSection extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title.toUpperCase(),
+                        rawType.isNotEmpty ? rawType.toUpperCase() : (isAvoid ? 'AVOID' : 'RECOMMENDED'),
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
@@ -796,14 +854,27 @@ class _NutrientSection extends StatelessWidget {
                           letterSpacing: 1,
                         ),
                       ),
-                      if (description.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            description,
-                            style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.35),
+                      const SizedBox(height: 3),
+                      Text(
+                        sectionTitle,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                      if (sectionBody.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          sectionBody,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                            height: 1.4,
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -811,92 +882,36 @@ class _NutrientSection extends StatelessWidget {
             ),
           ),
 
-          // ── Benefit Badge / Requirement ───────────────────────
-          if (benefitVal.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Text(isAvoid ? '⚠️' : '🩸', style: const TextStyle(fontSize: 16)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '$benefitLabel: $benefitVal',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isAvoid ? Colors.red.shade900 : AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // ── Helpful Tips ──────────────────────────────────────
-          if (tips.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.shade200),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('💡', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      tips,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.amber.shade900,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
           const SizedBox(height: 6),
           Divider(height: 1, color: Colors.grey.shade100),
 
-          // ── Food items ────────────────────────────────────────
+          // Foods list
           if (foods.isNotEmpty) ...[
             ...foods.map(
-              (food) => _FoodRow(
-                food: food,
+              (f) => _FoodRow(
+                food: f,
                 isAvoid: isAvoid,
                 userLang: userLang,
+                defaultVideoUrl: defaultVid,
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: GestureDetector(
-                onTap: () => _showAllFoods(context, foods, title, emoji),
+                onTap: () => _showAllFoods(context, foods, sectionTitle, emoji, defaultVid),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'View All Foods (${foods.length})',
-                      style: TextStyle(
+                      '${AppStrings.of(context, 'view_all_items')} (${foods.length})',
+                      style: const TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded,
-                        size: 16, color: AppColors.primary),
+                    const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.primary),
                   ],
                 ),
               ),
@@ -905,7 +920,7 @@ class _NutrientSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'No food items listed for this section.',
+                'No specific foods listed for this section.',
                 style: TextStyle(color: Colors.grey[500], fontSize: 13),
               ),
             ),
@@ -919,6 +934,7 @@ class _NutrientSection extends StatelessWidget {
     List<dynamic> foods,
     String typeLabel,
     String emoji,
+    String defaultVideoUrl,
   ) {
     showModalBottomSheet(
       context: context,
@@ -930,6 +946,7 @@ class _NutrientSection extends StatelessWidget {
         emoji: emoji,
         isAvoid: isAvoid,
         userLang: userLang,
+        defaultVideoUrl: defaultVideoUrl,
       ),
     );
   }
@@ -943,35 +960,32 @@ class _FoodRow extends StatelessWidget {
   final dynamic food;
   final bool isAvoid;
   final String userLang;
+  final String defaultVideoUrl;
 
   const _FoodRow({
     required this.food,
     required this.isAvoid,
     required this.userLang,
+    required this.defaultVideoUrl,
   });
 
-  String _foodName(dynamic food) {
-    if (food is String) return food;
-    if (food is Map) {
-      return _extractLocalized(
-        food,
+  Map? get _map => food is Map ? food as Map : null;
+
+  String _name() => _extractLocalized(
+        _map,
         userLang,
         amKeys: ['nameAm', 'name_am', 'titleAm', 'title_am'],
-        orKeys: ['nameOr', 'name_or', 'titleOr', 'title_or'],
+        orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om', 'titleOr', 'title_or'],
         soKeys: ['nameSo', 'name_so', 'titleSo', 'title_so'],
         enKeys: ['nameEn', 'name_en', 'titleEn', 'title_en'],
         defaultKeys: ['name', 'title'],
-        fallback: 'Food Item',
+        fallback: food is String ? food as String : 'Food Item',
       );
-    }
-    return food.toString();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final name = _foodName(food);
-    final foodMap = food is Map ? food : null;
-    final thumb = _resolveUrl(foodMap?['imageUrl'] ?? foodMap?['image_url']);
+    final name = _name();
+    final thumb = resolveVideoUrl(_safeExtractMedia(_map?['imageUrl'] ?? _map?['image_url'] ?? _map?['image']));
 
     return InkWell(
       onTap: () => showModalBottomSheet(
@@ -982,19 +996,20 @@ class _FoodRow extends StatelessWidget {
           food: food,
           isAvoid: isAvoid,
           userLang: userLang,
+          defaultVideoUrl: defaultVideoUrl,
         ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            if (thumb.isNotEmpty)
+            if (thumb.isNotEmpty && !thumb.endsWith('.mp4'))
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
                   thumb,
-                  width: 34,
-                  height: 34,
+                  width: 36,
+                  height: 36,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => _dotIndicator(),
                 ),
@@ -1017,18 +1032,21 @@ class _FoodRow extends StatelessWidget {
 
   Widget _dotIndicator() {
     return Container(
-      width: 10,
-      height: 10,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: isAvoid ? Colors.red.shade300 : AppColors.primary,
+        color: isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Text(isAvoid ? '🚫' : '🥗', style: const TextStyle(fontSize: 16)),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Food List Bottom Sheet
+// Food List Sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FoodListSheet extends StatelessWidget {
@@ -1037,6 +1055,7 @@ class _FoodListSheet extends StatelessWidget {
   final String emoji;
   final bool isAvoid;
   final String userLang;
+  final String defaultVideoUrl;
 
   const _FoodListSheet({
     required this.foods,
@@ -1044,31 +1063,15 @@ class _FoodListSheet extends StatelessWidget {
     required this.emoji,
     required this.isAvoid,
     required this.userLang,
+    required this.defaultVideoUrl,
   });
-
-  String _nameOf(dynamic food) {
-    if (food is String) return food;
-    if (food is Map) {
-      return _extractLocalized(
-        food,
-        userLang,
-        amKeys: ['nameAm', 'name_am', 'titleAm', 'title_am'],
-        orKeys: ['nameOr', 'name_or', 'titleOr', 'title_or'],
-        soKeys: ['nameSo', 'name_so', 'titleSo', 'title_so'],
-        enKeys: ['nameEn', 'name_en', 'titleEn', 'title_en'],
-        defaultKeys: ['name', 'title'],
-        fallback: 'Food Item',
-      );
-    }
-    return food.toString();
-  }
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.4,
-      maxChildSize: 0.92,
+      maxChildSize: 0.9,
       builder: (_, controller) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -1079,14 +1082,16 @@ class _FoodListSheet extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(4),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),
@@ -1099,11 +1104,12 @@ class _FoodListSheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       typeLabel,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -1113,18 +1119,26 @@ class _FoodListSheet extends StatelessWidget {
               child: ListView.separated(
                 controller: controller,
                 itemCount: foods.length,
-                separatorBuilder: (_, __) =>
-                    Divider(color: Colors.grey.shade100, height: 1),
-                itemBuilder: (ctx, i) {
-                  final food = foods[i];
-                  final name = _nameOf(food);
-                  final foodMap = food is Map ? food : null;
-                  final thumb = _resolveUrl(foodMap?['imageUrl'] ?? foodMap?['image_url']);
+                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade100),
+                itemBuilder: (_, i) {
+                  final f = foods[i];
+                  final m = f is Map ? f : null;
+                  final name = _extractLocalized(
+                    m,
+                    userLang,
+                    amKeys: ['nameAm', 'name_am'],
+                    orKeys: ['nameOr', 'name_or'],
+                    soKeys: ['nameSo', 'name_so'],
+                    enKeys: ['nameEn', 'name_en'],
+                    defaultKeys: ['name', 'title'],
+                    fallback: f is String ? f : 'Food Item',
+                  );
+                  final thumb = resolveVideoUrl(_safeExtractMedia(m?['imageUrl'] ?? m?['image_url'] ?? m?['image']));
 
                   return ListTile(
-                    leading: thumb.isNotEmpty
+                    leading: thumb.isNotEmpty && !thumb.endsWith('.mp4')
                         ? ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             child: Image.network(
                               thumb,
                               width: 38,
@@ -1134,10 +1148,7 @@ class _FoodListSheet extends StatelessWidget {
                             ),
                           )
                         : _leadPlaceholder(),
-                    title: Text(
-                      name,
-                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-                    ),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
                     trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
                     onTap: () {
                       Navigator.pop(context);
@@ -1146,9 +1157,10 @@ class _FoodListSheet extends StatelessWidget {
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (_) => _FoodDetailsSheet(
-                          food: food,
+                          food: f,
                           isAvoid: isAvoid,
                           userLang: userLang,
+                          defaultVideoUrl: defaultVideoUrl,
                         ),
                       );
                     },
@@ -1167,57 +1179,56 @@ class _FoodListSheet extends StatelessWidget {
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: isAvoid
-            ? Colors.red.shade50
-            : AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
+        color: isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Center(
-        child: Text(
-          isAvoid ? '🚫' : '🥗',
-          style: const TextStyle(fontSize: 16),
-        ),
+        child: Text(isAvoid ? '🚫' : '🥗', style: const TextStyle(fontSize: 16)),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Food Details Bottom Sheet Modal
+// Food Details Sheet (With In-UI Video Playback & Safe Parsing)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FoodDetailsSheet extends StatelessWidget {
+class _FoodDetailsSheet extends StatefulWidget {
   final dynamic food;
   final bool isAvoid;
   final String userLang;
+  final String defaultVideoUrl;
 
   const _FoodDetailsSheet({
     required this.food,
     required this.isAvoid,
     required this.userLang,
+    required this.defaultVideoUrl,
   });
 
-  Map? get _map => food is Map ? food as Map : null;
+  @override
+  State<_FoodDetailsSheet> createState() => _FoodDetailsSheetState();
+}
+
+class _FoodDetailsSheetState extends State<_FoodDetailsSheet> {
+  bool _showVideoInUi = false;
+
+  Map? get _map => widget.food is Map ? widget.food as Map : null;
 
   String get _name => _extractLocalized(
         _map,
-        userLang,
+        widget.userLang,
         amKeys: ['nameAm', 'name_am', 'titleAm', 'title_am'],
-        orKeys: ['nameOr', 'name_or', 'titleOr', 'title_or'],
+        orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om', 'titleOr', 'title_or'],
         soKeys: ['nameSo', 'name_so', 'titleSo', 'title_so'],
         enKeys: ['nameEn', 'name_en', 'titleEn', 'title_en'],
         defaultKeys: ['name', 'title'],
-        fallback: food is String ? food : 'Food Item',
+        fallback: widget.food is String ? widget.food as String : 'Food Item',
       );
-
-  String get _nameAmharic => (_map?['nameAm'] ?? _map?['name_am'] ?? '') as String;
-  String get _nameOromo => (_map?['nameOr'] ?? _map?['name_or'] ?? '') as String;
-  String get _nameSomali => (_map?['nameSo'] ?? _map?['name_so'] ?? '') as String;
-  String get _nameEnglish => (_map?['nameEn'] ?? _map?['name_en'] ?? '') as String;
 
   String get _description => _extractLocalized(
         _map,
-        userLang,
+        widget.userLang,
         amKeys: ['descriptionAm', 'description_am', 'descAm', 'bodyAm'],
         orKeys: ['descriptionOr', 'description_or', 'descOr', 'bodyOr'],
         soKeys: ['descriptionSo', 'description_so', 'descSo', 'bodySo'],
@@ -1226,32 +1237,51 @@ class _FoodDetailsSheet extends StatelessWidget {
         fallback: '',
       );
 
-  String get _imageUrl => _resolveUrl(
-        (_map?['imageUrl'] ?? _map?['image_url']) as String?,
-      );
+  String get _imageUrl =>
+      resolveVideoUrl(_safeExtractMedia(_map?['imageUrl'] ?? _map?['image_url'] ?? _map?['image']));
 
-  String get _videoUrl => _resolveUrl(
-        (_map?['videoUrl'] ?? _map?['video_url']) as String?,
-      );
+  String get _videoUrl {
+    final raw = _safeExtractMedia(_map?['videoUrl'] ?? _map?['video_url'] ?? _map?['video']);
+    return resolveVideoUrl(raw.isNotEmpty ? raw : widget.defaultVideoUrl);
+  }
 
-  String get _benefit => (_map?['benefit'] ?? _map?['benefitValue'] ?? _map?['benefit_value'] ?? '') as String;
-  String get _benefitLabel => _extractLocalized(
+  String get _label => _extractLocalized(
         _map,
-        userLang,
-        amKeys: ['benefitLabelAm', 'benefit_label_am'],
-        orKeys: ['benefitLabelOr', 'benefit_label_or'],
-        soKeys: ['benefitLabelSo', 'benefit_label_so'],
-        enKeys: ['benefitLabelEn', 'benefit_label_en'],
-        defaultKeys: ['benefitLabel', 'benefit_label'],
+        widget.userLang,
+        amKeys: ['benefitLabelAm', 'benefit_label_am', 'labelAm', 'label_am'],
+        orKeys: ['benefitLabelOr', 'benefit_label_or', 'labelOr', 'label_or'],
+        soKeys: ['benefitLabelSo', 'benefit_label_so', 'labelSo', 'label_so'],
+        enKeys: ['benefitLabelEn', 'benefit_label_en', 'labelEn', 'label_en'],
+        defaultKeys: ['benefitLabel', 'benefit_label', 'label'],
         fallback: 'Nutritional Value',
       );
 
-  String get _tip => (_map?['tip'] ?? _map?['helpfulTips'] ?? _map?['helpful_tips'] ?? '') as String;
+  String get _benefitValue => _extractLocalized(
+        _map,
+        widget.userLang,
+        amKeys: ['benefitValueAm', 'benefit_value_am'],
+        orKeys: ['benefitValueOr', 'benefit_value_or'],
+        soKeys: ['benefitValueSo', 'benefit_value_so'],
+        enKeys: ['benefitValueEn', 'benefit_value_en'],
+        defaultKeys: ['benefit', 'benefitValue', 'benefit_value', 'value'],
+        fallback: '',
+      );
+
+  String get _tip => _extractLocalized(
+        _map,
+        widget.userLang,
+        amKeys: ['tipAm', 'tip_am', 'helpfulTipsAm', 'helpful_tips_am'],
+        orKeys: ['tipOr', 'tip_or', 'helpfulTipsOr', 'helpful_tips_or'],
+        soKeys: ['tipSo', 'tip_so', 'helpfulTipsSo', 'helpful_tips_so'],
+        enKeys: ['tipEn', 'tip_en', 'helpfulTipsEn', 'helpful_tips_en'],
+        defaultKeys: ['tip', 'helpfulTips', 'helpful_tips'],
+        fallback: '',
+      );
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.72,
+      initialChildSize: 0.8,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, controller) => Container(
@@ -1280,21 +1310,68 @@ class _FoodDetailsSheet extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Row(
-                  children: [
-                    Icon(Icons.arrow_back_ios_new_rounded, size: 14),
-                    SizedBox(width: 4),
-                    Text('Food Details',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 13)),
-                  ],
-                ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.arrow_back_ios_new_rounded, size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Food Details',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      widget.isAvoid ? '🚫 What to Avoid' : '🥗 What to Eat',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: widget.isAvoid ? Colors.red : AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Divider(color: Colors.grey.shade100),
-            if (_imageUrl.isNotEmpty)
+
+            // In-UI Embedded Video Player or Thumbnail
+            if (_showVideoInUi) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: AppVideoPlayer(
+                    videoUrl: _videoUrl,
+                    title: _name,
+                    autoPlay: true,
+                    aspectRatio: 16 / 9,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _showVideoInUi = false),
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    label: const Text('Hide Video Player'),
+                  ),
+                ),
+              ),
+            ] else if (_imageUrl.isNotEmpty && !_imageUrl.endsWith('.mp4')) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: ClipRRect(
@@ -1307,53 +1384,31 @@ class _FoodDetailsSheet extends StatelessWidget {
                     errorBuilder: (_, __, ___) => _imagePlaceholder(),
                   ),
                 ),
-              )
-            else
+              ),
+            ] else ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: _imagePlaceholder(),
               ),
+            ],
+
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_name.isNotEmpty)
-                    Text(
-                      _name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                      ),
-                    ),
-                  // Multilingual subtitling pills
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      if (_nameEnglish.isNotEmpty && userLang != 'en')
-                        _langPill('EN', _nameEnglish),
-                      if (_nameAmharic.isNotEmpty && userLang != 'am')
-                        _langPill('AM', _nameAmharic),
-                      if (_nameOromo.isNotEmpty && userLang != 'or')
-                        _langPill('OR', _nameOromo),
-                      if (_nameSomali.isNotEmpty && userLang != 'so')
-                        _langPill('SO', _nameSomali),
-                    ],
-                  ),
-                ],
+              child: Text(
+                _name,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
               ),
             ),
 
-            // Video button if available
-            if (_videoUrl.isNotEmpty)
+            // Embedded Video Toggle Button
+            if (!_showVideoInUi)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                 child: ElevatedButton.icon(
-                  onPressed: () => _launchMediaUrl(context, _videoUrl),
+                  onPressed: () => setState(() => _showVideoInUi = true),
                   icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
-                  label: const Text('Watch Food Video Guide'),
+                  label: const Text('Watch Food Preparation / Guide Video (In App)'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -1365,40 +1420,40 @@ class _FoodDetailsSheet extends StatelessWidget {
                 ),
               ),
 
-            // Benefit block
-            if (_benefit.isNotEmpty)
+            // Nutritional benefit badge
+            if (_benefitValue.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isAvoid
-                        ? Colors.red.shade50
-                        : AppColors.primary.withValues(alpha: 0.08),
+                    color: widget.isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(isAvoid ? '⚠️' : '🩸',
-                          style: const TextStyle(fontSize: 20)),
+                      Text(widget.isAvoid ? '⚠️' : '🥗', style: const TextStyle(fontSize: 18)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (_benefitLabel.isNotEmpty)
-                              Text(_benefitLabel,
-                                  style: TextStyle(
-                                      color: isAvoid
-                                          ? Colors.red
-                                          : AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13)),
-                            Text(_benefit,
-                                style: TextStyle(
-                                    color: Colors.grey[700], fontSize: 13)),
+                            Text(
+                              _label,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: widget.isAvoid ? Colors.red : AppColors.primary,
+                              ),
+                            ),
+                            Text(
+                              _benefitValue,
+                              style: TextStyle(
+                                color: widget.isAvoid ? Colors.red.shade900 : AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1412,9 +1467,8 @@ class _FoodDetailsSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
                 child: Text(
-                  isAvoid ? 'Why avoid it?' : 'Why include it?',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
+                  widget.isAvoid ? 'Why avoid this during pregnancy?' : 'Nutritional guidance & benefits:',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
               Padding(
@@ -1424,69 +1478,45 @@ class _FoodDetailsSheet extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.grey[700],
                     fontSize: 14,
-                    height: 1.6,
+                    height: 1.5,
                   ),
                 ),
               ),
             ],
 
-            // Tip block
+            // Health / Safety tips block
             if (_tip.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                child: const Text(
+                  '💡 Helpful Culinary & Safety Tips',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.amber.shade100),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade200),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('💡', style: TextStyle(fontSize: 20)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Helpful tip',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: Colors.amber)),
-                            const SizedBox(height: 4),
-                            Text(_tip,
-                                style: TextStyle(
-                                    color: Colors.grey[800],
-                                    fontSize: 13,
-                                    height: 1.5)),
-                          ],
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    _tip,
+                    style: TextStyle(
+                      color: Colors.amber.shade900,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
                   ),
                 ),
               ),
             ],
+
             const SizedBox(height: 32),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _langPill(String code, String val) {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        '$code: $val',
-        style: TextStyle(color: Colors.grey[600], fontSize: 12),
       ),
     );
   }
@@ -1499,20 +1529,18 @@ class _FoodDetailsSheet extends StatelessWidget {
         color: AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Center(
-        child: Icon(Icons.restaurant_rounded,
-            size: 48,
-            color: AppColors.primary.withValues(alpha: 0.4)),
+      child: const Center(
+        child: Icon(Icons.restaurant_rounded, size: 48, color: AppColors.primary),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Video Tab — Dynamic functional playback list
+// Video Tab (In-UI Video Player at Top + Interactive Food Video Selection)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _VideoTab extends StatelessWidget {
+class _VideoTab extends StatefulWidget {
   final List<Map<String, dynamic>> nutrientSections;
   final String userLang;
   final String? defaultVideoUrl;
@@ -1523,23 +1551,36 @@ class _VideoTab extends StatelessWidget {
     this.defaultVideoUrl,
   });
 
+  @override
+  State<_VideoTab> createState() => _VideoTabState();
+}
+
+class _VideoTabState extends State<_VideoTab> {
+  late String _activeVideoUrl;
+  late String _activeTitle;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeVideoUrl = resolveVideoUrl(widget.defaultVideoUrl);
+    _activeTitle = 'Nutrition & Diet Video Guide';
+  }
+
   List<_VideoEntry> _buildEntries() {
     final entries = <_VideoEntry>[];
 
-    for (final section in nutrientSections) {
-      final sectionType =
-          ((section['nutrientType'] ?? section['type'] ?? '') as String).toUpperCase();
-      final sectionEmoji = (section['emoji'] as String?) ?? '🎬';
+    for (final section in widget.nutrientSections) {
+      final sectionType = _safeStr(section['nutrientType'] ?? section['type']).toUpperCase();
+      final sectionEmoji = _safeStr(section['emoji'], '🎬');
       final foods = (section['foods'] as List<dynamic>?) ?? [];
-      final sectionVideoUrl = _resolveUrl(
-        (section['video_url'] ?? section['videoUrl'] ?? defaultVideoUrl) as String?,
-      );
+      final rawSecVid = _safeExtractMedia(section['video_url'] ?? section['videoUrl']);
+      final sectionVideoUrl = resolveVideoUrl(rawSecVid.isNotEmpty ? rawSecVid : widget.defaultVideoUrl);
 
       final sectionTitle = _extractLocalized(
         section,
-        userLang,
+        widget.userLang,
         amKeys: ['titleAm', 'title_am', 'videoTitleAm'],
-        orKeys: ['titleOr', 'title_or', 'videoTitleOr'],
+        orKeys: ['titleOr', 'title_or', 'videoTitleOr', 'titleOm', 'title_om'],
         soKeys: ['titleSo', 'title_so', 'videoTitleSo'],
         enKeys: ['titleEn', 'title_en', 'videoTitleEn'],
         defaultKeys: ['video_title', 'videoTitle', 'title', 'type'],
@@ -1548,18 +1589,18 @@ class _VideoTab extends StatelessWidget {
 
       final sectionDesc = _extractLocalized(
         section,
-        userLang,
-        amKeys: ['bodyAm', 'body_am'],
-        orKeys: ['bodyOr', 'body_or'],
-        soKeys: ['bodySo', 'body_so'],
-        enKeys: ['bodyEn', 'body_en'],
+        widget.userLang,
+        amKeys: ['bodyAm', 'body_am', 'descriptionAm'],
+        orKeys: ['bodyOr', 'body_or', 'descriptionOr'],
+        soKeys: ['bodySo', 'body_so', 'descriptionSo'],
+        enKeys: ['bodyEn', 'body_en', 'descriptionEn'],
         defaultKeys: ['body', 'description'],
         fallback: 'Overview of $sectionType foods in pregnancy',
       );
 
-      final sectionThumb = _resolveUrl((section['imageUrl'] ?? section['image_url']) as String?);
+      final sectionThumb = resolveVideoUrl(_safeExtractMedia(section['imageUrl'] ?? section['image_url']));
 
-      // Section video card
+      // Section video entry
       entries.add(_VideoEntry(
         emoji: sectionEmoji,
         typeLabel: sectionType,
@@ -1570,15 +1611,15 @@ class _VideoTab extends StatelessWidget {
         foodImageUrl: sectionThumb,
       ));
 
-      // Food items videos
+      // Food item videos
       for (final food in foods) {
         if (food is! Map) continue;
         final foodMap = food as Map<String, dynamic>;
         final foodName = _extractLocalized(
           foodMap,
-          userLang,
+          widget.userLang,
           amKeys: ['nameAm', 'name_am'],
-          orKeys: ['nameOr', 'name_or'],
+          orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om'],
           soKeys: ['nameSo', 'name_so'],
           enKeys: ['nameEn', 'name_en'],
           defaultKeys: ['name', 'title'],
@@ -1587,15 +1628,13 @@ class _VideoTab extends StatelessWidget {
 
         if (foodName.isEmpty) continue;
 
-        final foodVideoUrl = _resolveUrl(
-          (foodMap['video_url'] ?? foodMap['videoUrl'] ?? sectionVideoUrl) as String?,
-        );
-        final foodImageUrl = _resolveUrl(
-          (foodMap['image_url'] ?? foodMap['imageUrl']) as String?,
-        );
+        final rawFVid = _safeExtractMedia(foodMap['video_url'] ?? foodMap['videoUrl'] ?? foodMap['video']);
+        final foodVideoUrl = resolveVideoUrl(rawFVid.isNotEmpty ? rawFVid : sectionVideoUrl);
+        final rawFImg = _safeExtractMedia(foodMap['image_url'] ?? foodMap['imageUrl'] ?? foodMap['image']);
+        final foodImageUrl = resolveVideoUrl(rawFImg.isNotEmpty ? rawFImg : sectionThumb);
         final benefit = _extractLocalized(
           foodMap,
-          userLang,
+          widget.userLang,
           amKeys: ['descriptionAm', 'descAm'],
           orKeys: ['descriptionOr', 'descOr'],
           soKeys: ['descriptionSo', 'descSo'],
@@ -1611,7 +1650,7 @@ class _VideoTab extends StatelessWidget {
           subtitle: benefit,
           videoUrl: foodVideoUrl,
           foodName: foodName,
-          foodImageUrl: foodImageUrl.isNotEmpty ? foodImageUrl : sectionThumb,
+          foodImageUrl: foodImageUrl,
         ));
       }
     }
@@ -1626,7 +1665,18 @@ class _VideoTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        // Intro hint banner
+        // ── In-UI Embedded Video Player ─────────────────────────────────────
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: AppVideoPlayer(
+            videoUrl: _activeVideoUrl,
+            title: _activeTitle,
+            aspectRatio: 16 / 9,
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Hint banner
         Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1634,30 +1684,41 @@ class _VideoTab extends StatelessWidget {
             color: AppColors.primary.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
+          child: const Row(
             children: [
-              Icon(Icons.play_circle_outline_rounded,
-                  color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
+              Icon(Icons.play_circle_outline_rounded, color: AppColors.primary, size: 20),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Tap any card to watch video guides on your device.',
-                  style: TextStyle(
-                      color: AppColors.primary, fontSize: 13, height: 1.4),
+                  'Select any food or routine below to stream directly in the player above.',
+                  style: TextStyle(color: AppColors.primary, fontSize: 13, height: 1.4),
                 ),
               ),
             ],
           ),
         ),
 
-        // One white card per entry
-        ...entries.map((entry) => _VideoItemCard(entry: entry)),
+        // Cards list
+        ...entries.map(
+          (entry) => _VideoItemCard(
+            entry: entry,
+            isSelected: _activeVideoUrl == entry.videoUrl,
+            onSelect: () {
+              setState(() {
+                _activeVideoUrl = entry.videoUrl;
+                _activeTitle = entry.title;
+              });
+            },
+          ),
+        ),
       ],
     );
   }
 }
 
-// ─── Video Data Class ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Video Data Class & Card
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _VideoEntry {
   final String emoji;
@@ -1668,7 +1729,7 @@ class _VideoEntry {
   final String foodName;
   final String foodImageUrl;
 
-  const _VideoEntry({
+  _VideoEntry({
     required this.emoji,
     required this.typeLabel,
     required this.title,
@@ -1679,21 +1740,30 @@ class _VideoEntry {
   });
 }
 
-// ─── Single Video Card ────────────────────────────────────────────────────────
-
 class _VideoItemCard extends StatelessWidget {
   final _VideoEntry entry;
-  const _VideoItemCard({required this.entry});
+  final bool isSelected;
+  final VoidCallback onSelect;
+
+  const _VideoItemCard({
+    required this.entry,
+    this.isSelected = false,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = entry.foodImageUrl.isNotEmpty;
+    final hasImage = entry.foodImageUrl.isNotEmpty && !entry.foodImageUrl.endsWith('.mp4');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -1707,161 +1777,115 @@ class _VideoItemCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            if (entry.videoUrl.isNotEmpty) {
-              _launchMediaUrl(context, entry.videoUrl);
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Video guide link is being prepared for this item.'),
-                ),
-              );
-            }
-          },
+          onTap: onSelect,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Thumbnail / play area ─────────────────────────────────
               ClipRRect(
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(18),
                 ),
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      height: 160,
-                      width: double.infinity,
-                      child: hasImage
-                          ? Image.network(
-                              entry.foodImageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _thumbnailPlaceholder(),
-                            )
-                          : _thumbnailPlaceholder(),
-                    ),
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.5),
-                            ],
-                          ),
-                        ),
+                child: SizedBox(
+                  height: 140,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (hasImage)
+                        Image.network(
+                          entry.foodImageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _videoPlaceholder(),
+                        )
+                      else
+                        _videoPlaceholder(),
+                      Container(
+                        color: Colors.black.withValues(alpha: 0.28),
                       ),
-                    ),
-
-                    // Nutrient-type badge (top-left)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(entry.emoji,
-                                style: const TextStyle(fontSize: 12)),
-                            const SizedBox(width: 4),
-                            Text(
-                              entry.typeLabel,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Centred play button
-                    Positioned.fill(
-                      child: Center(
+                      Center(
                         child: Container(
-                          width: 52,
-                          height: 52,
+                          width: 48,
+                          height: 48,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.95),
+                            color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.9),
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.play_arrow_rounded,
-                            color: AppColors.primary,
-                            size: 32,
+                            color: isSelected ? Colors.white : AppColors.primary,
+                            size: 30,
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.videocam_rounded, color: Colors.white, size: 12),
+                              const SizedBox(width: 4),
+                              Text(
+                                isSelected ? 'Now Playing' : 'Tap to Play',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-
-              // ── Card body ─────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 13, 16, 14),
-                child: Row(
+                padding: const EdgeInsets.all(14),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(entry.emoji,
-                            style: const TextStyle(fontSize: 20)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            entry.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
+                    Row(
+                      children: [
+                        Text(entry.emoji, style: const TextStyle(fontSize: 16)),
+                        const SizedBox(width: 6),
+                        Text(
+                          entry.typeLabel,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                            letterSpacing: 0.5,
                           ),
-                          if (entry.subtitle.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 3),
-                              child: Text(
-                                entry.subtitle,
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                  height: 1.4,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      entry.title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        height: 1.3,
                       ),
                     ),
+                    if (entry.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        entry.subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          height: 1.4,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1872,26 +1896,11 @@ class _VideoItemCard extends StatelessWidget {
     );
   }
 
-  Widget _thumbnailPlaceholder() {
+  Widget _videoPlaceholder() {
     return Container(
-      color: AppColors.primary.withValues(alpha: 0.07),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(entry.emoji, style: const TextStyle(fontSize: 38)),
-            const SizedBox(height: 6),
-            Text(
-              entry.typeLabel,
-              style: TextStyle(
-                color: AppColors.primary.withValues(alpha: 0.7),
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
+      color: AppColors.primary.withValues(alpha: 0.1),
+      child: const Center(
+        child: Icon(Icons.play_circle_fill_rounded, size: 48, color: AppColors.primary),
       ),
     );
   }

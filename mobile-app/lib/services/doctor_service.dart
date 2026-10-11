@@ -7,26 +7,26 @@ class DoctorService {
 
   // ── Doctor discovery ──────────────────────────────────────────────────
   static Future<List<dynamic>> getHealthProviders() async {
-    final response = await ApiService.get('/doctors/health-providers');
+    final response = await ApiService.get(ApiEndpoints.healthProviders);
     return response['data'] as List<dynamic>;
   }
 
   static Future<List<dynamic>> getDoctorsByProvider(String providerId) async {
     final response =
-        await ApiService.get('/doctors/health-providers/$providerId/doctors');
+        await ApiService.get(ApiEndpoints.providerDoctors(providerId));
     return response['data'] as List<dynamic>;
   }
 
   static Future<Map<String, dynamic>> getDoctorPublicProfile(
     String doctorId,
   ) async {
-    final response = await ApiService.get('/doctors/public/$doctorId');
+    final response = await ApiService.get(ApiEndpoints.doctorPublicProfile(doctorId));
     return response['data'] as Map<String, dynamic>;
   }
 
   // ── Availability & booking ───────────────────────────────────────────
   static Future<List<dynamic>> getAvailabilitySlots(String doctorId) async {
-    final response = await ApiService.get('/doctors/$doctorId/availability-slots');
+    final response = await ApiService.get(ApiEndpoints.doctorAvailabilitySlots(doctorId));
     return response['data'] as List<dynamic>;
   }
 
@@ -35,14 +35,14 @@ class DoctorService {
     required String slotDatetime,
   }) async {
     final response = await ApiService.post(
-      '/appointments',
+      ApiEndpoints.appointments,
       body: {'doctorId': doctorId, 'slotDatetime': slotDatetime},
     );
     return response['data'] as Map<String, dynamic>;
   }
 
   static Future<Map<String, dynamic>> getAppointment(String appointmentId) async {
-    final response = await ApiService.get('/appointments/$appointmentId');
+    final response = await ApiService.get(ApiEndpoints.appointmentById(appointmentId));
     return response['data'] as Map<String, dynamic>;
   }
 

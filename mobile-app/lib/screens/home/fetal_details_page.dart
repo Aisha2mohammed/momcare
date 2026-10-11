@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
+import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+
+// URL resolver using centralized ApiService
+String _resolveUrl(String? url) => ApiService.resolveUrl(url);
 
 class FetalDetailsPage extends StatefulWidget {
   const FetalDetailsPage({super.key});
@@ -18,14 +22,23 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
   bool _loading = true;
   String? _error;
   late TabController _sectionTab;
-
-  static const _sections = ['Overview', 'Development', 'Mom', 'Checklist'];
+  String? _lastLang;
 
   @override
   void initState() {
     super.initState();
-    _sectionTab = TabController(length: _sections.length, vsync: this);
+    _sectionTab = TabController(length: 4, vsync: this);
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newLang = _lang();
+    if (_lastLang != null && _lastLang != newLang) {
+      _load();
+    }
+    _lastLang = newLang;
   }
 
   @override
@@ -42,7 +55,7 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
     try {
       final progress = await MotherService.getGestationalWeek();
       week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
-      final data = await ContentService.getFetalByWeek(week);
+      final data = await ContentService.getFetalByWeek(week, lang: _lang());
       if (!mounted) return;
       setState(() { _week = week; _data = data; });
     } on ApiException catch (e) {
@@ -159,7 +172,7 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
   Widget _buildContent() {
     final d = _data ?? {};
     final lang = _lang();
-    final imageUrl = _pick(d, 'image_url', fallbackKey: 'imageUrl');
+    final imageUrl = _resolveUrl(_pick(d, 'image_url', fallbackKey: 'imageUrl'));
     final title = _loc(d, 'title');
     final summary = _loc(d, 'summary');
     final lengthCm = _formatLength(d['baby_length_cm'] ?? d['babyLengthCm']);
@@ -173,7 +186,7 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
       slivers: [
         // ── App Bar ─────────────────────────────────────────────────────────
         SliverAppBar(
-          expandedHeight: 280,
+          expandedHeight: 450,
           pinned: true,
           backgroundColor: const Color(0xFF61183e),
           foregroundColor: Colors.white,
@@ -181,14 +194,7 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
             background: Stack(
               fit: StackFit.expand,
               children: [
-                if (imageUrl.isNotEmpty)
-                  Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _heroBg(),
-                  )
-                else
-                  _heroBg(),
+                _buildFetalImage(imageUrl),
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -198,7 +204,7 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
                         Colors.transparent,
                         const Color(0xFF61183e).withOpacity(0.92),
                       ],
-                      stops: const [0.4, 1.0],
+                      stops: const [0.70, 1.0],
                     ),
                   ),
                 ),
@@ -255,7 +261,7 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(48),
             child: Container(
-              color: const Color(0xFF61183e), // Primary color
+              color: const Color(0xFF61183e),
               width: double.infinity,
               child: TabBar(
                 controller: _sectionTab,
@@ -265,7 +271,12 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
                 indicatorWeight: 3,
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: _sections.map((s) => Tab(text: s)).toList(),
+                tabs: [
+                  Tab(text: AppStrings.of(context, 'fetal_overview')),
+                  Tab(text: AppStrings.of(context, 'fetal_development')),
+                  Tab(text: AppStrings.of(context, 'fetal_mom')),
+                  Tab(text: AppStrings.of(context, 'fetal_checklist')),
+                ],
               ),
             ),
           ),
@@ -294,6 +305,36 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFetalImage(String imageUrl) {
+    if (imageUrl.isNotEmpty) {
+      if (imageUrl.startsWith('assets/')) {
+        return Image.asset(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Image.asset(
+            'assets/images/baby-image.jpg',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _heroBg(),
+          ),
+        );
+      }
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Image.asset(
+          'assets/images/baby-image.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _heroBg(),
+        ),
+      );
+    }
+    return Image.asset(
+      'assets/images/baby-image.jpg',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _heroBg(),
     );
   }
 
@@ -341,9 +382,9 @@ class _StatsStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <Map<String, String>>[];
-    if (lengthCm.isNotEmpty) items.add({'icon': '📏', 'label': 'Length', 'value': lengthCm});
-    if (weightG.isNotEmpty) items.add({'icon': '⚖️', 'label': 'Weight', 'value': weightG});
-    if (sizeComp.isNotEmpty) items.add({'icon': '🍐', 'label': 'Size of', 'value': sizeComp});
+    if (lengthCm.isNotEmpty) items.add({'icon': '📏', 'label': AppStrings.of(context, 'stat_length'), 'value': lengthCm});
+    if (weightG.isNotEmpty) items.add({'icon': '⚖️', 'label': AppStrings.of(context, 'stat_weight'), 'value': weightG});
+    if (sizeComp.isNotEmpty) items.add({'icon': '🍐', 'label': AppStrings.of(context, 'stat_size_of'), 'value': sizeComp});
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Container(
@@ -392,11 +433,10 @@ class _OverviewTab extends StatelessWidget {
   const _OverviewTab({required this.data, required this.lang, required this.milestone});
 
   String _loc(String field) {
-    // The endpoint returns language-resolved base fields (e.g. `health_tip`),
-    // not `<field>_<lang>` variants, so check the base field first.
     final base = data[field];
     if (base is String && base.trim().isNotEmpty) return base.trim();
-    for (final l in [lang, 'en', 'am']) {
+    final targetLang = lang == 'or' ? 'om' : lang;
+    for (final l in [targetLang, lang, 'en', 'am', 'om', 'or', 'so']) {
       final v = data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
@@ -418,7 +458,7 @@ class _OverviewTab extends StatelessWidget {
             _InfoCard(
               icon: Icons.stars_rounded,
               color: const Color(0xFF7C3AED),
-              title: 'This Week\'s Milestone',
+              title: AppStrings.of(context, 'milestone_title'),
               body: milestone,
             ),
           if (healthTip.isNotEmpty) ...[
@@ -426,7 +466,7 @@ class _OverviewTab extends StatelessWidget {
             _InfoCard(
               icon: Icons.lightbulb_rounded,
               color: const Color(0xFFF59E0B),
-              title: 'Health Tip',
+              title: AppStrings.of(context, 'health_tip_title'),
               body: healthTip,
             ),
           ],
@@ -435,7 +475,7 @@ class _OverviewTab extends StatelessWidget {
             _InfoCard(
               icon: Icons.favorite_rounded,
               color: const Color(0xFFEC4899),
-              title: 'A Message for You 💕',
+              title: AppStrings.of(context, 'message_for_you'),
               body: emotional,
               bgColor: const Color(0xFFFFF0F7),
             ),
@@ -445,7 +485,7 @@ class _OverviewTab extends StatelessWidget {
             _InfoCard(
               icon: Icons.edit_note_rounded,
               color: const Color(0xFF0891B2),
-              title: 'Diary Prompt',
+              title: AppStrings.of(context, 'diary_prompt_title'),
               body: diary,
             ),
           ],
@@ -467,7 +507,8 @@ class _DevelopmentTab extends StatelessWidget {
   String _loc(String field) {
     final base = data[field];
     if (base is String && base.trim().isNotEmpty) return base.trim();
-    for (final l in [lang, 'en', 'am']) {
+    final targetLang = lang == 'or' ? 'om' : lang;
+    for (final l in [targetLang, lang, 'en', 'am', 'om', 'or', 'so']) {
       final v = data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
@@ -477,12 +518,12 @@ class _DevelopmentTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final devSections = [
-      {'icon': '🧠', 'title': 'Brain Development', 'field': 'brain_dev'},
-      {'icon': '❤️', 'title': 'Heart Development', 'field': 'heart_dev'},
-      {'icon': '🫀', 'title': 'Organ Development', 'field': 'organ_dev'},
-      {'icon': '🦴', 'title': 'Bone & Muscle', 'field': 'bone_muscle_dev'},
-      {'icon': '🏃', 'title': 'Movements', 'field': 'movement'},
-      {'icon': '🌱', 'title': 'Physical Development', 'field': 'physical_development'},
+      {'icon': '🧠', 'titleKey': 'brain_dev', 'field': 'brain_dev'},
+      {'icon': '❤️', 'titleKey': 'heart_dev', 'field': 'heart_dev'},
+      {'icon': '🫀', 'titleKey': 'organ_dev', 'field': 'organ_dev'},
+      {'icon': '🦴', 'titleKey': 'bone_muscle_dev', 'field': 'bone_muscle_dev'},
+      {'icon': '🏃', 'titleKey': 'movements', 'field': 'movement'},
+      {'icon': '🌱', 'titleKey': 'physical_dev', 'field': 'physical_development'},
     ];
 
     return SingleChildScrollView(
@@ -494,7 +535,7 @@ class _DevelopmentTab extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _DevCard(
                   emoji: s['icon']!,
-                  title: s['title']!,
+                  title: AppStrings.of(context, s['titleKey']!),
                   body: _loc(s['field']!),
                 ),
               )),
@@ -513,11 +554,11 @@ class _DevelopmentTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Text('👁️', style: TextStyle(fontSize: 20)),
-                      SizedBox(width: 8),
-                      Text('Developing Senses', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      const Text('👁️', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 8),
+                      Text(AppStrings.of(context, 'developing_senses'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -562,7 +603,8 @@ class _MomTab extends StatelessWidget {
   String _loc(String field) {
     final base = data[field];
     if (base is String && base.trim().isNotEmpty) return base.trim();
-    for (final l in [lang, 'en', 'am']) {
+    final targetLang = lang == 'or' ? 'om' : lang;
+    for (final l in [targetLang, lang, 'en', 'am', 'om', 'or', 'so']) {
       final v = data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
@@ -572,12 +614,12 @@ class _MomTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sections = [
-      {'icon': Icons.pregnant_woman_rounded, 'title': 'Maternal Changes', 'field': 'maternal_changes', 'color': 0xFF7C3AED},
-      {'icon': Icons.sick_rounded, 'title': 'Common Symptoms', 'field': 'common_symptoms', 'color': 0xFFDB2777},
-      {'icon': Icons.local_hospital_rounded, 'title': 'Antenatal Care', 'field': 'antenatal_care', 'color': 0xFF059669},
-      {'icon': Icons.biotech_rounded, 'title': 'Screening Info', 'field': 'screening_information', 'color': 0xFF0891B2},
-      {'icon': Icons.warning_rounded, 'title': 'Warning Signs', 'field': 'warning_signs', 'color': 0xFFDC2626},
-      {'icon': Icons.phone_in_talk_rounded, 'title': 'When to Contact Provider', 'field': 'when_to_contact_provider', 'color': 0xFFF59E0B},
+      {'icon': Icons.pregnant_woman_rounded, 'titleKey': 'maternal_changes', 'field': 'maternal_changes', 'color': 0xFF7C3AED},
+      {'icon': Icons.sick_rounded, 'titleKey': 'common_symptoms', 'field': 'common_symptoms', 'color': 0xFFDB2777},
+      {'icon': Icons.local_hospital_rounded, 'titleKey': 'antenatal_care', 'field': 'antenatal_care', 'color': 0xFF059669},
+      {'icon': Icons.biotech_rounded, 'titleKey': 'screening_info', 'field': 'screening_information', 'color': 0xFF0891B2},
+      {'icon': Icons.warning_rounded, 'titleKey': 'warning_signs', 'field': 'warning_signs', 'color': 0xFFDC2626},
+      {'icon': Icons.phone_in_talk_rounded, 'titleKey': 'when_to_contact', 'field': 'when_to_contact_provider', 'color': 0xFFF59E0B},
     ];
 
     final bondTitle = _loc('bonding_activity_title');
@@ -593,7 +635,7 @@ class _MomTab extends StatelessWidget {
                 child: _InfoCard(
                   icon: s['icon'] as IconData,
                   color: Color(s['color'] as int),
-                  title: s['title'] as String,
+                  title: AppStrings.of(context, s['titleKey'] as String),
                   body: _loc(s['field'] as String),
                 ),
               )),
@@ -618,7 +660,7 @@ class _MomTab extends StatelessWidget {
                       const Text('🤱', style: TextStyle(fontSize: 22)),
                       const SizedBox(width: 8),
                       Text(
-                        bondTitle.isNotEmpty ? bondTitle : 'Bonding Activity',
+                        bondTitle.isNotEmpty ? bondTitle : AppStrings.of(context, 'bonding_activity'),
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ],
@@ -655,7 +697,8 @@ class _ChecklistTabState extends State<_ChecklistTab> {
   String _loc(String field) {
     final base = widget.data[field];
     if (base is String && base.trim().isNotEmpty) return base.trim();
-    for (final l in [widget.lang, 'en', 'am']) {
+    final targetLang = widget.lang == 'or' ? 'om' : widget.lang;
+    for (final l in [targetLang, widget.lang, 'en', 'am', 'om', 'or', 'so']) {
       final v = widget.data['${field}_$l'];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
@@ -679,7 +722,7 @@ class _ChecklistTabState extends State<_ChecklistTab> {
   Widget build(BuildContext context) {
     final items = _checkItems();
     if (items.isEmpty) {
-      return const Center(child: Text('No checklist available for this week yet.'));
+      return Center(child: Text(AppStrings.of(context, 'no_checklist')));
     }
 
     return SingleChildScrollView(
@@ -693,13 +736,13 @@ class _ChecklistTabState extends State<_ChecklistTab> {
               color: const Color(0xFF61183e).withOpacity(0.06),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.checklist_rounded, color: Color(0xFF61183e)),
-                SizedBox(width: 8),
+                const Icon(Icons.checklist_rounded, color: Color(0xFF61183e)),
+                const SizedBox(width: 8),
                 Text(
-                  'Your Week\'s Checklist',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF61183e)),
+                  AppStrings.of(context, 'your_checklist'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF61183e)),
                 ),
               ],
             ),

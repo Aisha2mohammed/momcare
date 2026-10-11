@@ -30,7 +30,7 @@ class AuthService {
     if (password != null && password.isNotEmpty) {
       body['password'] = password;
     }
-    final response = await ApiService.post('/auth/login', body: body);
+    final response = await ApiService.post(ApiEndpoints.login, body: body);
     final data = response['data'] as Map<String, dynamic>;
     final token = data['token'] as String;
     final user = data['user'] as Map<String, dynamic>;
@@ -65,7 +65,7 @@ class AuthService {
     if (lmpDate != null && lmpDate.isNotEmpty) {
       body['lmpDate'] = lmpDate;
     }
-    final response = await ApiService.post('/auth/register', body: body);
+    final response = await ApiService.post(ApiEndpoints.register, body: body);
     final data = response['data'] as Map<String, dynamic>;
     final token = data['token'] as String?;
     final user = data['user'] as Map<String, dynamic>?;
@@ -78,13 +78,13 @@ class AuthService {
   }
 
   static Future<void> sendOtp({required String phone}) async {
-    await ApiService.post('/auth/otp/send', body: {'phone': phone});
+    await ApiService.post(ApiEndpoints.otpSend, body: {'phone': phone});
   }
 
   // ── Password reset (2-step OTP flow) ─────────────────────────────────
   // Step 1: request a reset OTP for the account phone number.
   static Future<void> forgotPassword({required String phone}) async {
-    await ApiService.post('/auth/forgot-password', body: {'phone': phone});
+    await ApiService.post(ApiEndpoints.forgotPassword, body: {'phone': phone});
   }
 
   // Step 2: verify the reset OTP and set a new password.
@@ -94,7 +94,7 @@ class AuthService {
     required String password,
   }) async {
     await ApiService.post(
-      '/auth/reset-password',
+      ApiEndpoints.resetPassword,
       body: {'phone': phone, 'otp': otp, 'password': password},
     );
   }
@@ -104,7 +104,7 @@ class AuthService {
     required String otp,
   }) async {
     final response = await ApiService.post(
-      '/auth/otp/verify',
+      ApiEndpoints.otpVerify,
       body: {'phone': phone, 'otp': otp},
     );
     final data = response['data'] as Map<String, dynamic>;
