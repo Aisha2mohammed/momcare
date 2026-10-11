@@ -210,9 +210,26 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
   }
 
   String _getVideoUrl() {
-    final raw = _safeExtractMedia(
+    String raw = _safeExtractMedia(
       widget.nutrient['videoUrl'] ?? widget.nutrient['video_url'] ?? widget.nutrient['video'],
     );
+    if (raw.isEmpty) {
+      final img = _safeExtractMedia(widget.nutrient['imageUrl'] ?? widget.nutrient['image_url'] ?? widget.nutrient['image']);
+      if (img.endsWith('.mp4') || img.contains('youtube.com') || img.contains('youtu.be')) {
+        raw = img;
+      }
+    }
+    if (raw.isEmpty && widget.nutrient['list_food'] is List) {
+      for (final f in (widget.nutrient['list_food'] as List)) {
+        if (f is Map) {
+          final v = _safeExtractMedia(f['videoUrl'] ?? f['video_url'] ?? f['video']);
+          if (v.isNotEmpty) {
+            raw = v;
+            break;
+          }
+        }
+      }
+    }
     return resolveVideoUrl(raw.isNotEmpty ? raw : _defaultNutritionVideo);
   }
 
@@ -292,7 +309,6 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
   List<Map<String, dynamic>> _getNutrientSections(String userLang) {
     dynamic raw = widget.nutrient['nutrientSectionsJson'] ??
         widget.nutrient['nutrient_sections_json'] ??
-        widget.nutrient['sections'] ??
         widget.nutrient['sections_json'];
 
     if (raw is String && raw.trim().startsWith('[')) {

@@ -141,7 +141,24 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage>
       );
 
   String _getVideoUrl() {
-    final raw = _safeStr(widget.exercise['videoUrl'] ?? widget.exercise['video_url']);
+    String raw = _safeStr(widget.exercise['videoUrl'] ?? widget.exercise['video_url'] ?? widget.exercise['video']);
+    if (raw.isEmpty) {
+      final img = _safeStr(widget.exercise['imageUrl'] ?? widget.exercise['image_url']);
+      if (img.endsWith('.mp4') || img.contains('youtube.com') || img.contains('youtu.be')) {
+        raw = img;
+      }
+    }
+    if (raw.isEmpty && widget.exercise['list_of_exercise'] is List) {
+      for (final it in (widget.exercise['list_of_exercise'] as List)) {
+        if (it is Map) {
+          final v = _safeStr(it['videoUrl'] ?? it['video_url'] ?? it['video']);
+          if (v.isNotEmpty) {
+            raw = v;
+            break;
+          }
+        }
+      }
+    }
     return resolveVideoUrl(raw.isNotEmpty ? raw : _defaultExerciseVideo);
   }
 
@@ -238,82 +255,21 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage>
       }).toList();
     }
 
-    if (_isItemAvoid) {
-      return [
-        {
-          'name': 'High-Impact Jumping & Hard Landings',
-          'nameEn': 'High-Impact Jumping & Hard Landings',
-          'nameAm': 'ከፍተኛ ዝላይ እና ጠንካራ ማረፍ',
-          'nameOr': 'Utaalcha Humna Ol Ta\'e',
-          'nameSo': 'Boodboodka Culus ee Dhulka',
-          'label': 'Risk: Pelvic Floor',
-          'description': 'Jarring ground impact strains loosened pelvic joints and risks premature contractions.',
-          'descEn': 'Jarring ground impact strains loosened pelvic joints and risks premature contractions.',
-          'descAm': 'የላሉ መገጣጠሚያዎችን በእጅጉ በማዳከም ድንገተኛ ምጥ ሊያስከትል ይችላል።',
-          'imageUrl': 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400',
-          'videoUrl': _getVideoUrl(),
-          'tip': 'Choose non-weight-bearing exercises like swimming or water aerobics instead.',
-        },
-        {
-          'name': 'Breath Holding & Heavy Valsalva Straining',
-          'nameEn': 'Breath Holding & Heavy Valsalva Straining',
-          'nameAm': 'ትንፋሽ ይዞ በኃይል መወጠር',
-          'nameOr': 'Hafuura Qabatanii Dhiibuun',
-          'nameSo': 'Neefta oo La Xajisto Xilliga Culayska',
-          'label': 'Risk: Oxygen Reduction',
-          'description': 'Holding breath spikes maternal blood pressure and cuts off fetal oxygen momentarily.',
-          'descEn': 'Holding breath spikes maternal blood pressure and cuts off fetal oxygen momentarily.',
-          'descAm': 'የደም ግፊትን ከፍ በማድረግ ወደ ፅንሱ የሚሄደውን ኦክስጅን ለጊዜው ያቋርጣል።',
-          'imageUrl': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400',
-          'videoUrl': _getVideoUrl(),
-          'tip': 'Always exhale continuously during exertion and keep movements fluid.',
-        },
-      ];
-    }
-
     return [
       {
-        'name': 'Cat-Cow Spinal Flow',
-        'nameEn': 'Cat-Cow Spinal Flow',
-        'nameAm': 'ድመት-ላም የጀርባ እንቅስቃሴ',
-        'nameOr': 'Sochii Dugdaa Cat-Cow',
-        'nameSo': 'Jimicsiga Dhabarka ee Cat-Cow',
-        'label': 'Reps: 8–10 cycles',
-        'description': 'Gently mobilizes the spine, relieves lower back compression, and prepares pelvic alignment.',
-        'descEn': 'Gently mobilizes the spine, relieves lower back compression, and prepares pelvic alignment.',
-        'descAm': 'የወገብ አጥንትን በማፍታታት እና የወገብ ህመምን በማስታገስ ዳሌን ያዘጋጃል።',
-        'imageUrl': 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400',
+        'name': _getTitle(userLang),
+        'nameEn': _extractLocalized(widget.exercise, 'en', enKeys: ['titleEn', 'title_en', 'nameEn', 'name_en'], defaultKeys: ['name', 'title']),
+        'nameAm': _extractLocalized(widget.exercise, 'am', amKeys: ['titleAm', 'title_am', 'nameAm', 'name_am'], defaultKeys: ['name', 'title']),
+        'nameOr': _extractLocalized(widget.exercise, 'or', orKeys: ['titleOr', 'title_or', 'nameOr', 'name_or', 'titleOm', 'title_om'], defaultKeys: ['name', 'title']),
+        'nameSo': _extractLocalized(widget.exercise, 'so', soKeys: ['titleSo', 'title_so', 'nameSo', 'name_so'], defaultKeys: ['name', 'title']),
+        'label': _getDurationLabel(context, userLang),
+        'description': _getBody(userLang),
+        'descEn': _extractLocalized(widget.exercise, 'en', enKeys: ['descriptionEn', 'description_en', 'bodyEn', 'body_en'], defaultKeys: ['description']),
+        'descAm': _extractLocalized(widget.exercise, 'am', amKeys: ['descriptionAm', 'description_am', 'bodyAm', 'body_am'], defaultKeys: ['description']),
+        'imageUrl': _getImageUrl(),
         'videoUrl': _getVideoUrl(),
-        'tip': 'Inhale as your chest opens, exhale gently as you round your spine like a gentle cat.',
-      },
-      {
-        'name': 'Pelvic Tilts & Core Release',
-        'nameEn': 'Pelvic Tilts & Core Release',
-        'nameAm': 'የዳሌ መወዛወዝ እና ማፍታታት',
-        'nameOr': 'Sochii Mudhii fi Pelvic',
-        'nameSo': 'Jimicsiga Misigta iyo Minka',
-        'label': 'Hold: 5 sec each',
-        'description': 'Strengthens abdominal support muscles and relieves excessive swayback posture.',
-        'descEn': 'Strengthens abdominal support muscles and relieves excessive swayback posture.',
-        'descAm': 'የሆድ ድጋፍ ጡንቻዎችን በማጠንከር የሰውነት ሚዛንን ያስተካክላል።',
-        'imageUrl': 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400',
-        'videoUrl': _getVideoUrl(),
-        'tip': 'Keep tailbone relaxed and avoid flattening back aggressively.',
-      },
-      {
-        'name': 'Side-Lying Clamshells & Leg Lifts',
-        'nameEn': 'Side-Lying Clamshells & Leg Lifts',
-        'nameAm': 'በጎን ተኝቶ እግርን ማንሳት',
-        'nameOr': 'Cinaachaan Ciisanii Miila Kaasu',
-        'nameSo': 'Jimicsiga Lugaha ee Dhinaca',
-        'label': 'Reps: 10 per side',
-        'description': 'Strengthens outer hips (gluteus medius) to prevent pregnancy waddling and sciatica pain.',
-        'descEn': 'Strengthens outer hips (gluteus medius) to prevent pregnancy waddling and sciatica pain.',
-        'descAm': 'የዳሌ ጎን ጡንቻዎችን በማጠንከር የሳይያቲካ ህመም እንዳይከሰት ይከላከላል።',
-        'imageUrl': 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400',
-        'videoUrl': _getVideoUrl(),
-        'tip': 'Place a pillow under your head and keep your hips stacked square.',
-      },
+        'tip': _getHealthTips(userLang),
+      }
     ];
   }
 

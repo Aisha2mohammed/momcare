@@ -64,10 +64,17 @@ class ContentService {
   }
 
   // ── Nutrition ─────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getNutrition(int trimester, {int? week, String? type, String? lang}) async {
+  static Future<List<dynamic>> getNutrition(
+    int trimester, {
+    int? month,
+    int? week,
+    String? type,
+    String? lang,
+  }) async {
     final l = await _language(lang);
     final endpoint = ApiEndpoints.nutritionTips(
       trimester: trimester,
+      month: month,
       week: week,
       type: type,
       lang: l,
@@ -78,10 +85,17 @@ class ContentService {
   }
 
   // ── Exercises ─────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getExercises(int trimester, {int? week, String? type, String? lang}) async {
+  static Future<List<dynamic>> getExercises(
+    int trimester, {
+    int? month,
+    int? week,
+    String? type,
+    String? lang,
+  }) async {
     final l = await _language(lang);
     final endpoint = ApiEndpoints.exerciseTips(
       trimester: trimester,
+      month: month,
       week: week,
       type: type,
       lang: l,
@@ -92,10 +106,17 @@ class ContentService {
   }
 
   // ── Sleep tips ────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getSleepTips(int trimester, {int? week, String? type, String? lang}) async {
+  static Future<List<dynamic>> getSleepTips(
+    int trimester, {
+    int? month,
+    int? week,
+    String? type,
+    String? lang,
+  }) async {
     final l = await _language(lang);
     final endpoint = ApiEndpoints.sleepTips(
       trimester: trimester,
+      month: month,
       week: week,
       type: type,
       lang: l,
@@ -124,57 +145,165 @@ class ContentService {
   }
 
   // ── Weekly Nutrition Info (Hydration + Why Important) ────────────────
-  static Future<Map<String, dynamic>?> getNutritionWeek(int trimester, {int? week, String? lang}) async {
+  static Future<Map<String, dynamic>?> getNutritionWeek(
+    int trimester, {
+    int? month,
+    int? week,
+    String? lang,
+  }) async {
     try {
       final l = await _language(lang);
       final endpoint = ApiEndpoints.nutritionWeeks(
         trimester: trimester,
+        month: month,
         week: week,
         lang: l,
-        limit: 1,
+        limit: 10,
       );
       final response = await ApiService.get(endpoint);
       final list = response['data'] as List<dynamic>?;
       if (list != null && list.isNotEmpty) {
+        if (week != null) {
+          for (final it in list) {
+            if (it is Map && (it['week'] == week || it['week'].toString() == week.toString())) {
+              return Map<String, dynamic>.from(it);
+            }
+          }
+        }
+        if (month != null) {
+          for (final it in list) {
+            if (it is Map && (it['month'] == month || it['month'].toString() == month.toString())) {
+              return Map<String, dynamic>.from(it);
+            }
+          }
+        }
         return Map<String, dynamic>.from(list.first as Map);
+      }
+
+      // Fallback: If specific week wasn't found, try by month
+      if (week != null) {
+        final calcMonth = ((week / 4.33).ceil()).clamp(1, 9);
+        final fbEndpoint = ApiEndpoints.nutritionWeeks(
+          trimester: trimester,
+          month: calcMonth,
+          lang: l,
+          limit: 10,
+        );
+        final fbResp = await ApiService.get(fbEndpoint);
+        final fbList = fbResp['data'] as List<dynamic>?;
+        if (fbList != null && fbList.isNotEmpty) {
+          return Map<String, dynamic>.from(fbList.first as Map);
+        }
       }
     } catch (_) {}
     return null;
   }
 
   // ── Weekly Exercise Info (Exercise Tips + Why Important) ─────────────
-  static Future<Map<String, dynamic>?> getExerciseWeek(int trimester, {int? week, String? lang}) async {
+  static Future<Map<String, dynamic>?> getExerciseWeek(
+    int trimester, {
+    int? month,
+    int? week,
+    String? lang,
+  }) async {
     try {
       final l = await _language(lang);
       final endpoint = ApiEndpoints.exerciseWeeks(
         trimester: trimester,
+        month: month,
         week: week,
         lang: l,
-        limit: 1,
+        limit: 10,
       );
       final response = await ApiService.get(endpoint);
       final list = response['data'] as List<dynamic>?;
       if (list != null && list.isNotEmpty) {
+        if (week != null) {
+          for (final it in list) {
+            if (it is Map && (it['week'] == week || it['week'].toString() == week.toString())) {
+              return Map<String, dynamic>.from(it);
+            }
+          }
+        }
+        if (month != null) {
+          for (final it in list) {
+            if (it is Map && (it['month'] == month || it['month'].toString() == month.toString())) {
+              return Map<String, dynamic>.from(it);
+            }
+          }
+        }
         return Map<String, dynamic>.from(list.first as Map);
+      }
+
+      // Fallback: If specific week wasn't found, try by month
+      if (week != null) {
+        final calcMonth = ((week / 4.33).ceil()).clamp(1, 9);
+        final fbEndpoint = ApiEndpoints.exerciseWeeks(
+          trimester: trimester,
+          month: calcMonth,
+          lang: l,
+          limit: 10,
+        );
+        final fbResp = await ApiService.get(fbEndpoint);
+        final fbList = fbResp['data'] as List<dynamic>?;
+        if (fbList != null && fbList.isNotEmpty) {
+          return Map<String, dynamic>.from(fbList.first as Map);
+        }
       }
     } catch (_) {}
     return null;
   }
 
   // ── Weekly Sleep Info (Sleeping Tips + Why Important) ────────────────
-  static Future<Map<String, dynamic>?> getSleepWeek(int trimester, {int? week, String? lang}) async {
+  static Future<Map<String, dynamic>?> getSleepWeek(
+    int trimester, {
+    int? month,
+    int? week,
+    String? lang,
+  }) async {
     try {
       final l = await _language(lang);
       final endpoint = ApiEndpoints.sleepWeeks(
         trimester: trimester,
+        month: month,
         week: week,
         lang: l,
-        limit: 1,
+        limit: 10,
       );
       final response = await ApiService.get(endpoint);
       final list = response['data'] as List<dynamic>?;
       if (list != null && list.isNotEmpty) {
+        if (week != null) {
+          for (final it in list) {
+            if (it is Map && (it['week'] == week || it['week'].toString() == week.toString())) {
+              return Map<String, dynamic>.from(it);
+            }
+          }
+        }
+        if (month != null) {
+          for (final it in list) {
+            if (it is Map && (it['month'] == month || it['month'].toString() == month.toString())) {
+              return Map<String, dynamic>.from(it);
+            }
+          }
+        }
         return Map<String, dynamic>.from(list.first as Map);
+      }
+
+      // Fallback: If specific week wasn't found, try by month
+      if (week != null) {
+        final calcMonth = ((week / 4.33).ceil()).clamp(1, 9);
+        final fbEndpoint = ApiEndpoints.sleepWeeks(
+          trimester: trimester,
+          month: calcMonth,
+          lang: l,
+          limit: 10,
+        );
+        final fbResp = await ApiService.get(fbEndpoint);
+        final fbList = fbResp['data'] as List<dynamic>?;
+        if (fbList != null && fbList.isNotEmpty) {
+          return Map<String, dynamic>.from(fbList.first as Map);
+        }
       }
     } catch (_) {}
     return null;

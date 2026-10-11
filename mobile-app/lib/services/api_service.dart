@@ -43,68 +43,80 @@ class ApiEndpoints {
 
   static String nutritionTips({
     required int trimester,
+    int? month,
     int? week,
     String? type,
     required String lang,
     int limit = 100,
   }) {
+    final monthParam = month != null ? '&month=$month' : '';
     final weekParam = week != null ? '&week=$week' : '';
     final typeParam = type != null && type.isNotEmpty ? '&type=$type' : '';
-    return '/nutrition/tips?trimester=$trimester$weekParam$typeParam&lang=$lang&limit=$limit';
+    return '/nutrition/tips?trimester=$trimester$monthParam$weekParam$typeParam&lang=$lang&limit=$limit';
   }
 
   static String nutritionWeeks({
     required int trimester,
+    int? month,
     int? week,
     required String lang,
-    int limit = 1,
+    int limit = 10,
   }) {
+    final monthParam = month != null ? '&month=$month' : '';
     final weekParam = week != null ? '&week=$week' : '';
-    return '/nutrition/weeks?trimester=$trimester$weekParam&lang=$lang&limit=$limit';
+    return '/nutrition/weeks?trimester=$trimester$monthParam$weekParam&lang=$lang&limit=$limit';
   }
 
   static String exerciseTips({
     required int trimester,
+    int? month,
     int? week,
     String? type,
     required String lang,
     int limit = 100,
   }) {
+    final monthParam = month != null ? '&month=$month' : '';
     final weekParam = week != null ? '&week=$week' : '';
     final typeParam = type != null && type.isNotEmpty ? '&type=$type' : '';
-    return '/exercise/tips?trimester=$trimester$weekParam$typeParam&lang=$lang&limit=$limit';
+    return '/exercise/tips?trimester=$trimester$monthParam$weekParam$typeParam&lang=$lang&limit=$limit';
   }
 
   static String exerciseWeeks({
     required int trimester,
+    int? month,
     int? week,
     required String lang,
-    int limit = 1,
+    int limit = 10,
   }) {
+    final monthParam = month != null ? '&month=$month' : '';
     final weekParam = week != null ? '&week=$week' : '';
-    return '/exercise/weeks?trimester=$trimester$weekParam&lang=$lang&limit=$limit';
+    return '/exercise/weeks?trimester=$trimester$monthParam$weekParam&lang=$lang&limit=$limit';
   }
 
   static String sleepTips({
     required int trimester,
+    int? month,
     int? week,
     String? type,
     required String lang,
     int limit = 100,
   }) {
+    final monthParam = month != null ? '&month=$month' : '';
     final weekParam = week != null ? '&week=$week' : '';
     final typeParam = type != null && type.isNotEmpty ? '&type=$type' : '';
-    return '/sleep/tips?trimester=$trimester$weekParam$typeParam&lang=$lang&limit=$limit';
+    return '/sleep/tips?trimester=$trimester$monthParam$weekParam$typeParam&lang=$lang&limit=$limit';
   }
 
   static String sleepWeeks({
     required int trimester,
+    int? month,
     int? week,
     required String lang,
-    int limit = 1,
+    int limit = 10,
   }) {
+    final monthParam = month != null ? '&month=$month' : '';
     final weekParam = week != null ? '&week=$week' : '';
-    return '/sleep/weeks?trimester=$trimester$weekParam&lang=$lang&limit=$limit';
+    return '/sleep/weeks?trimester=$trimester$monthParam$weekParam&lang=$lang&limit=$limit';
   }
 
   static String music({String? category, required String lang, int limit = 100}) {

@@ -206,11 +206,33 @@ class _SleepDetailPageState extends State<SleepDetailPage>
   }
 
   String _getVideoUrl() {
-    final raw = _safeExtractMedia(
+    String raw = _safeExtractMedia(
       widget.tip['videoUrl'] ??
           widget.tip['video_url'] ??
           widget.tip['video'],
     );
+    if (raw.isEmpty) {
+      final img = _safeExtractMedia(
+        widget.tip['illustrationUrl'] ??
+            widget.tip['illustration_url'] ??
+            widget.tip['imageUrl'] ??
+            widget.tip['image_url'],
+      );
+      if (img.endsWith('.mp4') || img.contains('youtube.com') || img.contains('youtu.be')) {
+        raw = img;
+      }
+    }
+    if (raw.isEmpty && widget.tip['list_of_sleep'] is List) {
+      for (final it in (widget.tip['list_of_sleep'] as List)) {
+        if (it is Map) {
+          final v = _safeExtractMedia(it['videoUrl'] ?? it['video_url'] ?? it['video']);
+          if (v.isNotEmpty) {
+            raw = v;
+            break;
+          }
+        }
+      }
+    }
     return resolveVideoUrl(raw.isNotEmpty ? raw : _defaultSleepVideo);
   }
 
@@ -307,92 +329,21 @@ class _SleepDetailPageState extends State<SleepDetailPage>
       }).toList();
     }
 
-    if (_isItemAvoid) {
-      return [
-        {
-          'name': 'Supine Flat Back Sleeping',
-          'name_en': 'Supine Flat Back Sleeping',
-          'name_am': 'በጀርባ ጠፍጣፋ አድርጎ መተኛት',
-          'name_om': 'Dugdaan Qajeelaa Ciisuu',
-          'name_so': 'Dhabarka oo Toos Loogu Jiifo',
-          'label': 'Risk: Blood Pressure Drop',
-          'description': 'Compresses inferior vena cava and aorta, reducing blood and oxygen flow to placenta.',
-          'description_en': 'Compresses inferior vena cava and aorta, reducing blood and oxygen flow to placenta.',
-          'description_am': 'ትልቁን የደም ስር በመጫን ወደ ልጅዎ የሚሄደውን ደም እና ኦክስጅን ይቀንሳል።',
-          'description_om': 'Dhiigni fi oksijiiniin gara daa\'imaatti deemu ni hir\'ata.',
-          'description_so': 'Waxay yareysaa dhiigga iyo oksijiinta u socota mandheerta.',
-          'image_url': 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=400',
-          'video_url': _getVideoUrl(),
-          'tip': 'If you wake up on your back, gently roll back onto your left side without panic.',
-        },
-        {
-          'name': 'Prone Stomach Compression',
-          'name_en': 'Prone Stomach Compression',
-          'name_am': 'በሆድ ተደፍቶ መተኛት',
-          'name_om': 'Garaan Ciisuu',
-          'name_so': 'Caloosha oo Toos Loogu Seexdo',
-          'label': 'Risk: Uterine Pressure',
-          'description': 'Direct mechanical pressure on the expanding abdomen and restricts free maternal breathing.',
-          'description_en': 'Direct mechanical pressure on the expanding abdomen and restricts free maternal breathing.',
-          'description_am': 'በማደግ ላይ ባለው ማህፀን ላይ ቀጥተኛ ጫና በማሳደር ምቾት ያሳጣል።',
-          'description_om': 'Garaan ciisuun garaa fi mormaa irratti dhiibbaa fida.',
-          'description_so': 'Cadaadis toos ah ayay ku haysaa caloosha iyo neefsashada.',
-          'image_url': 'https://images.unsplash.com/photo-1520206183501-b80df61043c2?w=400',
-          'video_url': _getVideoUrl(),
-          'tip': 'Practice side-sleeping early in pregnancy before belly expands.',
-        },
-      ];
-    }
-
     return [
       {
-        'name': 'Left-Side Alignment (SOS Position)',
-        'name_en': 'Left-Side Alignment (SOS Position)',
-        'name_am': 'በግራ ጎን ማረፍ (የSOS አተኛኘት)',
-        'name_om': 'Cinaacha Bitaatiin Ciisuu (SOS)',
-        'name_so': 'Dhinaca Bidix oo Loo Seexdo (SOS)',
-        'label': 'Position: Optimal Circulation',
-        'description': 'Maximizes blood flow and essential nutrient transport to placenta and fetal vital organs.',
-        'description_en': 'Maximizes blood flow and essential nutrient transport to placenta and fetal vital organs.',
-        'description_am': 'ወደ ልጅዎ እና የእንግዴ ልጅ የሚሄደውን የደም ዝውውር እና የተመጣጠነ ምግብ መጠን ያሳድጋል።',
-        'description_om': 'Dhangala\'aa dhiigaa gara daa\'imaatti ni dabala.',
-        'description_so': 'Waxay si weyn u kordhisaa socodka dhiigga ee mandheerta.',
-        'image_url': 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400',
+        'name': _getTitle(userLang),
+        'name_en': _extractLocalized(widget.tip, 'en', enKeys: ['titleEn', 'title_en', 'nameEn', 'name_en'], defaultKeys: ['name', 'title']),
+        'name_am': _extractLocalized(widget.tip, 'am', amKeys: ['titleAm', 'title_am', 'nameAm', 'name_am'], defaultKeys: ['name', 'title']),
+        'name_om': _extractLocalized(widget.tip, 'om', orKeys: ['titleOr', 'title_or', 'nameOr', 'name_or', 'titleOm', 'title_om'], defaultKeys: ['name', 'title']),
+        'name_so': _extractLocalized(widget.tip, 'so', soKeys: ['titleSo', 'title_so', 'nameSo', 'name_so'], defaultKeys: ['name', 'title']),
+        'label': _getPostureLabel(userLang),
+        'description': _getBody(userLang),
+        'description_en': _extractLocalized(widget.tip, 'en', enKeys: ['descriptionEn', 'description_en', 'bodyEn', 'body_en'], defaultKeys: ['description']),
+        'description_am': _extractLocalized(widget.tip, 'am', amKeys: ['descriptionAm', 'description_am', 'bodyAm', 'body_am'], defaultKeys: ['description']),
+        'image_url': _getImageUrl(),
         'video_url': _getVideoUrl(),
-        'tip': 'Bend your knees slightly towards your chest to keep pelvic joints tension-free.',
-      },
-      {
-        'name': 'Knee Pillow Pelvic Support',
-        'name_en': 'Knee Pillow Pelvic Support',
-        'name_am': 'የጉልበት መሀል ትራስ ድጋፍ',
-        'name_om': 'Boraatii Jilba Gidduu Kaa\'uu',
-        'name_so': 'Barkimada Lugaha Dhexdooda',
-        'label': 'Support: Spine & Hip Relief',
-        'description': 'Prevents upper leg from pulling spine out of alignment and eliminates sacroiliac joint pressure.',
-        'description_en': 'Prevents upper leg from pulling spine out of alignment and eliminates sacroiliac joint pressure.',
-        'description_am': 'የላይኛው እግር የጀርባ አጥንትን እንዳይጎትት በማድረግ የመገጣጠሚያ ህመምን ያስታግሳል።',
-        'description_om': 'Cinaacha dugdaa fi mudhii boqochiisa.',
-        'description_so': 'Waxay toosisaa laf-dhabarta waxayna baabi\'isaa xanuunka misigta.',
-        'image_url': 'https://images.unsplash.com/photo-1511295742362-92c96b124e52?w=400',
-        'video_url': _getVideoUrl(),
-        'tip': 'Use a firm, full-length body pillow or pregnancy C-shaped cushion.',
-      },
-      {
-        'name': 'Elevated Head & Torso for Acid Reflux',
-        'name_en': 'Elevated Head & Torso for Acid Reflux',
-        'name_am': 'ራስን እና ደረትን ከፍ አድርጎ ማረፍ',
-        'name_om': 'Mataafi Qoma Ol Kaasuun Ciisuu',
-        'name_so': 'Madaxa iyo Laabta oo Kor Loo Qaado',
-        'label': 'Technique: Anti-Heartburn',
-        'description': 'Uses gravity to keep gastric juices from rising into esophagus during late-trimester nights.',
-        'description_en': 'Uses gravity to keep gastric juices from rising into esophagus during late-trimester nights.',
-        'description_am': 'የጨጓራ አሲድ ወደ ጉሮሮ እንዳይወጣ በማድረግ የምሽት የጨጓራ ቃጠሎን ይከላከላል።',
-        'description_om': 'Gubaa laphee fi qomaa hir\'isa.',
-        'description_so': 'Waxay ka hortagtaa laab-jeexa habeennimo ee uurka.',
-        'image_url': 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=400',
-        'video_url': _getVideoUrl(),
-        'tip': 'Elevate the head of your bed 15–20 cm or sleep on an angled wedge pillow.',
-      },
+        'tip': _getHealthTips(userLang),
+      }
     ];
   }
 
