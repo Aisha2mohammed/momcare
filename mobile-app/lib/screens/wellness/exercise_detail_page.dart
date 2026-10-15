@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/widget/app_video_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,8 +95,8 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
-  static const String _defaultExerciseVideo =
-      'http://192.168.1.4:5000/uploads/file-1789254638769-685033131.mp4';
+  static String get _defaultExerciseVideo =>
+      '${ApiEndpoints.serverHost}/uploads/file-1789254638769-685033131.mp4';
 
   @override
   void initState() {
@@ -337,8 +338,13 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage>
                       title: _getTitle(userLang),
                       category: _getCategory(),
                       emoji: _getEmoji(),
+                      isAvoid: _isItemAvoid,
+                      reason: _getReason(userLang),
+                      durationLabel: _getDurationLabel(context, userLang),
+                      healthTips: _getHealthTips(userLang),
                       movements: _getMovements(userLang),
                       userLang: userLang,
+                      rawAdminVideoUrl: _safeStr(widget.exercise['videoUrl'] ?? widget.exercise['video_url'] ?? widget.exercise['video']),
                       defaultVideoUrl: _getVideoUrl(),
                       thumbnailUrl: _getImageUrl(),
                     ),
@@ -1226,6 +1232,7 @@ class _MovementDetailsSheetState extends State<_MovementDetailsSheet> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: AppVideoPlayer(
+                  key: ValueKey(_videoUrl),
                   videoUrl: _videoUrl,
                   title: _name,
                   thumbnailUrl: _imageUrl,
@@ -1400,8 +1407,13 @@ class _ExerciseVideoTab extends StatefulWidget {
   final String title;
   final String category;
   final String emoji;
+  final bool isAvoid;
+  final String reason;
+  final String durationLabel;
+  final String healthTips;
   final List<Map<String, dynamic>> movements;
   final String userLang;
+  final String rawAdminVideoUrl;
   final String defaultVideoUrl;
   final String? thumbnailUrl;
 
@@ -1409,8 +1421,13 @@ class _ExerciseVideoTab extends StatefulWidget {
     required this.title,
     required this.category,
     required this.emoji,
+    this.isAvoid = false,
+    this.reason = '',
+    this.durationLabel = '',
+    this.healthTips = '',
     required this.movements,
     required this.userLang,
+    this.rawAdminVideoUrl = '',
     required this.defaultVideoUrl,
     this.thumbnailUrl,
   });
@@ -1420,128 +1437,495 @@ class _ExerciseVideoTab extends StatefulWidget {
 }
 
 class _ExerciseVideoTabState extends State<_ExerciseVideoTab> {
-  late String _activeVideoUrl;
-  late String _activeVideoTitle;
+  late List<_ExerciseVideoEntry> _entries;
+  _ExerciseVideoEntry? _activeEntry;
 
   @override
   void initState() {
     super.initState();
-    _activeVideoUrl = widget.defaultVideoUrl;
-    _activeVideoTitle = '${widget.title} — Full Exercise Session';
+    _entries = _buildEntries();
+    if (_entries.isNotEmpty) {
+      _activeEntry = _entries.first;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ExerciseVideoTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.movements != widget.movements ||
+        oldWidget.userLang != widget.userLang ||
+        oldWidget.rawAdminVideoUrl != widget.rawAdminVideoUrl ||
+        oldWidget.defaultVideoUrl != widget.defaultVideoUrl) {
+      setState(() {
+        _entries = _buildEntries();
+        if (_entries.isNotEmpty &&
+            (_activeEntry == null || !_entries.any((e) => e.videoUrl == _activeEntry!.videoUrl))) {
+          _activeEntry = _entries.first;
+        }
+      });
+    }
+  }
+
+  List<_ExerciseVideoEntry> _buildEntries() {
+    final entries = <_ExerciseVideoEntry>[];
+    final Set<String> seenUrls = {};
+
+    // 1. Main Exercise Video (only if admin provided a dedicated video)
+    if (widget.rawAdminVideoUrl.trim().isNotEmpty) {
+      final mainUrl = resolveVideoUrl(widget.rawAdminVideoUrl);
+      if (!seenUrls.contains(mainUrl)) {
+        seenUrls.add(mainUrl);
+        entries.add(_ExerciseVideoEntry(
+          emoji: widget.emoji,
+          typeLabel: widget.category.isNotEmpty ? widget.category : (widget.isAvoid ? 'AVOID' : 'PRENATAL FITNESS'),
+          title: '${widget.title} — Full Session',
+          subtitle: widget.reason.isNotEmpty ? widget.reason : 'Doctor-approved prenatal routine walkthrough',
+          videoUrl: mainUrl,
+          movementName: widget.title,
+          imageUrl: widget.thumbnailUrl ?? '',
+          isAvoid: widget.isAvoid,
+          reps: widget.durationLabel,
+          muscles: widget.isAvoid ? 'High Strain / Core Pressure' : 'Full Body & Core Stability',
+          description: widget.reason,
+          tips: widget.healthTips,
+          reason: widget.reason,
+        ));
+      }
+    }
+
+    // 2. Specific Movement Videos (ONLY add if admin explicitly provided a video for this movement)
+    for (final m in widget.movements) {
+      final rawMVid = _safeStr(m['videoUrl'] ?? m['video_url'] ?? m['video']);
+      // Never double-list items that do not have their own admin video
+      if (rawMVid.trim().isEmpty) continue;
+
+      final mUrl = resolveVideoUrl(rawMVid);
+      if (seenUrls.contains(mUrl)) continue;
+      seenUrls.add(mUrl);
+
+      final mName = _extractLocalized(
+        m,
+        widget.userLang,
+        amKeys: ['nameAm', 'name_am'],
+        orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om'],
+        soKeys: ['nameSo', 'name_so'],
+        enKeys: ['nameEn', 'name_en'],
+        defaultKeys: ['name', 'title'],
+        fallback: 'Exercise Movement',
+      );
+
+      final desc = _extractLocalized(
+        m,
+        widget.userLang,
+        amKeys: ['descriptionAm', 'descAm'],
+        orKeys: ['descriptionOr', 'descOr'],
+        soKeys: ['descriptionSo', 'descSo'],
+        enKeys: ['descriptionEn', 'descEn'],
+        defaultKeys: ['description', 'desc', 'steps', 'instructions'],
+        fallback: 'Movement form and safe execution guide',
+      );
+
+      final reps = _extractLocalized(
+        m,
+        widget.userLang,
+        amKeys: ['labelAm', 'label_am', 'repsAm'],
+        orKeys: ['labelOr', 'label_or', 'repsOr'],
+        soKeys: ['labelSo', 'label_so', 'repsSo'],
+        enKeys: ['labelEn', 'label_en', 'repsEn'],
+        defaultKeys: ['label', 'reps', 'sets', 'duration'],
+        fallback: widget.durationLabel,
+      );
+
+      final muscles = _extractLocalized(
+        m,
+        widget.userLang,
+        defaultKeys: ['target_muscles', 'muscles', 'focus_area', 'targetMuscles'],
+        fallback: widget.isAvoid ? 'High Strain Zones' : 'Pelvic floor, hips & spinal stabilizers',
+      );
+
+      final tip = _extractLocalized(
+        m,
+        widget.userLang,
+        amKeys: ['tipAm', 'tip_am', 'safetyAm'],
+        orKeys: ['tipOr', 'tip_or', 'safetyOr'],
+        soKeys: ['tipSo', 'tip_so', 'safetySo'],
+        enKeys: ['tipEn', 'tip_en', 'safetyEn'],
+        defaultKeys: ['tip', 'safety', 'safety_notes', 'helpful_tips'],
+        fallback: widget.healthTips,
+      );
+
+      final rawThumb = _safeStr(m['imageUrl'] ?? m['image_url']);
+      final thumbUrl = resolveVideoUrl(rawThumb);
+
+      entries.add(_ExerciseVideoEntry(
+        emoji: widget.emoji,
+        typeLabel: widget.category.isNotEmpty ? widget.category : 'EXERCISE ROUTINE',
+        title: '$mName — ${widget.title}',
+        subtitle: desc,
+        videoUrl: mUrl,
+        movementName: mName,
+        imageUrl: thumbUrl,
+        isAvoid: widget.isAvoid,
+        reps: reps,
+        muscles: muscles,
+        description: desc,
+        tips: tip,
+        reason: widget.reason,
+      ));
+    }
+
+    // 3. Fallback: If no admin-added videos found across movements or main, provide defaultVideoUrl as single entry
+    if (entries.isEmpty && widget.defaultVideoUrl.trim().isNotEmpty) {
+      final fallbackUrl = resolveVideoUrl(widget.defaultVideoUrl);
+      entries.add(_ExerciseVideoEntry(
+        emoji: widget.emoji,
+        typeLabel: widget.category.isNotEmpty ? widget.category : (widget.isAvoid ? 'AVOID' : 'PRENATAL FITNESS'),
+        title: '${widget.title} — Guided Session',
+        subtitle: 'Doctor-approved prenatal routine walkthrough',
+        videoUrl: fallbackUrl,
+        movementName: widget.title,
+        imageUrl: widget.thumbnailUrl ?? '',
+        isAvoid: widget.isAvoid,
+        reps: widget.durationLabel.isNotEmpty ? widget.durationLabel : '15-20 min daily',
+        muscles: widget.isAvoid ? 'High Strain Zones' : 'Pelvic floor, core stability & hip mobility',
+        description: widget.reason.isNotEmpty ? widget.reason : 'Safe and doctor-approved pregnancy movement technique.',
+        tips: widget.healthTips.isNotEmpty ? widget.healthTips : 'Stay hydrated, breathe evenly throughout each movement, and rest whenever needed.',
+        reason: widget.reason,
+      ));
+    }
+
+    return entries;
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      children: [
-        // ── In-UI Embedded Video Player ─────────────────────────────────────
-        AppVideoPlayer(
-          key: ValueKey(_activeVideoUrl),
-          videoUrl: _activeVideoUrl,
-          title: _activeVideoTitle,
-          thumbnailUrl: widget.thumbnailUrl,
-          autoPlay: false,
-          aspectRatio: 16 / 9,
-        ),
-        const SizedBox(height: 16),
-
-        // Hint banner
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
+    if (_entries.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.touch_app_rounded,
-                  color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Tap any routine below to play directly in the screen player above.',
-                  style: TextStyle(color: AppColors.primary, fontSize: 13, height: 1.4),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
                 ),
+                child: const Icon(Icons.video_library_rounded, color: AppColors.primary, size: 32),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No Videos Available Yet',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Educational video guides added by the specialist will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+      );
+    }
 
-        // Main exercise item card
-        _VideoSelectionCard(
-          title: '${widget.title} — Main Exercise Session',
-          subtitle: 'Doctor-approved pregnancy workout form, breathing, and safety cues',
-          isSelected: _activeVideoUrl == widget.defaultVideoUrl,
-          onTap: () {
-            setState(() {
-              _activeVideoUrl = widget.defaultVideoUrl;
-              _activeVideoTitle = '${widget.title} — Main Exercise Session';
-            });
-          },
+    final active = _activeEntry ?? _entries.first;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        // ── 1. In-UI Embedded Video Player with Controls ─────────────────────
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: AppVideoPlayer(
+            key: ValueKey(active.videoUrl),
+            videoUrl: active.videoUrl,
+            title: active.title,
+            thumbnailUrl: active.imageUrl.isNotEmpty ? active.imageUrl : widget.thumbnailUrl,
+            autoPlay: true,
+            aspectRatio: 16 / 9,
+          ),
         ),
+        const SizedBox(height: 14),
 
-        // Movement sub-videos
-        ...widget.movements.map((m) {
-          final mName = _extractLocalized(
-            m,
-            widget.userLang,
-            amKeys: ['nameAm', 'name_am'],
-            orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om'],
-            soKeys: ['nameSo', 'name_so'],
-            enKeys: ['nameEn', 'name_en'],
-            defaultKeys: ['name', 'title'],
-            fallback: 'Movement Guide',
-          );
-          final desc = _extractLocalized(
-            m,
-            widget.userLang,
-            amKeys: ['descriptionAm', 'descAm'],
-            orKeys: ['descriptionOr', 'descOr'],
-            soKeys: ['descriptionSo', 'descSo'],
-            enKeys: ['descriptionEn', 'descEn'],
-            defaultKeys: ['description', 'desc', 'label'],
-            fallback: 'Movement posture walkthrough',
-          );
-          final vUrl = resolveVideoUrl(_safeStr(m['videoUrl'] ?? m['video_url']));
-          final isSelected = _activeVideoUrl == vUrl;
+        // ── 2. Active Video Properties & Details Card ───────────────────────
+        _buildActivePropertiesCard(active),
+        const SizedBox(height: 20),
 
-          return _VideoSelectionCard(
-            title: mName,
-            subtitle: desc,
-            isSelected: isSelected,
-            imageUrl: resolveVideoUrl(_safeStr(m['imageUrl'] ?? m['image_url'])),
-            onTap: () {
-              setState(() {
-                _activeVideoUrl = vUrl;
-                _activeVideoTitle = mName;
-              });
-            },
-          );
-        }),
+        // ── 3. Available Videos List (No Double Listing) ─────────────────────
+        if (_entries.length > 1) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.playlist_play_rounded, color: AppColors.primary, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  'Available Exercise Videos (${_entries.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          ..._entries.map(
+            (entry) => _ExerciseVideoItemCard(
+              entry: entry,
+              isSelected: active.videoUrl == entry.videoUrl,
+              onSelect: () {
+                setState(() {
+                  _activeEntry = entry;
+                });
+              },
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  // Active Video Properties Display
+  Widget _buildActivePropertiesCard(_ExerciseVideoEntry entry) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Emoji, Title, Category Badge, Avoid/Do Badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(entry.emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: entry.isAvoid
+                                ? Colors.red.withValues(alpha: 0.1)
+                                : AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            entry.typeLabel.toUpperCase(),
+                            style: TextStyle(
+                              color: entry.isAvoid ? Colors.red : AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: entry.isAvoid
+                                ? Colors.red.shade50
+                                : Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            entry.isAvoid ? '🚫 Avoid' : '💪 Recommended',
+                            style: TextStyle(
+                              color: entry.isAvoid ? Colors.red.shade800 : Colors.green.shade800,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Duration / Reps / Sets Badge
+          if (entry.reps.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: entry.isAvoid ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: entry.isAvoid ? Colors.red.shade100 : AppColors.primary.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(entry.isAvoid ? '⚠️' : '⏱️', style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.reps,
+                      style: TextStyle(
+                        color: entry.isAvoid ? Colors.red.shade900 : AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Target Muscles / Focus Area
+          if (entry.muscles.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.accessibility_new_rounded,
+                    size: 15,
+                    color: entry.isAvoid ? Colors.red.shade400 : AppColors.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Target Focus: ${entry.muscles}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Safe Execution Guidance / Description
+          if (entry.description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              entry.isAvoid ? 'Why Avoid This Routine:' : 'Execution Guidance:',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              entry.description,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ],
+
+          // Safety & Breathing Tips
+          if (entry.tips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('💡', style: TextStyle(fontSize: 15)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.tips,
+                      style: TextStyle(color: Colors.amber.shade900, fontSize: 12, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-class _VideoSelectionCard extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Exercise Video Data Model & Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ExerciseVideoEntry {
+  final String emoji;
+  final String typeLabel;
   final String title;
   final String subtitle;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final String? imageUrl;
+  final String videoUrl;
+  final String movementName;
+  final String imageUrl;
+  final bool isAvoid;
+  final String reps;
+  final String muscles;
+  final String description;
+  final String tips;
+  final String reason;
 
-  const _VideoSelectionCard({
+  _ExerciseVideoEntry({
+    required this.emoji,
+    required this.typeLabel,
     required this.title,
     required this.subtitle,
-    required this.isSelected,
-    required this.onTap,
-    this.imageUrl,
+    required this.videoUrl,
+    required this.movementName,
+    required this.imageUrl,
+    required this.isAvoid,
+    required this.reps,
+    required this.muscles,
+    required this.description,
+    required this.tips,
+    required this.reason,
+  });
+}
+
+class _ExerciseVideoItemCard extends StatelessWidget {
+  final _ExerciseVideoEntry entry;
+  final bool isSelected;
+  final VoidCallback onSelect;
+
+  const _ExerciseVideoItemCard({
+    required this.entry,
+    this.isSelected = false,
+    required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = entry.imageUrl.isNotEmpty && !entry.imageUrl.endsWith('.mp4');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -1554,62 +1938,143 @@ class _VideoSelectionCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isSelected ? 0.08 : 0.03),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        onTap: onTap,
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary
-                : AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            isSelected ? Icons.play_arrow_rounded : Icons.videocam_rounded,
-            color: isSelected ? Colors.white : AppColors.primary,
-            size: 24,
-          ),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-            fontSize: 14,
-            color: isSelected ? AppColors.primary : Colors.black87,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 3),
-          child: Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            isSelected ? 'PLAYING' : 'WATCH',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: isSelected ? AppColors.primary : Colors.grey[700],
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onSelect,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                // Thumbnail with play overlay
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 90,
+                    height: 65,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (hasImage)
+                          Image.network(
+                            entry.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _videoPlaceholder(),
+                          )
+                        else
+                          _videoPlaceholder(),
+                        Container(color: Colors.black.withValues(alpha: 0.3)),
+                        Center(
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: isSelected ? Colors.white : AppColors.primary,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(entry.emoji, style: const TextStyle(fontSize: 13)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              entry.typeLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: entry.isAvoid ? Colors.red : AppColors.primary,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        entry.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 13,
+                          color: isSelected ? AppColors.primary : Colors.black87,
+                        ),
+                      ),
+                      if (entry.reps.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          entry.reps,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Status indicator
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isSelected ? 'PLAYING' : 'WATCH',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? AppColors.primary : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+
+  Widget _videoPlaceholder() {
+    return Container(
+      color: AppColors.primary.withValues(alpha: 0.15),
+      child: Center(
+        child: Icon(
+          Icons.fitness_center_rounded,
+          size: 28,
+          color: AppColors.primary.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
 }
+

@@ -55,34 +55,34 @@ export default function CommunityModeration() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold text-[#61183e]">Community Moderation</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">Manage posts, flagged content, and community guidelines</p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#61183e]">Community Moderation</h2>
+                    <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Manage posts, flagged content, and community guidelines</p>
                 </div>
                 {flaggedPosts.flaggedCount > 0 && (
-                    <div className="flex items-center gap-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl">
-                        <AlertTriangle className="w-4 h-4" />
-                        {flaggedPosts.flaggedCount} flagged post{flaggedPosts.flaggedCount > 1 ? 's' : ''} need review
+                    <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl w-fit">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>{flaggedPosts.flaggedCount} flagged post{flaggedPosts.flaggedCount > 1 ? 's' : ''} need review</span>
                     </div>
                 )}
             </div>
 
             {/* Sub-tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto">
                 {subTabs.map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-[#61183e] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all shrink-0 ${activeTab === tab ? 'bg-white text-[#61183e] shadow-sm' : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         {tab === 'Flagged Posts' && <AlertTriangle className="w-3.5 h-3.5" />}
                         {tab === 'Post Browser' && <MessageSquare className="w-3.5 h-3.5" />}
                         {tab === 'Community Rules' && <BookOpen className="w-3.5 h-3.5" />}
-                        {tab}
+                        <span>{tab}</span>
                         {tab === 'Flagged Posts' && flaggedPosts.flaggedCount > 0 && (
-                            <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                            <span className="ml-1 bg-red-500 text-white text-[10px] sm:text-xs rounded-full px-1.5 py-0.2 min-w-[18px] text-center">
                                 {flaggedPosts.flaggedCount}
                             </span>
                         )}

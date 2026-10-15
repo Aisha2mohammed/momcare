@@ -569,7 +569,7 @@ healthTipsAm: firstTip?.label?.am || row.health_tips_am || row.healthTipsAm || '
 
     // ── Delete Action ────────────────────────────────────────────────────────
     const handleDeleteConfirm = async () => {
-        if (!nutrientToDelete) return;
+        if (!nutrientToDelete || !nutrientToDelete.id) return;
         setSubmitting(true);
         try {
             await cmsClient.delete('nutrition-tips', nutrientToDelete.id);

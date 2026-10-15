@@ -46,18 +46,7 @@ String _safeStr(dynamic val, [String fallback = '']) {
 
 String _resolveUrl(String? url) {
   if (url == null || url.trim().isEmpty) return '';
-  final trimmed = url.trim();
-  
-  String resolved = trimmed;
-  if (resolved.contains('localhost')) {
-    resolved = resolved.replaceAll('localhost', '192.168.1.4');
-  }
-
-  if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
-    return resolved;
-  }
-  const host = 'http://192.168.1.4:5000';
-  return resolved.startsWith('/') ? '$host$resolved' : '$host/$resolved';
+  return resolveVideoUrl(url);
 }
 
 

@@ -18,16 +18,16 @@ const sizeMap = {
 export function Modal({ isOpen, onClose, title, children, size = 'lg' }: ModalProps) {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className={`relative bg-white rounded-2xl shadow-2xl w-full mx-4 ${sizeMap[size]} max-h-[90vh] flex flex-col`}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-rose-50">
-                    <h3 className="text-lg font-semibold text-[#61183e]">{title}</h3>
-                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={onClose} />
+            <div className={`relative bg-white rounded-2xl shadow-2xl w-full mx-auto ${sizeMap[size]} max-h-[92vh] flex flex-col overflow-hidden`}>
+                <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-rose-50/80">
+                    <h3 className="text-base sm:text-lg font-bold text-[#61183e] truncate pr-2">{title}</h3>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0" aria-label="Close dialog">
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
-                <div className="overflow-y-auto flex-1 p-6">
+                <div className="overflow-y-auto flex-1 p-4 sm:p-6">
                     {children}
                 </div>
             </div>
@@ -45,15 +45,15 @@ interface DrawerProps {
 export function Drawer({ isOpen, onClose, title, children }: DrawerProps) {
     return (
         <div className={`fixed inset-0 z-50 ${isOpen ? '' : 'pointer-events-none'}`}>
-            <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`} onClick={onClose} />
+            <div className={`absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`} onClick={onClose} />
             <div className={`absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl transition-transform duration-300 flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-rose-50">
-                    <h3 className="text-lg font-semibold text-[#61183e]">{title}</h3>
-                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-rose-50/80">
+                    <h3 className="text-base sm:text-lg font-bold text-[#61183e] truncate pr-2">{title}</h3>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0" aria-label="Close drawer">
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                     {children}
                 </div>
             </div>

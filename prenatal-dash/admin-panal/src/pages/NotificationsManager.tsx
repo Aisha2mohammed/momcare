@@ -42,16 +42,18 @@ export default function NotificationsManager() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold text-[#61183e]">Pregnancy Tracker & Notifications</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">Schedule and send push notifications to users</p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#61183e]">Pregnancy Tracker & Notifications</h2>
+                    <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Schedule and send push notifications to users</p>
                 </div>
-                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setForm(empty); setModalOpen(true); }}>New Notification</Button>
+                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setForm(empty); setModalOpen(true); }} className="w-fit">
+                    New Notification
+                </Button>
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
                     { label: 'Total Sent', value: '128', icon: Send },
                     { label: 'Scheduled', value: '12', icon: Clock },
@@ -71,7 +73,7 @@ export default function NotificationsManager() {
             <Card>
                 <h3 className="font-semibold text-gray-800 mb-4">Notification History</h3>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm min-w-[580px]">
                         <thead>
                             <tr className="border-b border-gray-100">
                                 {['Title', 'Audience', 'Scheduled', 'Type', 'Status', 'Open Rate'].map(h => (

@@ -97,7 +97,9 @@ export default function Settings() {
             </Card>
 
             <div className="flex justify-end">
-                <Button size="lg" icon={<Save className="w-5 h-5" />} onClick={handleSave}>Save All Settings</Button>
+                <Button size="lg" icon={<Save className="w-5 h-5" />} onClick={handleSave} className="w-full sm:w-auto">
+                    Save All Settings
+                </Button>
             </div>
         </div>
     );

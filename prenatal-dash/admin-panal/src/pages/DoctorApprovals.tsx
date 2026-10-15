@@ -41,12 +41,12 @@ export default function DoctorApprovals() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto">
                 {tabs.map(tab => (
                     <button
                         key={tab.value}
                         onClick={() => setActiveTab(tab.value as ApprovalStatus)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.value
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all shrink-0 ${activeTab === tab.value
                                 ? 'bg-white text-[#61183e] shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                             }`}
@@ -60,7 +60,7 @@ export default function DoctorApprovals() {
             <Card>
                 {/* Search Bar */}
                 <div className="mb-5">
-                    <div className="relative max-w-sm">
+                    <div className="relative w-full max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                             className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#61183e] focus:ring-2 focus:ring-[#61183e]/20 bg-white"
@@ -73,7 +73,7 @@ export default function DoctorApprovals() {
 
                 {/* Table */}
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm min-w-[700px]">
                         <thead>
                             <tr className="border-b border-gray-100">
                                 {['', 'Doctor Name', 'Specialization', 'Health Provider', 'Submitted Date', 'Status', 'Action'].map(h => (

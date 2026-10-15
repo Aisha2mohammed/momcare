@@ -52,23 +52,25 @@ export default function DoctorReviewDetail() {
     return (
         <div className="space-y-6 max-w-4xl">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <button onClick={() => navigate('/doctor-approvals')} className="p-2 rounded-lg hover:bg-[#fdf2f8] text-[#61183e] transition-colors">
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div>
-                    <h2 className="text-2xl font-bold text-[#61183e]">Doctor Review</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">Review credentials and make an approval decision</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <button onClick={() => navigate('/doctor-approvals')} className="p-2 rounded-lg hover:bg-[#fdf2f8] text-[#61183e] transition-colors shrink-0">
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-[#61183e]">Doctor Review</h2>
+                        <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Review credentials and make an approval decision</p>
+                    </div>
                 </div>
-                <div className="ml-auto">
+                <div className="shrink-0">
                     <Badge variant={statusVariant}>{doctor.approvalStatus}</Badge>
                 </div>
             </div>
 
             {actionDone && (
                 <div className={`rounded-xl p-4 flex items-center gap-3 ${actionDone === 'approved' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
-                    {actionDone === 'approved' ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-                    <p className="font-medium">Doctor has been {actionDone}. Redirecting...</p>
+                    {actionDone === 'approved' ? <CheckCircle className="w-5 h-5 shrink-0" /> : <XCircle className="w-5 h-5 shrink-0" />}
+                    <p className="font-medium text-sm">Doctor has been {actionDone}. Redirecting...</p>
                 </div>
             )}
 
@@ -81,14 +83,14 @@ export default function DoctorReviewDetail() {
                             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#fdf2f8] to-pink-100 text-[#61183e] text-2xl font-bold flex items-center justify-center shrink-0">
                                 {doctor.name.split(' ').slice(1).map(n => n[0]).join('')}
                             </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">{doctor.name}</h3>
+                            <div className="min-w-0">
+                                <h3 className="text-lg font-bold text-gray-900 truncate">{doctor.name}</h3>
                                 <p className="text-sm text-gray-500">{doctor.specialization}</p>
                                 <p className="text-xs text-gray-400 mt-0.5">License: {doctor.licenseNumber}</p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             {[
                                 { icon: Mail, label: 'Email', value: doctor.email },
                                 { icon: Phone, label: 'Phone', value: doctor.phone },

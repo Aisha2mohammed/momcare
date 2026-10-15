@@ -78,19 +78,19 @@ export default function LanguageManager() {
                 return (
                     <div key={section.section} className="bg-white rounded-2xl border border-rose-50 shadow-sm overflow-hidden">
                         {/* Section Header */}
-                        <div className="flex items-center justify-between px-6 py-4 bg-[#fdf2f8]/60 border-b border-rose-100">
-                            <h3 className="font-semibold text-[#61183e]">{section.section}</h3>
-                            <div className="flex gap-6 text-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3.5 sm:py-4 bg-[#fdf2f8]/60 border-b border-rose-100">
+                            <h3 className="font-bold text-[#61183e] text-sm sm:text-base">{section.section}</h3>
+                            <div className="flex flex-wrap items-center gap-4 text-xs">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Amharic</span>
-                                    <div className="w-24 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                    <span className="text-gray-500 font-medium">Amharic</span>
+                                    <div className="w-20 sm:w-24 h-2 rounded-full bg-gray-200 overflow-hidden">
                                         <div style={{ width: `${comp.am}%` }} className="h-full bg-[#61183e] rounded-full transition-all" />
                                     </div>
                                     <span className="font-bold text-[#61183e]">{comp.am}%</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-500">Afan Oromo</span>
-                                    <div className="w-24 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                    <span className="text-gray-500 font-medium">Afan Oromo</span>
+                                    <div className="w-20 sm:w-24 h-2 rounded-full bg-gray-200 overflow-hidden">
                                         <div style={{ width: `${comp.or}%` }} className="h-full bg-green-500 rounded-full transition-all" />
                                     </div>
                                     <span className="font-bold text-green-600">{comp.or}%</span>
@@ -98,35 +98,37 @@ export default function LanguageManager() {
                             </div>
                         </div>
 
-                        {/* Keys */}
-                        <div className="divide-y divide-gray-50">
-                            {/* Column Headers */}
-                            <div className="grid grid-cols-[200px_1fr_1fr] gap-4 px-6 py-2 bg-gray-50 text-xs font-medium text-gray-500">
-                                <span>Key</span>
-                                <span>🇪🇹 Amharic</span>
-                                <span>🟢 Afan Oromo</span>
-                            </div>
-                            {section.keys.map((kv, ki) => (
-                                <div key={kv.key} className="grid grid-cols-[200px_1fr_1fr] gap-4 px-6 py-3 items-center hover:bg-[#fdf2f8]/30 transition-colors">
-                                    <code className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded font-mono">{kv.key}</code>
-                                    <input
-                                        value={kv.am}
-                                        onChange={e => updateKey(si, ki, 'am', e.target.value)}
-                                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#61183e] focus:ring-2 focus:ring-[#61183e]/20 bg-white transition"
-                                        placeholder="Amharic text..."
-                                    />
-                                    <input
-                                        value={kv.or}
-                                        onChange={e => updateKey(si, ki, 'or', e.target.value)}
-                                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/20 bg-white transition"
-                                        placeholder="Afan Oromo text..."
-                                    />
+                        {/* Keys with overflow scroll on small screens */}
+                        <div className="overflow-x-auto">
+                            <div className="min-w-[620px] divide-y divide-gray-50">
+                                {/* Column Headers */}
+                                <div className="grid grid-cols-[180px_1fr_1fr] gap-4 px-6 py-2.5 bg-gray-50 text-xs font-semibold text-gray-500">
+                                    <span>Key</span>
+                                    <span>🇪🇹 Amharic</span>
+                                    <span>🟢 Afan Oromo</span>
                                 </div>
-                            ))}
+                                {section.keys.map((kv, ki) => (
+                                    <div key={kv.key} className="grid grid-cols-[180px_1fr_1fr] gap-4 px-6 py-3 items-center hover:bg-[#fdf2f8]/30 transition-colors">
+                                        <code className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono truncate">{kv.key}</code>
+                                        <input
+                                            value={kv.am}
+                                            onChange={e => updateKey(si, ki, 'am', e.target.value)}
+                                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#61183e] focus:ring-2 focus:ring-[#61183e]/20 bg-white transition"
+                                            placeholder="Amharic text..."
+                                        />
+                                        <input
+                                            value={kv.or}
+                                            onChange={e => updateKey(si, ki, 'or', e.target.value)}
+                                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/20 bg-white transition"
+                                            placeholder="Afan Oromo text..."
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
-                        <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
-                            <button className="text-sm font-medium text-[#61183e] hover:text-[#7a1f4f] transition-colors">
+                        <div className="px-4 sm:px-6 py-3 border-t border-gray-100 flex justify-end">
+                            <button className="text-xs sm:text-sm font-semibold text-[#61183e] hover:text-[#7a1f4f] transition-colors">
                                 + Add Key to {section.section}
                             </button>
                         </div>
