@@ -56,9 +56,9 @@ export default function EmergencyContactsManager() {
 
             {/* Hospitals Section */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-800">Emergency Hospital Contacts</h3>
-                    <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingH(null); setFormH(emptyH); setHospitalModal(true); }}>Add Hospital</Button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800">Emergency Hospital Contacts</h3>
+                    <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingH(null); setFormH(emptyH); setHospitalModal(true); }} className="w-fit">Add Hospital</Button>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {hospitals.map(h => (
@@ -82,9 +82,9 @@ export default function EmergencyContactsManager() {
 
             {/* Health Tips Section */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-800">Health Tip Cards</h3>
-                    <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingT(null); setFormT(emptyT); setTipModal(true); }}>Add Health Tip</Button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800">Health Tip Cards</h3>
+                    <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingT(null); setFormT(emptyT); setTipModal(true); }} className="w-fit">Add Health Tip</Button>
                 </div>
                 <div className="grid gap-4">
                     {tips.map(tip => (

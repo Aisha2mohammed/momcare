@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/widget/app_video_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,8 +156,8 @@ class _NutrientDetailPageState extends State<NutrientDetailPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
-  static const String _defaultNutritionVideo =
-      'http://192.168.1.4:5000/uploads/file-1789254638769-685033131.mp4';
+  static String get _defaultNutritionVideo =>
+      '${ApiEndpoints.serverHost}/uploads/file-1789254638769-685033131.mp4';
 
   @override
   void initState() {
@@ -1369,6 +1370,7 @@ class _FoodDetailsSheetState extends State<_FoodDetailsSheet> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: AppVideoPlayer(
+                    key: ValueKey(_videoUrl),
                     videoUrl: _videoUrl,
                     title: _name,
                     autoPlay: true,
@@ -1572,65 +1574,112 @@ class _VideoTab extends StatefulWidget {
 }
 
 class _VideoTabState extends State<_VideoTab> {
-  late String _activeVideoUrl;
-  late String _activeTitle;
+  late List<_VideoEntry> _entries;
+  _VideoEntry? _activeEntry;
 
   @override
   void initState() {
     super.initState();
-    _activeVideoUrl = resolveVideoUrl(widget.defaultVideoUrl);
-    _activeTitle = 'Nutrition & Diet Video Guide';
+    _entries = _buildEntries();
+    if (_entries.isNotEmpty) {
+      _activeEntry = _entries.first;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.nutrientSections != widget.nutrientSections ||
+        oldWidget.userLang != widget.userLang) {
+      setState(() {
+        _entries = _buildEntries();
+        if (_entries.isNotEmpty &&
+            (_activeEntry == null ||
+                !_entries.any((e) => e.videoUrl == _activeEntry!.videoUrl))) {
+          _activeEntry = _entries.first;
+        }
+      });
+    }
   }
 
   List<_VideoEntry> _buildEntries() {
     final entries = <_VideoEntry>[];
+    final Set<String> seenUrls = {};
 
     for (final section in widget.nutrientSections) {
       final sectionType = _safeStr(section['nutrientType'] ?? section['type']).toUpperCase();
-      final sectionEmoji = _safeStr(section['emoji'], '🎬');
+      final sectionEmoji = _safeStr(section['emoji'], '🥗');
       final foods = (section['foods'] as List<dynamic>?) ?? [];
-      final rawSecVid = _safeExtractMedia(section['video_url'] ?? section['videoUrl']);
-      final sectionVideoUrl = resolveVideoUrl(rawSecVid.isNotEmpty ? rawSecVid : widget.defaultVideoUrl);
 
-      final sectionTitle = _extractLocalized(
-        section,
-        widget.userLang,
-        amKeys: ['titleAm', 'title_am', 'videoTitleAm'],
-        orKeys: ['titleOr', 'title_or', 'videoTitleOr', 'titleOm', 'title_om'],
-        soKeys: ['titleSo', 'title_so', 'videoTitleSo'],
-        enKeys: ['titleEn', 'title_en', 'videoTitleEn'],
-        defaultKeys: ['video_title', 'videoTitle', 'title', 'type'],
-        fallback: sectionType.isNotEmpty ? '$sectionType Video Guide' : 'Nutrition Video',
-      );
+      // 1. Primary Section / Nutrient Video (only if admin provided a video)
+      final rawSecVid = _safeExtractMedia(section['video_url'] ?? section['videoUrl'] ?? section['video']);
+      if (rawSecVid.trim().isNotEmpty) {
+        final secUrl = resolveVideoUrl(rawSecVid);
+        if (!seenUrls.contains(secUrl)) {
+          seenUrls.add(secUrl);
+          final sectionTitle = _extractLocalized(
+            section,
+            widget.userLang,
+            amKeys: ['titleAm', 'title_am', 'videoTitleAm'],
+            orKeys: ['titleOr', 'title_or', 'videoTitleOr', 'titleOm', 'title_om'],
+            soKeys: ['titleSo', 'title_so', 'videoTitleSo'],
+            enKeys: ['titleEn', 'title_en', 'videoTitleEn'],
+            defaultKeys: ['video_title', 'videoTitle', 'title', 'type'],
+            fallback: sectionType.isNotEmpty ? '$sectionType Video Guide' : 'Nutrition Video Guide',
+          );
+          final sectionDesc = _extractLocalized(
+            section,
+            widget.userLang,
+            amKeys: ['bodyAm', 'body_am', 'descriptionAm'],
+            orKeys: ['bodyOr', 'body_or', 'descriptionOr'],
+            soKeys: ['bodySo', 'body_so', 'descriptionSo'],
+            enKeys: ['bodyEn', 'body_en', 'descriptionEn'],
+            defaultKeys: ['body', 'description'],
+            fallback: 'Overview of $sectionType dietary recommendations in pregnancy',
+          );
+          final sectionThumb = resolveVideoUrl(_safeExtractMedia(section['imageUrl'] ?? section['image_url']));
+          final benefit = _extractLocalized(
+            section,
+            widget.userLang,
+            defaultKeys: ['benefit', 'why_important', 'description_value'],
+            fallback: 'Supports healthy maternal wellness and baby development',
+          );
+          final tips = _extractLocalized(
+            section,
+            widget.userLang,
+            defaultKeys: ['tips', 'health_tips', 'tip'],
+            fallback: '',
+          );
 
-      final sectionDesc = _extractLocalized(
-        section,
-        widget.userLang,
-        amKeys: ['bodyAm', 'body_am', 'descriptionAm'],
-        orKeys: ['bodyOr', 'body_or', 'descriptionOr'],
-        soKeys: ['bodySo', 'body_so', 'descriptionSo'],
-        enKeys: ['bodyEn', 'body_en', 'descriptionEn'],
-        defaultKeys: ['body', 'description'],
-        fallback: 'Overview of $sectionType foods in pregnancy',
-      );
+          entries.add(_VideoEntry(
+            emoji: sectionEmoji,
+            typeLabel: sectionType.isNotEmpty ? sectionType : 'NUTRITION GUIDE',
+            title: sectionTitle,
+            subtitle: sectionDesc,
+            videoUrl: secUrl,
+            foodName: '',
+            foodImageUrl: sectionThumb,
+            benefit: benefit,
+            description: sectionDesc,
+            tips: tips,
+            portion: '',
+          ));
+        }
+      }
 
-      final sectionThumb = resolveVideoUrl(_safeExtractMedia(section['imageUrl'] ?? section['image_url']));
-
-      // Section video entry
-      entries.add(_VideoEntry(
-        emoji: sectionEmoji,
-        typeLabel: sectionType,
-        title: sectionTitle,
-        subtitle: sectionDesc,
-        videoUrl: sectionVideoUrl,
-        foodName: '',
-        foodImageUrl: sectionThumb,
-      ));
-
-      // Food item videos
+      // 2. Specific Food Item Videos (ONLY add if admin explicitly attached a video for this item)
       for (final food in foods) {
         if (food is! Map) continue;
         final foodMap = food as Map<String, dynamic>;
+        final rawFVid = _safeExtractMedia(foodMap['video_url'] ?? foodMap['videoUrl'] ?? foodMap['video']);
+
+        // Do NOT list items that do not have their own video!
+        if (rawFVid.trim().isEmpty) continue;
+
+        final foodVideoUrl = resolveVideoUrl(rawFVid);
+        if (seenUrls.contains(foodVideoUrl)) continue;
+        seenUrls.add(foodVideoUrl);
+
         final foodName = _extractLocalized(
           foodMap,
           widget.userLang,
@@ -1639,15 +1688,11 @@ class _VideoTabState extends State<_VideoTab> {
           soKeys: ['nameSo', 'name_so'],
           enKeys: ['nameEn', 'name_en'],
           defaultKeys: ['name', 'title'],
-          fallback: '',
+          fallback: 'Food Item',
         );
 
-        if (foodName.isEmpty) continue;
-
-        final rawFVid = _safeExtractMedia(foodMap['video_url'] ?? foodMap['videoUrl'] ?? foodMap['video']);
-        final foodVideoUrl = resolveVideoUrl(rawFVid.isNotEmpty ? rawFVid : sectionVideoUrl);
         final rawFImg = _safeExtractMedia(foodMap['image_url'] ?? foodMap['imageUrl'] ?? foodMap['image']);
-        final foodImageUrl = resolveVideoUrl(rawFImg.isNotEmpty ? rawFImg : sectionThumb);
+        final foodImageUrl = resolveVideoUrl(rawFImg);
         final benefit = _extractLocalized(
           foodMap,
           widget.userLang,
@@ -1656,19 +1701,48 @@ class _VideoTabState extends State<_VideoTab> {
           soKeys: ['descriptionSo', 'descSo'],
           enKeys: ['descriptionEn', 'descEn'],
           defaultKeys: ['description', 'benefit', 'why_include'],
-          fallback: '$foodName in pregnancy',
+          fallback: '$foodName provides essential maternal nutrients',
         );
+        final tip = _extractLocalized(
+          foodMap,
+          widget.userLang,
+          defaultKeys: ['tip', 'tips', 'safety_tip'],
+          fallback: '',
+        );
+        final portion = _safeStr(foodMap['portion'] ?? foodMap['serving']);
 
         entries.add(_VideoEntry(
           emoji: sectionEmoji,
-          typeLabel: sectionType,
+          typeLabel: sectionType.isNotEmpty ? sectionType : 'FOOD ITEM',
           title: '$foodName — $sectionType',
           subtitle: benefit,
           videoUrl: foodVideoUrl,
           foodName: foodName,
           foodImageUrl: foodImageUrl,
+          benefit: benefit,
+          description: benefit,
+          tips: tip,
+          portion: portion,
         ));
       }
+    }
+
+    // 3. Fallback: If no admin-added videos were found across sections, check defaultVideoUrl as a single entry
+    if (entries.isEmpty && widget.defaultVideoUrl != null && widget.defaultVideoUrl!.trim().isNotEmpty) {
+      final fallbackUrl = resolveVideoUrl(widget.defaultVideoUrl);
+      entries.add(_VideoEntry(
+        emoji: '🥗',
+        typeLabel: 'NUTRITION GUIDE',
+        title: 'Nutritional Video Guide',
+        subtitle: 'Doctor-recommended pregnancy diet & preparation techniques',
+        videoUrl: fallbackUrl,
+        foodName: '',
+        foodImageUrl: '',
+        benefit: 'Provides vital prenatal vitamins, minerals, and healthy macronutrients.',
+        description: 'Comprehensive nutritional overview to ensure optimal vitamin & mineral intake during pregnancy.',
+        tips: 'Wash raw produce thoroughly and consume clean water daily.',
+        portion: 'Daily recommended serving',
+      ));
     }
 
     return entries;
@@ -1676,58 +1750,240 @@ class _VideoTabState extends State<_VideoTab> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = _buildEntries();
+    if (_entries.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.video_library_rounded, color: AppColors.primary, size: 32),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No Videos Available Yet',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Educational video guides added by the specialist will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final active = _activeEntry ?? _entries.first;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        // ── In-UI Embedded Video Player ─────────────────────────────────────
+        // ── 1. In-UI Embedded Video Player ──────────────────────────────────
         ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: AppVideoPlayer(
-            videoUrl: _activeVideoUrl,
-            title: _activeTitle,
+            key: ValueKey(active.videoUrl),
+            videoUrl: active.videoUrl,
+            title: active.title,
+            thumbnailUrl: active.foodImageUrl.isNotEmpty ? active.foodImageUrl : null,
+            autoPlay: true,
             aspectRatio: 16 / 9,
           ),
         ),
         const SizedBox(height: 14),
 
-        // Hint banner
-        Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(12),
+        // ── 2. Active Video Properties & Details Card ───────────────────────
+        _buildActivePropertiesCard(active),
+        const SizedBox(height: 20),
+
+        // ── 3. Available Videos List (No Double Listing) ─────────────────────
+        if (_entries.length > 1) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.playlist_play_rounded, color: AppColors.primary, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  'Available Video Guides (${_entries.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ],
+            ),
           ),
-          child: const Row(
+          const SizedBox(height: 10),
+
+          ..._entries.map(
+            (entry) => _VideoItemCard(
+              entry: entry,
+              isSelected: active.videoUrl == entry.videoUrl,
+              onSelect: () {
+                setState(() {
+                  _activeEntry = entry;
+                });
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Active Video Properties Display
+  Widget _buildActivePropertiesCard(_VideoEntry entry) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Emoji, Title, Category Badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.play_circle_outline_rounded, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
+              Text(entry.emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Select any food or routine below to stream directly in the player above.',
-                  style: TextStyle(color: AppColors.primary, fontSize: 13, height: 1.4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        entry.typeLabel,
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
 
-        // Cards list
-        ...entries.map(
-          (entry) => _VideoItemCard(
-            entry: entry,
-            isSelected: _activeVideoUrl == entry.videoUrl,
-            onSelect: () {
-              setState(() {
-                _activeVideoUrl = entry.videoUrl;
-                _activeTitle = entry.title;
-              });
-            },
-          ),
-        ),
-      ],
+          // Benefit Badge / Property
+          if (entry.benefit.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.green.shade100),
+              ),
+              child: Row(
+                children: [
+                  const Text('🥗', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.benefit,
+                      style: TextStyle(
+                        color: Colors.green.shade900,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Guidance Description
+          if (entry.description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              entry.description,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ],
+
+          // Portion / Serving
+          if (entry.portion.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.pie_chart_outline_rounded, size: 14, color: Colors.grey),
+                const SizedBox(width: 6),
+                Text(
+                  'Recommended Serving: ${entry.portion}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ],
+
+          // Safety / Culinary Tips
+          if (entry.tips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('💡', style: TextStyle(fontSize: 15)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.tips,
+                      style: TextStyle(color: Colors.amber.shade900, fontSize: 12, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1744,6 +2000,10 @@ class _VideoEntry {
   final String videoUrl;
   final String foodName;
   final String foodImageUrl;
+  final String benefit;
+  final String description;
+  final String tips;
+  final String portion;
 
   _VideoEntry({
     required this.emoji,
@@ -1753,6 +2013,10 @@ class _VideoEntry {
     required this.videoUrl,
     required this.foodName,
     required this.foodImageUrl,
+    required this.benefit,
+    required this.description,
+    required this.tips,
+    required this.portion,
   });
 }
 
@@ -1772,140 +2036,140 @@ class _VideoItemCard extends StatelessWidget {
     final hasImage = entry.foodImageUrl.isNotEmpty && !entry.foodImageUrl.endsWith('.mp4');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          width: 2,
+          color: isSelected ? AppColors.primary : Colors.grey.shade200,
+          width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isSelected ? 0.08 : 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           onTap: onSelect,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(18),
-                  topRight: Radius.circular(18),
-                ),
-                child: SizedBox(
-                  height: 140,
-                  width: double.infinity,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (hasImage)
-                        Image.network(
-                          entry.foodImageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _videoPlaceholder(),
-                        )
-                      else
-                        _videoPlaceholder(),
-                      Container(
-                        color: Colors.black.withValues(alpha: 0.28),
-                      ),
-                      Center(
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.9),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            color: isSelected ? Colors.white : AppColors.primary,
-                            size: 30,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.65),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.videocam_rounded, color: Colors.white, size: 12),
-                              const SizedBox(width: 4),
-                              Text(
-                                isSelected ? 'Now Playing' : 'Tap to Play',
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                // Thumbnail with play overlay
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 90,
+                    height: 65,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text(entry.emoji, style: const TextStyle(fontSize: 16)),
-                        const SizedBox(width: 6),
-                        Text(
-                          entry.typeLabel,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                            letterSpacing: 0.5,
+                        if (hasImage)
+                          Image.network(
+                            entry.foodImageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _videoPlaceholder(),
+                          )
+                        else
+                          _videoPlaceholder(),
+                        Container(color: Colors.black.withValues(alpha: 0.3)),
+                        Center(
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: isSelected ? Colors.white : AppColors.primary,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      entry.title,
-                      style: const TextStyle(
-                        fontSize: 15,
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(entry.emoji, style: const TextStyle(fontSize: 13)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              entry.typeLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        entry.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          color: isSelected ? AppColors.primary : Colors.black87,
+                        ),
+                      ),
+                      if (entry.subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          entry.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Active badge
+                if (isSelected)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'PLAYING',
+                      style: TextStyle(
+                        fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        height: 1.3,
+                        color: AppColors.primary,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    if (entry.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        entry.subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                          height: 1.4,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1916,8 +2180,9 @@ class _VideoItemCard extends StatelessWidget {
     return Container(
       color: AppColors.primary.withValues(alpha: 0.1),
       child: const Center(
-        child: Icon(Icons.play_circle_fill_rounded, size: 48, color: AppColors.primary),
+        child: Icon(Icons.play_circle_fill_rounded, size: 28, color: AppColors.primary),
       ),
     );
   }
 }
+

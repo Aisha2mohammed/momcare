@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, Music, Play, Search, Loader2, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, Music, Search, Loader2, Globe } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Input, TextArea, Select } from '../components/ui/Input';
+import { Input, TextArea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { MediaInput } from '../components/ui/MediaInput';
 import { useToast } from '../context/ToastContext';
@@ -270,38 +270,40 @@ export default function MusicLibraryManager() {
                         const title = track.titleEn || track.titleAm || track.titleOm || '—';
                         const isAct = Boolean(track.isActive);
                         return (
-                            <Card key={track.id} className="flex items-center gap-5">
-                                {/* Thumb */}
-                                <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-[#fdf2f8] flex items-center justify-center">
-                                    {track.imageUrl ? (
-                                        <img src={track.imageUrl} alt={title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                    ) : (
-                                        <Music className="w-7 h-7 text-[#61183e]" />
-                                    )}
-                                </div>
-                                {/* Info */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                        <h4 className="font-semibold text-gray-900 truncate">{title}</h4>
-                                        <Badge variant={categoryColors[track.category] || 'pink'}>{track.category}</Badge>
-                                        <Badge variant={isAct ? 'green' : 'gray'}>{isAct ? 'Active' : 'Inactive'}</Badge>
-                                        {track.isFeatured && <Badge variant="yellow">⭐ Featured</Badge>}
-                                    </div>
-                                    {track.titleAm && <p className="text-xs text-gray-400">አማርኛ: {track.titleAm}</p>}
-                                    <div className="flex gap-3 mt-1 flex-wrap">
-                                        {track.durationSeconds && track.durationSeconds > 0 && (
-                                            <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                ⏱ {Math.floor(track.durationSeconds / 60)}:{String(track.durationSeconds % 60).padStart(2, '0')}
-                                            </span>
+                            <Card key={track.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
+                                    {/* Thumb */}
+                                    <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-[#fdf2f8] flex items-center justify-center">
+                                        {track.imageUrl ? (
+                                            <img src={track.imageUrl} alt={title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                        ) : (
+                                            <Music className="w-7 h-7 text-[#61183e]" />
                                         )}
-                                        {track.audioEnUrl && <span className="text-xs text-green-600">🎵 EN</span>}
-                                        {track.audioAmUrl && <span className="text-xs text-purple-600">🎵 AM</span>}
-                                        {track.audioOmUrl && <span className="text-xs text-teal-600">🎵 OM</span>}
-                                        {track.audioSoUrl && <span className="text-xs text-pink-600">🎵 SO</span>}
+                                    </div>
+                                    {/* Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <h4 className="font-semibold text-gray-900 truncate">{title}</h4>
+                                            <Badge variant={categoryColors[track.category] || 'pink'}>{track.category}</Badge>
+                                            <Badge variant={isAct ? 'green' : 'gray'}>{isAct ? 'Active' : 'Inactive'}</Badge>
+                                            {track.isFeatured && <Badge variant="yellow">⭐ Featured</Badge>}
+                                        </div>
+                                        {track.titleAm && <p className="text-xs text-gray-400">አማርኛ: {track.titleAm}</p>}
+                                        <div className="flex gap-2 sm:gap-3 mt-1 flex-wrap">
+                                            {track.durationSeconds && track.durationSeconds > 0 && (
+                                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                                    ⏱ {Math.floor(track.durationSeconds / 60)}:{String(track.durationSeconds % 60).padStart(2, '0')}
+                                                </span>
+                                            )}
+                                            {track.audioEnUrl && <span className="text-xs text-green-600">🎵 EN</span>}
+                                            {track.audioAmUrl && <span className="text-xs text-purple-600">🎵 AM</span>}
+                                            {track.audioOmUrl && <span className="text-xs text-teal-600">🎵 OM</span>}
+                                            {track.audioSoUrl && <span className="text-xs text-pink-600">🎵 SO</span>}
+                                        </div>
                                     </div>
                                 </div>
                                 {/* Actions */}
-                                <div className="flex gap-2 shrink-0">
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                                     <button
                                         onClick={() => toggleActive(track)}
                                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isAct ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}

@@ -83,25 +83,25 @@ export default function UsersManager() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold text-[#61183e]">Users Management</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#61183e]">Users Management</h2>
+                    <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
                         {tab === 'Mothers' ? `${filteredMothers.length} mothers` : `${filteredDoctors.length} approved doctors`}
                     </p>
                 </div>
-                <Button variant="secondary" size="sm" icon={<Download className="w-4 h-4" />} onClick={exportCSV}>
+                <Button variant="secondary" size="sm" icon={<Download className="w-4 h-4" />} onClick={exportCSV} className="w-fit">
                     Export CSV
                 </Button>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto">
                 {(['Mothers', 'Doctors'] as UserTab[]).map(t => (
                     <button
                         key={t}
                         onClick={() => { setTab(t); setSearch(''); setStatusFilter('All'); }}
-                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-white text-[#61183e] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-all shrink-0 ${tab === t ? 'bg-white text-[#61183e] shadow-sm' : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         {t}
@@ -139,7 +139,7 @@ export default function UsersManager() {
                 {/* Mothers Table */}
                 {tab === 'Mothers' && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm min-w-[650px]">
                             <thead>
                                 <tr className="border-b border-gray-100">
                                     {['Name', 'Phone', 'Language', 'Week', 'Due Date', 'Status', 'Actions'].map(h => (
@@ -191,7 +191,7 @@ export default function UsersManager() {
                 {/* Doctors Table */}
                 {tab === 'Doctors' && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm min-w-[650px]">
                             <thead>
                                 <tr className="border-b border-gray-100">
                                     {['Name', 'Email', 'Specialization', 'Provider', 'Experience', 'Status', 'Actions'].map(h => (

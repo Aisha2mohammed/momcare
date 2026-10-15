@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:pregnancy_appp/widget/app_video_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -10,15 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 String _resolveUrl(String? url) {
   if (url == null || url.trim().isEmpty) return '';
-  final trimmed = url.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
-  }
-  const host = 'http://192.168.0.199:5000';
-  if (trimmed.startsWith('/')) {
-    return '$host$trimmed';
-  }
-  return '$host/$trimmed';
+  return resolveVideoUrl(url);
 }
 
 String _extractLocalized(
@@ -364,27 +356,76 @@ class _TrimesterVideoListState extends State<_TrimesterVideoList>
     }
   }
 
-  Future<void> _playVideo(String url) async {
+  void _playVideo(String url, [String title = 'Video']) {
     if (url.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Video link is not available yet.')),
       );
       return;
     }
-    try {
-      final uri = Uri.parse(_resolveUrl(url));
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        await launchUrl(uri, mode: LaunchMode.platformDefault);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open video: $e')),
-        );
-      }
-    }
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: AppVideoPlayer(
+                key: ValueKey(url),
+                videoUrl: url,
+                title: title,
+                autoPlay: true,
+                aspectRatio: 16 / 9,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -422,7 +463,7 @@ class _TrimesterVideoListState extends State<_TrimesterVideoList>
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => _playVideo(item.videoUrl),
+          onTap: () => _playVideo(item.videoUrl, item.title),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

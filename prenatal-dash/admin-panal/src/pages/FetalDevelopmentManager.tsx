@@ -614,48 +614,49 @@ export default function FetalDevelopmentManager() {
                         const imgSrc = resolveMediaUrl(rawImgPath);
                         const trimester = entry.trimester;
                         return (
-                            <Card key={entry.id} className="flex items-start gap-5">
-                                {/* Week badge */}
-                                <div className="shrink-0 w-20 h-20 rounded-2xl bg-gradient-to-br from-[#61183e] to-[#9B2C6B] flex flex-col items-center justify-center">
-                                    <span className="text-2xl font-black text-white">{weekNum}</span>
-                                    <span className="text-xs text-white/70 font-medium">weeks</span>
-                                </div>
-                                {/* Cover image thumbnail */}
-                                <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center">
-                                    {imgSrc ? (
-                                        <img
-                                            src={imgSrc}
-                                            alt={entry.image_alt_en ?? entry.imageAltEn ?? title}
-                                            className="w-full h-full object-cover"
-                                            onError={(ev) => {
-                                                // Broken/missing file at that path — fall back to placeholder icon
-                                                (ev.currentTarget as HTMLImageElement).style.display = 'none';
-                                                const fallback = (ev.currentTarget.nextElementSibling as HTMLElement | null);
-                                                if (fallback) fallback.style.display = 'flex';
-                                            }}
-                                        />
-                                    ) : null}
-                                    <div
-                                        className="w-full h-full items-center justify-center text-gray-300"
-                                        style={{ display: imgSrc ? 'none' : 'flex' }}
-                                    >
-                                        <ImageOff className="w-5 h-5" />
+                            <Card key={entry.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                                    {/* Week badge */}
+                                    <div className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#61183e] to-[#9B2C6B] flex flex-col items-center justify-center shadow-xs">
+                                        <span className="text-xl sm:text-2xl font-black text-white leading-none">{weekNum}</span>
+                                        <span className="text-[10px] sm:text-xs text-white/70 font-medium">wks</span>
                                     </div>
-                                </div>
-                                {/* Info */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <h4 className="font-semibold text-gray-900 text-sm truncate">{title}</h4>
-                                        {trimester && <Badge variant="pink">T{trimester}</Badge>}
+                                    {/* Cover image thumbnail */}
+                                    <div className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center">
+                                        {imgSrc ? (
+                                            <img
+                                                src={imgSrc}
+                                                alt={entry.image_alt_en ?? entry.imageAltEn ?? title}
+                                                className="w-full h-full object-cover"
+                                                onError={(ev) => {
+                                                    (ev.currentTarget as HTMLImageElement).style.display = 'none';
+                                                    const fallback = (ev.currentTarget.nextElementSibling as HTMLElement | null);
+                                                    if (fallback) fallback.style.display = 'flex';
+                                                }}
+                                            />
+                                        ) : null}
+                                        <div
+                                            className="w-full h-full items-center justify-center text-gray-300"
+                                            style={{ display: imgSrc ? 'none' : 'flex' }}
+                                        >
+                                            <ImageOff className="w-5 h-5" />
+                                        </div>
                                     </div>
-                                    {milestone && <p className="text-xs text-gray-600 line-clamp-2">{milestone}</p>}
+                                    {/* Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <h4 className="font-semibold text-gray-900 text-sm truncate">{title}</h4>
+                                            {trimester && <Badge variant="pink">T{trimester}</Badge>}
+                                        </div>
+                                        {milestone && <p className="text-xs text-gray-600 line-clamp-2">{milestone}</p>}
+                                    </div>
                                 </div>
                                 {/* Actions */}
-                                <div className="flex gap-2 shrink-0">
-                                    <button onClick={() => openEdit(entry)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600" title="Edit">
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                    <button onClick={() => openEdit(entry)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
                                         <Edit2 className="w-4 h-4" />
                                     </button>
-                                    <button onClick={() => handleDelete(entry.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Delete">
+                                    <button onClick={() => handleDelete(entry.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Delete">
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>

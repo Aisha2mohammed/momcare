@@ -197,7 +197,7 @@ export default function Dashboard() {
                         <a href="/users" className="text-xs text-[#61183e] font-medium hover:underline">View All →</a>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm min-w-[480px]">
                             <thead>
                                 <tr className="border-b border-gray-100">
                                     <th className="text-left pb-2.5 text-xs text-gray-500 font-medium">Name</th>

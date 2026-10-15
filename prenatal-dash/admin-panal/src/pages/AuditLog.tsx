@@ -41,12 +41,12 @@ export default function AuditLog() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold text-[#61183e]">Audit Log</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">Complete history of all admin actions</p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#61183e]">Audit Log</h2>
+                    <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Complete history of all admin actions</p>
                 </div>
-                <Button variant="secondary" size="sm" icon={<Download className="w-4 h-4" />} onClick={exportCSV}>
+                <Button variant="secondary" size="sm" icon={<Download className="w-4 h-4" />} onClick={exportCSV} className="w-fit">
                     Export CSV
                 </Button>
             </div>
@@ -79,7 +79,7 @@ export default function AuditLog() {
 
                 {/* Table */}
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm min-w-[700px]">
                         <thead>
                             <tr className="border-b border-gray-100">
                                 {['Timestamp', 'Admin User', 'Action', 'Target Entity', 'Before → After', 'Details'].map(h => (

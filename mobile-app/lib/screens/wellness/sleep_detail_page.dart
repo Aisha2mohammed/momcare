@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/widget/app_video_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,8 +151,8 @@ class _SleepDetailPageState extends State<SleepDetailPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
-  static const String _defaultSleepVideo =
-      'http://192.168.1.4:5000/uploads/file-1789254638769-685033131.mp4';
+  static String get _defaultSleepVideo =>
+      '${ApiEndpoints.serverHost}/uploads/file-1789254638769-685033131.mp4';
 
   @override
   void initState() {
@@ -413,9 +414,15 @@ class _SleepDetailPageState extends State<SleepDetailPage>
                       title: title,
                       category: category,
                       emoji: emoji,
+                      isAvoid: _isItemAvoid,
+                      reason: _getReason(userLang),
+                      postureLabel: _getPostureLabel(userLang),
+                      healthTips: _getHealthTips(userLang),
                       techniques: techniques,
                       userLang: userLang,
+                      rawAdminVideoUrl: _safeExtractMedia(widget.tip['videoUrl'] ?? widget.tip['video_url'] ?? widget.tip['video']),
                       defaultVideoUrl: videoUrl,
+                      thumbnailUrl: _getImageUrl(),
                     ),
                   ],
                 ),
@@ -1314,6 +1321,7 @@ class _SleepDetailsSheetState extends State<_SleepDetailsSheet> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: AppVideoPlayer(
+                    key: ValueKey(_videoUrl),
                     videoUrl: _videoUrl,
                     title: _name,
                     autoPlay: true,
@@ -1492,17 +1500,29 @@ class _SleepVideoTab extends StatefulWidget {
   final String title;
   final String category;
   final String emoji;
+  final bool isAvoid;
+  final String reason;
+  final String postureLabel;
+  final String healthTips;
   final List<Map<String, dynamic>> techniques;
   final String userLang;
+  final String rawAdminVideoUrl;
   final String defaultVideoUrl;
+  final String? thumbnailUrl;
 
   const _SleepVideoTab({
     required this.title,
     required this.category,
     required this.emoji,
+    this.isAvoid = false,
+    this.reason = '',
+    this.postureLabel = '',
+    this.healthTips = '',
     required this.techniques,
     required this.userLang,
+    this.rawAdminVideoUrl = '',
     required this.defaultVideoUrl,
+    this.thumbnailUrl,
   });
 
   @override
@@ -1510,280 +1530,597 @@ class _SleepVideoTab extends StatefulWidget {
 }
 
 class _SleepVideoTabState extends State<_SleepVideoTab> {
-  late String _activeVideoUrl;
-  late String _activeTitle;
+  late List<_SleepVideoEntry> _entries;
+  _SleepVideoEntry? _activeEntry;
 
   @override
   void initState() {
     super.initState();
-    _activeVideoUrl = widget.defaultVideoUrl;
-    _activeTitle = widget.title;
+    _entries = _buildEntries();
+    if (_entries.isNotEmpty) {
+      _activeEntry = _entries.first;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _SleepVideoTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.techniques != widget.techniques ||
+        oldWidget.userLang != widget.userLang ||
+        oldWidget.rawAdminVideoUrl != widget.rawAdminVideoUrl ||
+        oldWidget.defaultVideoUrl != widget.defaultVideoUrl) {
+      setState(() {
+        _entries = _buildEntries();
+        if (_entries.isNotEmpty &&
+            (_activeEntry == null || !_entries.any((e) => e.videoUrl == _activeEntry!.videoUrl))) {
+          _activeEntry = _entries.first;
+        }
+      });
+    }
+  }
+
+  List<_SleepVideoEntry> _buildEntries() {
+    final entries = <_SleepVideoEntry>[];
+    final Set<String> seenUrls = {};
+
+    // 1. Main Sleep Video (only if admin explicitly provided a dedicated video)
+    if (widget.rawAdminVideoUrl.trim().isNotEmpty) {
+      final mainUrl = resolveVideoUrl(widget.rawAdminVideoUrl);
+      if (!seenUrls.contains(mainUrl)) {
+        seenUrls.add(mainUrl);
+        entries.add(_SleepVideoEntry(
+          emoji: widget.emoji,
+          typeLabel: widget.category.isNotEmpty ? widget.category : (widget.isAvoid ? 'AVOID' : 'HEALTHY SLEEP POSTURE'),
+          title: '${widget.title} — Full Posture Guide',
+          subtitle: widget.reason.isNotEmpty ? widget.reason : 'Doctor-recommended pregnancy sleeping posture & pillow setup',
+          videoUrl: mainUrl,
+          techniqueName: widget.title,
+          imageUrl: widget.thumbnailUrl ?? '',
+          isAvoid: widget.isAvoid,
+          postureLabel: widget.postureLabel,
+          alignmentBenefit: widget.isAvoid ? 'Spinal strain / Vena Cava compression' : 'Optimal maternal cardiac output & uterine blood flow',
+          description: widget.reason,
+          beddingTips: widget.healthTips,
+          reason: widget.reason,
+        ));
+      }
+    }
+
+    // 2. Specific Sleep Technique Videos (ONLY add if admin explicitly provided a video for this technique)
+    for (final t in widget.techniques) {
+      final rawTVid = _safeExtractMedia(t['videoUrl'] ?? t['video_url'] ?? t['video']);
+      // Never double-list items that do not have their own admin video
+      if (rawTVid.trim().isEmpty) continue;
+
+      final tUrl = resolveVideoUrl(rawTVid);
+      if (seenUrls.contains(tUrl)) continue;
+      seenUrls.add(tUrl);
+
+      final tName = _extractLocalized(
+        t,
+        widget.userLang,
+        amKeys: ['nameAm', 'name_am'],
+        orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om'],
+        soKeys: ['nameSo', 'name_so'],
+        enKeys: ['nameEn', 'name_en'],
+        defaultKeys: ['name', 'title'],
+        fallback: 'Sleep Technique',
+      );
+
+      final desc = _extractLocalized(
+        t,
+        widget.userLang,
+        amKeys: ['descriptionAm', 'descAm'],
+        orKeys: ['descriptionOr', 'descOr'],
+        soKeys: ['descriptionSo', 'descSo'],
+        enKeys: ['descriptionEn', 'descEn'],
+        defaultKeys: ['description', 'desc', 'body', 'instructions'],
+        fallback: 'Sleeping alignment walkthrough and positioning tips',
+      );
+
+      final posLabel = _extractLocalized(
+        t,
+        widget.userLang,
+        amKeys: ['labelAm', 'label_am', 'positionAm'],
+        orKeys: ['labelOr', 'label_or', 'positionOr'],
+        soKeys: ['labelSo', 'label_so', 'positionSo'],
+        enKeys: ['labelEn', 'label_en', 'positionEn'],
+        defaultKeys: ['label', 'position', 'alignment', 'posture'],
+        fallback: widget.postureLabel,
+      );
+
+      final tip = _extractLocalized(
+        t,
+        widget.userLang,
+        amKeys: ['tipAm', 'tip_am', 'sleepingTipsAm'],
+        orKeys: ['tipOr', 'tip_or', 'sleepingTipsOr'],
+        soKeys: ['tipSo', 'tip_so', 'sleepingTipsSo'],
+        enKeys: ['tipEn', 'tip_en', 'sleepingTipsEn'],
+        defaultKeys: ['tip', 'tips', 'sleeping_tips', 'helpful_tips', 'bedding_tips'],
+        fallback: widget.healthTips,
+      );
+
+      final rawThumb = _safeExtractMedia(t['imageUrl'] ?? t['image_url'] ?? t['image'] ?? t['illustration_url']);
+      final thumbUrl = resolveVideoUrl(rawThumb);
+
+      entries.add(_SleepVideoEntry(
+        emoji: widget.emoji,
+        typeLabel: widget.category.isNotEmpty ? widget.category : 'SLEEP POSTURE',
+        title: '$tName — ${widget.title}',
+        subtitle: desc,
+        videoUrl: tUrl,
+        techniqueName: tName,
+        imageUrl: thumbUrl,
+        isAvoid: widget.isAvoid,
+        postureLabel: posLabel,
+        alignmentBenefit: desc,
+        description: desc,
+        beddingTips: tip,
+        reason: widget.reason,
+      ));
+    }
+
+    // 3. Fallback: If no admin-added videos found across techniques or main, provide defaultVideoUrl as single entry
+    if (entries.isEmpty && widget.defaultVideoUrl.trim().isNotEmpty) {
+      final fallbackUrl = resolveVideoUrl(widget.defaultVideoUrl);
+      entries.add(_SleepVideoEntry(
+        emoji: widget.emoji,
+        typeLabel: widget.category.isNotEmpty ? widget.category : (widget.isAvoid ? 'AVOID' : 'HEALTHY SLEEP POSTURE'),
+        title: '${widget.title} — Guided Position Video',
+        subtitle: 'Doctor-recommended pregnancy sleeping posture & pillow setup',
+        videoUrl: fallbackUrl,
+        techniqueName: widget.title,
+        imageUrl: widget.thumbnailUrl ?? '',
+        isAvoid: widget.isAvoid,
+        postureLabel: widget.postureLabel.isNotEmpty ? widget.postureLabel : 'Recommended: Left-Side Lateral (SOS)',
+        alignmentBenefit: 'Relieves inferior vena cava pressure and optimizes placental blood flow.',
+        description: widget.reason.isNotEmpty ? widget.reason : 'Doctor-recommended sleeping posture for prenatal comfort and safety.',
+        beddingTips: widget.healthTips.isNotEmpty ? widget.healthTips : 'Place a contour pillow between your knees and tuck a wedge pillow under your abdomen.',
+        reason: widget.reason,
+      ));
+    }
+
+    return entries;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_entries.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF5C6BC0).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.video_library_rounded, color: Color(0xFF5C6BC0), size: 32),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No Videos Available Yet',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Educational video guides added by the specialist will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final active = _activeEntry ?? _entries.first;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        // ── In-UI Embedded Video Player ─────────────────────────────────────
+        // ── 1. In-UI Embedded Video Player with Controls ─────────────────────
         ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: AppVideoPlayer(
-            videoUrl: _activeVideoUrl,
-            title: _activeTitle,
+            key: ValueKey(active.videoUrl),
+            videoUrl: active.videoUrl,
+            title: active.title,
+            thumbnailUrl: active.imageUrl.isNotEmpty ? active.imageUrl : widget.thumbnailUrl,
+            autoPlay: true,
             aspectRatio: 16 / 9,
           ),
         ),
         const SizedBox(height: 14),
 
-        // Hint banner
-        Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF5C6BC0).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
+        // ── 2. Active Video Properties & Details Card ───────────────────────
+        _buildActivePropertiesCard(active),
+        const SizedBox(height: 20),
+
+        // ── 3. Available Videos List (No Double Listing) ─────────────────────
+        if (_entries.length > 1) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.playlist_play_rounded, color: Color(0xFF5C6BC0), size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  'Available Sleep Guides (${_entries.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ],
+            ),
           ),
-          child: const Row(
+          const SizedBox(height: 10),
+
+          ..._entries.map(
+            (entry) => _SleepVideoItemCard(
+              entry: entry,
+              isSelected: active.videoUrl == entry.videoUrl,
+              onSelect: () {
+                setState(() {
+                  _activeEntry = entry;
+                });
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Active Video Properties Display
+  Widget _buildActivePropertiesCard(_SleepVideoEntry entry) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Emoji, Title, Category Badge, Avoid/Do Badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.play_circle_outline_rounded, color: Color(0xFF5C6BC0), size: 20),
-              SizedBox(width: 8),
+              Text(entry.emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Select any sleep posture below to stream directly in the video player above.',
-                  style: TextStyle(color: Color(0xFF5C6BC0), fontSize: 13, height: 1.4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: entry.isAvoid
+                                ? Colors.red.withValues(alpha: 0.1)
+                                : const Color(0xFF5C6BC0).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            entry.typeLabel.toUpperCase(),
+                            style: TextStyle(
+                              color: entry.isAvoid ? Colors.red : const Color(0xFF5C6BC0),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: entry.isAvoid
+                                ? Colors.red.shade50
+                                : Colors.indigo.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            entry.isAvoid ? '🚫 Avoid' : '🛌 Recommended',
+                            style: TextStyle(
+                              color: entry.isAvoid ? Colors.red.shade800 : Colors.indigo.shade800,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
 
-        // Main sleep video card
-        _VideoItemCard(
-          title: '${widget.title} — Complete Position Guide',
-          subtitle: 'Doctor-recommended pregnancy sleeping positions and pillow setups',
-          videoUrl: widget.defaultVideoUrl,
-          category: widget.category,
-          emoji: widget.emoji,
-          isSelected: _activeVideoUrl == widget.defaultVideoUrl,
-          onSelect: () {
-            setState(() {
-              _activeVideoUrl = widget.defaultVideoUrl;
-              _activeTitle = widget.title;
-            });
-          },
-        ),
+          // Posture / Alignment Badge
+          if (entry.postureLabel.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: entry.isAvoid ? Colors.red.shade50 : const Color(0xFF5C6BC0).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: entry.isAvoid ? Colors.red.shade100 : const Color(0xFF5C6BC0).withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(entry.isAvoid ? '⚠️' : '🛌', style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.postureLabel,
+                      style: TextStyle(
+                        color: entry.isAvoid ? Colors.red.shade900 : const Color(0xFF5C6BC0),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
-        // Technique sub-videos
-        ...widget.techniques.map((t) {
-          final tName = _extractLocalized(
-            t,
-            widget.userLang,
-            amKeys: ['nameAm', 'name_am'],
-            orKeys: ['nameOr', 'name_or', 'nameOm', 'name_om'],
-            soKeys: ['nameSo', 'name_so'],
-            enKeys: ['nameEn', 'name_en'],
-            defaultKeys: ['name', 'title'],
-            fallback: 'Sleep Guide',
-          );
-          final desc = _extractLocalized(
-            t,
-            widget.userLang,
-            amKeys: ['descriptionAm', 'descAm'],
-            orKeys: ['descriptionOr', 'descOr'],
-            soKeys: ['descriptionSo', 'descSo'],
-            enKeys: ['descriptionEn', 'descEn'],
-            defaultKeys: ['description', 'desc', 'label'],
-            fallback: 'Posture and alignment demonstration',
-          );
-          final rawV = _safeExtractMedia(t['videoUrl'] ?? t['video_url'] ?? t['video']);
-          final vUrl = resolveVideoUrl(rawV.isNotEmpty ? rawV : widget.defaultVideoUrl);
-          final rawThumb = _safeExtractMedia(t['imageUrl'] ?? t['image_url'] ?? t['image']);
+          // Posture Guidance / Anatomical Explanation
+          if (entry.description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              entry.isAvoid ? 'Why Avoid This Sleep Position:' : 'Posture Guidance & Benefits:',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              entry.description,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ],
 
-          return _VideoItemCard(
-            title: tName,
-            subtitle: desc,
-            videoUrl: vUrl,
-            category: widget.category,
-            emoji: '🌙',
-            imageUrl: resolveVideoUrl(rawThumb),
-            isSelected: _activeVideoUrl == vUrl,
-            onSelect: () {
-              setState(() {
-                _activeVideoUrl = vUrl;
-                _activeTitle = tName;
-              });
-            },
-          );
-        }),
-      ],
+          // Pillow & Bedding Setup Tips
+          if (entry.beddingTips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('💡', style: TextStyle(fontSize: 15)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.beddingTips,
+                      style: TextStyle(color: Colors.amber.shade900, fontSize: 12, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-class _VideoItemCard extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Sleep Video Data Model & Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SleepVideoEntry {
+  final String emoji;
+  final String typeLabel;
   final String title;
   final String subtitle;
   final String videoUrl;
-  final String category;
-  final String emoji;
-  final String? imageUrl;
-  final bool isSelected;
-  final VoidCallback onSelect;
+  final String techniqueName;
+  final String imageUrl;
+  final bool isAvoid;
+  final String postureLabel;
+  final String alignmentBenefit;
+  final String description;
+  final String beddingTips;
+  final String reason;
 
-  const _VideoItemCard({
+  _SleepVideoEntry({
+    required this.emoji,
+    required this.typeLabel,
     required this.title,
     required this.subtitle,
     required this.videoUrl,
-    required this.category,
-    required this.emoji,
-    this.imageUrl,
+    required this.techniqueName,
+    required this.imageUrl,
+    required this.isAvoid,
+    required this.postureLabel,
+    required this.alignmentBenefit,
+    required this.description,
+    required this.beddingTips,
+    required this.reason,
+  });
+}
+
+class _SleepVideoItemCard extends StatelessWidget {
+  final _SleepVideoEntry entry;
+  final bool isSelected;
+  final VoidCallback onSelect;
+
+  const _SleepVideoItemCard({
+    required this.entry,
     this.isSelected = false,
     required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imageUrl != null && imageUrl!.isNotEmpty && !imageUrl!.endsWith('.mp4');
+    final hasImage = entry.imageUrl.isNotEmpty && !entry.imageUrl.endsWith('.mp4');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? const Color(0xFF5C6BC0) : Colors.transparent,
-          width: 2,
+          color: isSelected ? const Color(0xFF5C6BC0) : Colors.grey.shade200,
+          width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isSelected ? 0.08 : 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           onTap: onSelect,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Thumbnail with play button overlay
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(18),
-                  topRight: Radius.circular(18),
-                ),
-                child: SizedBox(
-                  height: 140,
-                  width: double.infinity,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (hasImage)
-                        Image.network(
-                          imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _videoPlaceholder(),
-                        )
-                      else
-                        _videoPlaceholder(),
-                      Container(
-                        color: Colors.black.withValues(alpha: 0.28),
-                      ),
-                      Center(
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF5C6BC0) : Colors.white.withValues(alpha: 0.9),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            color: isSelected ? Colors.white : const Color(0xFF5C6BC0),
-                            size: 30,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.65),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.videocam_rounded, color: Colors.white, size: 12),
-                              const SizedBox(width: 4),
-                              Text(
-                                isSelected ? 'Now Playing' : 'Tap to Play',
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Title and category
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                // Thumbnail with play overlay
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 90,
+                    height: 65,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text(emoji, style: const TextStyle(fontSize: 16)),
-                        const SizedBox(width: 6),
-                        Text(
-                          category.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF5C6BC0),
-                            letterSpacing: 0.5,
+                        if (hasImage)
+                          Image.network(
+                            entry.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _videoPlaceholder(),
+                          )
+                        else
+                          _videoPlaceholder(),
+                        Container(color: Colors.black.withValues(alpha: 0.3)),
+                        Center(
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFF5C6BC0) : Colors.white.withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: isSelected ? Colors.white : const Color(0xFF5C6BC0),
+                              size: 20,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        height: 1.3,
-                      ),
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                          height: 1.4,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+
+                // Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(entry.emoji, style: const TextStyle(fontSize: 13)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              entry.typeLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: entry.isAvoid ? Colors.red : const Color(0xFF5C6BC0),
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        entry.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 13,
+                          color: isSelected ? const Color(0xFF5C6BC0) : Colors.black87,
+                        ),
+                      ),
+                      if (entry.postureLabel.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          entry.postureLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Status indicator
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF5C6BC0).withValues(alpha: 0.1) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isSelected ? 'PLAYING' : 'WATCH',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? const Color(0xFF5C6BC0) : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1794,8 +2131,13 @@ class _VideoItemCard extends StatelessWidget {
     return Container(
       color: const Color(0xFF5C6BC0).withValues(alpha: 0.15),
       child: const Center(
-        child: Icon(Icons.play_circle_fill_rounded, size: 48, color: Color(0xFF5C6BC0)),
+        child: Icon(
+          Icons.bedtime_rounded,
+          size: 28,
+          color: Color(0xFF5C6BC0),
+        ),
       ),
     );
   }
 }
+

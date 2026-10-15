@@ -50,26 +50,13 @@ export default function Login() {
                     <div className="flex items-center justify-center mb-4 mx-auto">
                         <img src="/pregnancy-logo.png" alt="Mom Care" className="w-80 h-80  p-2" />
                     </div>
-                    <p className="text-white/80 text-lg leading-relaxed mb-4">
-                        Maternal Health Management Platform for Ethiopia — empowering mothers, doctors, and health providers.
-                    </p>
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                        {[
-                            { label: 'Registered Mothers', val: '1,284' },
-                            { label: 'Licensed Doctors', val: '12' },
-                            { label: 'Health Providers', val: '4' },
-                        ].map(s => (
-                            <div key={s.label} className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                                <p className="text-2xl font-bold">{s.val}</p>
-                                <p className="text-xs text-white/70 mt-1">{s.label}</p>
-                            </div>
-                        ))}
-                    </div>
+                    
+                   
                 </div>
             </div>
 
             {/* Right panel — form */}
-            <div className="flex-1 flex items-center justify-center p-8">
+            <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
                 <div className="w-full max-w-md">
                     {/* Mobile logo */}
                     <div className="flex items-center gap-3 mb-10 lg:hidden">
@@ -202,9 +189,9 @@ export default function Login() {
                             </button>
 
                             {/* Demo hint */}
-                            <p className="text-center text-xs text-gray-400">
+                            {/* <p className="text-center text-xs text-gray-400">
                                 Demo: <span className="font-mono">admin@momcare.et</span> / <span className="font-mono">Admin123!</span>
-                            </p>
+                            </p> */}
                         </form>
                     )}
                 </div>

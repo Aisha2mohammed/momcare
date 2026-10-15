@@ -61,12 +61,12 @@ export default function HealthProviders() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold text-[#61183e]">Health Providers</h2>
-                    <p className="text-gray-500 text-sm mt-0.5">Manage registered health facilities</p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#61183e]">Health Providers</h2>
+                    <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Manage registered health facilities</p>
                 </div>
-                <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={startAdd}>
+                <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={startAdd} className="w-fit">
                     Add Provider
                 </Button>
             </div>
