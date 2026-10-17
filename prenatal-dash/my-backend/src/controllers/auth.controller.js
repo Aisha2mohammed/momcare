@@ -48,11 +48,15 @@ exports.register = async (req, res, next) => {
 
     await client.query('BEGIN');
 
+    // New mothers need admin approval before they are active; doctors keep
+    // users.status = 'active' and are gated by doctor_profiles.approval_status.
+    const signupStatus = role === 'doctor' ? 'active' : 'pending';
+
     const userResult = await client.query(
       `INSERT INTO users (role, name, phone, email, password_hash, language, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'active')
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, role, name, phone, email, language, status, created_at`,
-      [role, name || null, phone, req.body.email || null, passwordHash, language]
+      [role, name || null, phone, req.body.email || null, passwordHash, language, signupStatus]
     );
     const user = userResult.rows[0];
 
@@ -111,8 +115,13 @@ exports.login = async (req, res, next) => {
 
     const user = result.rows[0];
 
-    if (user.status !== 'active') {
-      return sendError(res, 403, 'Your account has been deactivated.');
+    // 'active' and 'pending' may sign in (a pending mother is let in so the app
+    // can render its "waiting for approval" screen); suspended/rejected cannot.
+    if (user.status === 'suspended') {
+      return sendError(res, 403, 'Your account has been suspended.');
+    }
+    if (user.status === 'rejected') {
+      return sendError(res, 403, 'Your account was not approved.');
     }
 
     // If password is set, verify it
@@ -246,6 +255,15 @@ exports.verifyOtp = async (req, res, next) => {
     let token;
     if (userResult.rows.length > 0) {
       const user = userResult.rows[0];
+      // Mirror /auth/login: suspended/rejected are blocked, while 'active' and
+      // 'pending' proceed. `status` is part of the returned user so both flows
+      // let the client show the pending-approval screen consistently.
+      if (user.status === 'suspended') {
+        return sendError(res, 403, 'Your account has been suspended.');
+      }
+      if (user.status === 'rejected') {
+        return sendError(res, 403, 'Your account was not approved.');
+      }
       token = signToken(user.id, user.role);
       // Same contract as /auth/login: include pregnancy progress so clients
       // can tell whether the mother has completed her core profile.
