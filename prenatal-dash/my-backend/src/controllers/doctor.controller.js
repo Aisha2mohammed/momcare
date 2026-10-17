@@ -186,6 +186,20 @@ exports.updateDoctorProfile = async (req, res, next) => {
   }
 };
 
+exports.updateProfilePhoto = async (req, res, next) => {
+  try {
+    if (!req.file) return sendError(res, 400, 'No photo uploaded. Send the file under field "photo".');
+    const { id } = req.params;
+    const url = `/uploads/${req.file.filename}`;
+    const result = await query(
+      'UPDATE doctor_profiles SET photo_url = $1 WHERE user_id = $2 RETURNING photo_url',
+      [url, id]
+    );
+    if (result.rows.length === 0) return sendError(res, 404, 'Doctor profile not found.');
+    return sendSuccess(res, 200, 'Profile photo updated', { photoUrl: url });
+  } catch (err) { next(err); }
+};
+
 // ── GET /doctors/:id/availability-slots ──────────────────────────────
 exports.getAvailabilitySlots = async (req, res, next) => {
   try {
