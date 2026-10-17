@@ -72,6 +72,46 @@ exports.reactivateUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+exports.getPendingUsers = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const countResult = await query("SELECT COUNT(*) FROM users u WHERE u.role = 'mother' AND u.status = 'pending'");
+    const total = parseInt(countResult.rows[0].count, 10);
+    const offset = (Number(page) - 1) * Number(limit);
+    const result = await query(
+      `SELECT u.id, u.role, u.name, u.phone, u.email, u.language, u.status, u.created_at FROM users u WHERE u.role = 'mother' AND u.status = 'pending' ORDER BY u.created_at DESC LIMIT $1 OFFSET $2`,
+      [Number(limit), offset]
+    );
+    return sendPaginated(res, result.rows, page, limit, total);
+  } catch (err) { next(err); }
+};
+
+exports.approveUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `UPDATE users SET status = 'active', approved_by = $1, approved_at = NOW() WHERE id = $2 AND role = 'mother' RETURNING id, name, phone, email, role, status, approved_at`,
+      [req.user.id, id]
+    );
+    if (result.rows.length === 0) return sendError(res, 404, 'Mother not found.');
+    await logAdminAction(req.user.id, 'APPROVE', 'users', id, { status: 'active' });
+    return sendSuccess(res, 200, 'Mother approved', result.rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.rejectUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `UPDATE users SET status = 'rejected', rejected_at = NOW() WHERE id = $1 AND role = 'mother' RETURNING id, name, phone, email, role, status, rejected_at`,
+      [id]
+    );
+    if (result.rows.length === 0) return sendError(res, 404, 'Mother not found.');
+    await logAdminAction(req.user.id, 'REJECT', 'users', id, { status: 'rejected' });
+    return sendSuccess(res, 200, 'Mother rejected', result.rows[0]);
+  } catch (err) { next(err); }
+};
+
 exports.getPendingDoctors = async (req, res, next) => {
   try {
     const result = await query(`SELECT u.id, u.name, u.phone, u.email, u.created_at, dp.specialization, dp.license_number, dp.credential_docs_json, dp.location, dp.bio, hp.name as health_provider_name FROM doctor_profiles dp JOIN users u ON dp.user_id = u.id LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id WHERE dp.approval_status = 'pending' ORDER BY u.created_at DESC`);
