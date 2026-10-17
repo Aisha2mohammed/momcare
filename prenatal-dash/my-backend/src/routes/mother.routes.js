@@ -18,6 +18,14 @@ const ownsSelf = requireSelfOrAdmin('id');
 
 router.get('/:id/profile', ownsSelf, motherController.getProfile);
 router.put('/:id/profile', ownsSelf, motherController.updateProfile);
+const upload = require('../middlewares/upload');
+
+router.post(
+  '/:id/profile-photo',
+  ownsSelf,
+  upload.single('photo'),
+  motherController.updateProfilePhoto
+);
 router.get('/:id/gestational-week', ownsSelf, motherController.getGestationalWeek);
 router.get('/:id/health-logs', ownsSelf, paginationRules, validate, motherController.getHealthLogs);
 router.post('/:id/health-logs', ownsSelf, healthLogRules, validate, motherController.createHealthLog);
