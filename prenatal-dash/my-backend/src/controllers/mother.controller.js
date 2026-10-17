@@ -94,6 +94,20 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
+exports.updateProfilePhoto = async (req, res, next) => {
+  try {
+    if (!req.file) return sendError(res, 400, 'No photo uploaded. Send the file under field "photo".');
+    const { id } = req.params;
+    const url = `/uploads/${req.file.filename}`;
+    const result = await query(
+      'UPDATE mother_profiles SET profile_photo = $1 WHERE user_id = $2 RETURNING profile_photo',
+      [url, id]
+    );
+    if (result.rows.length === 0) return sendError(res, 404, 'Profile not found.');
+    return sendSuccess(res, 200, 'Profile photo updated', { profilePhoto: url });
+  } catch (err) { next(err); }
+};
+
 // ── GET /api/v1/mothers/:id/gestational-week ──────────────────────────
 exports.getGestationalWeek = async (req, res, next) => {
   try {
