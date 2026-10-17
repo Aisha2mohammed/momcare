@@ -9,6 +9,11 @@ router.use(requireAdmin);
 // Dashboard & Users
 router.get('/dashboard', adminController.getDashboard);
 router.get('/users', paginationRules, validate, adminController.getUsers);
+// Mother approval workflow — '/users/pending' must precede the '/users/:id/...'
+// routes so Express does not treat 'pending' as an :id.
+router.get('/users/pending', paginationRules, validate, adminController.getPendingUsers);
+router.put('/users/:id/approve', adminController.approveUser);
+router.put('/users/:id/reject', adminController.rejectUser);
 router.put('/users/:id/suspend', adminController.suspendUser);
 router.put('/users/:id/reactivate', adminController.reactivateUser);
 
