@@ -16,6 +16,16 @@ router.post('/register', auth, doctorRegisterRules, validate, doctorController.r
 // :id must be the caller's own doctor id (admins may read any).
 router.get('/:id/profile', auth, requireRole('doctor'), requireSelfOrAdmin('id'), doctorController.getDoctorProfile);
 router.put('/:id/profile', auth, requireRole('doctor'), requireSelfOrAdmin('id'), doctorController.updateDoctorProfile);
+const upload = require('../middlewares/upload');
+
+router.post(
+  '/:id/profile-photo',
+  auth,
+  requireRole('doctor', 'admin'),
+  requireSelfOrAdmin('id'),
+  upload.single('photo'),
+  doctorController.updateProfilePhoto
+);
 // Any authenticated user (including mothers) may view a doctor's availability slots
 router.get('/:id/availability-slots', auth, doctorController.getAvailabilitySlots);
 router.post('/:id/availability-slots', auth, requireRole('doctor'),requireSelfOrAdmin('id'), doctorController.createAvailabilitySlot);
