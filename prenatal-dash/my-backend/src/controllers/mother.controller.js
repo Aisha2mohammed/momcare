@@ -158,16 +158,192 @@ exports.getHealthLogs = async (req, res, next) => {
 exports.createHealthLog = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { weightKg, mood, symptomsJson, symptomSeverity } = req.body;
+    const {
+      weightKg, mood, symptomsJson, symptomSeverity,
+      bloodPressureSystolic, bloodPressureDiastolic, kickCount, notes,
+    } = req.body;
+
+    // BP is only meaningful as a pair — reject a lone systolic or diastolic.
+    if ((bloodPressureSystolic != null) !== (bloodPressureDiastolic != null)) {
+      return sendError(res, 400, 'Both systolic and diastolic are required for BP.');
+    }
 
     const result = await query(
-      `INSERT INTO user_health_logs (mother_id, log_date, weight_kg, mood, symptoms_json, symptom_severity)
-       VALUES ($1, NOW(), $2, $3, $4, $5)
+      `INSERT INTO user_health_logs
+         (mother_id, log_date, weight_kg, mood, symptoms_json, symptom_severity,
+          blood_pressure_systolic, blood_pressure_diastolic, kick_count, notes)
+       VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [id, weightKg || null, mood || null, symptomsJson ? JSON.stringify(symptomsJson) : null, symptomSeverity || null]
+      [
+        id,
+        weightKg ?? null,
+        mood ?? null,
+        symptomsJson ? JSON.stringify(symptomsJson) : null,
+        symptomSeverity ?? null,
+        bloodPressureSystolic ?? null,
+        bloodPressureDiastolic ?? null,
+        kickCount ?? null,
+        notes ?? null,
+      ]
     );
 
     return sendSuccess(res, 201, 'Health log created', result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── PUT /api/v1/mothers/:id/health-logs/:logId ────────────────────────
+exports.updateHealthLog = async (req, res, next) => {
+  try {
+    const { id, logId } = req.params;
+
+    // BP must stay a complete pair if either side is being changed.
+    if ((req.body.bloodPressureSystolic != null) !== (req.body.bloodPressureDiastolic != null)) {
+      return sendError(res, 400, 'Both systolic and diastolic are required for BP.');
+    }
+
+    const fieldMap = {
+      weightKg: 'weight_kg',
+      mood: 'mood',
+      symptomsJson: 'symptoms_json',
+      symptomSeverity: 'symptom_severity',
+      bloodPressureSystolic: 'blood_pressure_systolic',
+      bloodPressureDiastolic: 'blood_pressure_diastolic',
+      kickCount: 'kick_count',
+      notes: 'notes',
+      logDate: 'log_date',
+    };
+
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    for (const [key, column] of Object.entries(fieldMap)) {
+      if (req.body[key] === undefined) continue;
+      let value = req.body[key];
+      if (key === 'symptomsJson') value = value === null ? null : JSON.stringify(value);
+      updates.push(`${column} = $${idx++}`);
+      values.push(value === undefined ? null : value);
+    }
+
+    if (updates.length === 0) {
+      return sendError(res, 400, 'No fields to update.');
+    }
+
+    values.push(logId, id);
+    const result = await query(
+      `UPDATE user_health_logs SET ${updates.join(', ')}
+       WHERE id = $${idx++} AND mother_id = $${idx}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return sendError(res, 404, 'Health log not found.');
+    }
+
+    return sendSuccess(res, 200, 'Health log updated', result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── DELETE /api/v1/mothers/:id/health-logs/:logId ─────────────────────
+exports.deleteHealthLog = async (req, res, next) => {
+  try {
+    const { id, logId } = req.params;
+
+    const result = await query(
+      'DELETE FROM user_health_logs WHERE id = $1 AND mother_id = $2 RETURNING id',
+      [logId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return sendError(res, 404, 'Health log not found.');
+    }
+
+    return sendSuccess(res, 200, 'Health log deleted', { deleted: true, id: logId });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── GET /api/v1/mothers/:id/health-logs/summary ───────────────────────
+exports.getHealthLogSummary = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const [weightTrendResult, moodResult, latestBpResult, countsResult, kicksResult] = await Promise.all([
+      // Last 30 days, one point per day (average if several logs share a date).
+      query(
+        `SELECT log_date::text AS date, ROUND(AVG(weight_kg)::numeric, 2) AS kg
+         FROM user_health_logs
+         WHERE mother_id = $1 AND weight_kg IS NOT NULL
+           AND log_date >= CURRENT_DATE - INTERVAL '30 days'
+         GROUP BY log_date
+         ORDER BY log_date ASC`,
+        [id]
+      ),
+      // All-time count per mood.
+      query(
+        `SELECT mood, COUNT(*)::int AS count
+         FROM user_health_logs
+         WHERE mother_id = $1 AND mood IS NOT NULL
+         GROUP BY mood`,
+        [id]
+      ),
+      // Most recent log that has a complete BP reading.
+      query(
+        `SELECT blood_pressure_systolic AS systolic,
+                blood_pressure_diastolic AS diastolic,
+                created_at AS "recordedAt"
+         FROM user_health_logs
+         WHERE mother_id = $1
+           AND blood_pressure_systolic IS NOT NULL
+           AND blood_pressure_diastolic IS NOT NULL
+         ORDER BY log_date DESC, created_at DESC
+         LIMIT 1`,
+        [id]
+      ),
+      query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE log_date >= CURRENT_DATE - INTERVAL '7 days')::int AS last7
+         FROM user_health_logs WHERE mother_id = $1`,
+        [id]
+      ),
+      // Average kick count across last-7-day logs that recorded any kicks.
+      query(
+        `SELECT ROUND(AVG(kick_count)::numeric, 1) AS avg
+         FROM user_health_logs
+         WHERE mother_id = $1 AND kick_count IS NOT NULL
+           AND log_date >= CURRENT_DATE - INTERVAL '7 days'`,
+        [id]
+      ),
+    ]);
+
+    // pg returns numeric/decimal as strings — coerce for consistent JSON.
+    const weightTrend = weightTrendResult.rows.map((r) => ({
+      date: r.date,
+      kg: r.kg === null ? null : parseFloat(r.kg),
+    }));
+
+    const moodDistribution = {};
+    for (const row of moodResult.rows) {
+      moodDistribution[row.mood] = row.count;
+    }
+
+    const latestBp = latestBpResult.rows.length > 0 ? latestBpResult.rows[0] : null;
+    const avgRaw = kicksResult.rows[0]?.avg;
+
+    return sendSuccess(res, 200, 'Health log summary retrieved', {
+      weightTrend,
+      moodDistribution,
+      latestBp,
+      totalLogs: countsResult.rows[0].total,
+      logsLast7Days: countsResult.rows[0].last7,
+      avgKicksPerDay: avgRaw === null || avgRaw === undefined ? null : parseFloat(avgRaw),
+    });
   } catch (err) {
     next(err);
   }
