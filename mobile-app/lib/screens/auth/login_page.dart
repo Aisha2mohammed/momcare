@@ -5,6 +5,7 @@ import 'package:pregnancy_appp/screens/auth/otp_verification_page.dart';
 import 'package:pregnancy_appp/screens/auth/forgot_password_page.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
 import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
+import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 
@@ -47,14 +48,23 @@ class _LoginPageState extends State<LoginPage> {
         password: password.isNotEmpty ? password : null,
       );
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => result.needsProfileSetup
-              ? const ProfileSetupPage()
-              : const MainScreen(),
-        ),
-      );
+      if (result.status == 'pending') {
+        // A pending mother may sign in, but must not reach the app yet.
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => result.needsProfileSetup
+                ? const ProfileSetupPage()
+                : const MainScreen(),
+          ),
+        );
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
