@@ -112,11 +112,24 @@ const emergencyContactRules = [
   body('phone').notEmpty().withMessage('Phone is required'),
 ];
 
+// The controller speaks camelCase, so the rules below validate the payload it
+// actually reads. The legacy snake_case rules are kept (nothing sends
+// snake_case, they are inert) to avoid changing unrelated behaviour.
 const healthLogRules = [
   body('log_date').optional().isISO8601(),
   body('weight_kg').optional().isFloat({ min: 20, max: 200 }),
-  body('mood').optional().isIn(['happy', 'normal', 'sad', 'anxious', 'tired', 'energetic']),
   body('symptom_severity').optional().isInt({ min: 0, max: 10 }),
+  body('weightKg').optional().isFloat({ min: 20, max: 200 }),
+  body('mood').optional().isIn(['happy', 'normal', 'sad', 'anxious', 'tired', 'energetic']),
+  body('symptomSeverity').optional().isInt({ min: 0, max: 10 }),
+  body('symptomsJson').optional().custom((v) => {
+    if (v === null || typeof v === 'object') return true; // object or array
+    throw new Error('symptomsJson must be an object or array');
+  }),
+  body('bloodPressureSystolic').optional().isInt({ min: 60, max: 200 }),
+  body('bloodPressureDiastolic').optional().isInt({ min: 40, max: 140 }),
+  body('kickCount').optional().isInt({ min: 0, max: 100 }),
+  body('notes').optional().isString().isLength({ max: 1000 }),
 ];
 
 const communityPostRules = [
