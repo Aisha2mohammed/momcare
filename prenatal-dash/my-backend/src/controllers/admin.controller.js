@@ -238,3 +238,28 @@ exports.getStats = async (req, res, next) => {
     return sendSuccess(res, 200, 'Stats retrieved', { users: users.rows[0], content: content.rows[0], appointments: appointments.rows[0] });
   } catch (err) { next(err); }
 };
+
+// ── GET /admin/mothers/:id/health-logs ────────────────────────────────
+// Admin mirror of the mother-facing list: same SELECT + pagination, but no
+// ownership guard (admins are trusted to read any mother's logs).
+exports.getMotherHealthLogs = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const countResult = await query(
+      'SELECT COUNT(*) FROM user_health_logs WHERE mother_id = $1',
+      [id]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const logsResult = await query(
+      `SELECT * FROM user_health_logs WHERE mother_id = $1
+       ORDER BY log_date DESC LIMIT $2 OFFSET $3`,
+      [id, Number(limit), offset]
+    );
+
+    return sendPaginated(res, logsResult.rows, page, limit, total);
+  } catch (err) { next(err); }
+};
