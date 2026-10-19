@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
 import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
+import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 
@@ -57,7 +58,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       );
       if (!mounted) return;
 
-      if (result.isNewUser || result.needsProfileSetup) {
+      if (result.status == 'pending') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+          (route) => false,
+        );
+      } else if (result.isNewUser || result.needsProfileSetup) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
