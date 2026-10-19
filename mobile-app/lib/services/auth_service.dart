@@ -7,6 +7,10 @@ class AuthResult {
 
   AuthResult({required this.token, required this.user, this.isNewUser = false});
 
+  /// Account status as returned by the backend:
+  /// 'active' | 'pending' | 'rejected' | 'suspended'.
+  String? get status => user['status'] as String?;
+
   /// Whether this user must complete the core profile (LMP date) before
   /// entering the main app.
   ///
