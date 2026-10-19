@@ -29,6 +29,11 @@ router.post(
 router.get('/:id/gestational-week', ownsSelf, motherController.getGestationalWeek);
 router.get('/:id/health-logs', ownsSelf, paginationRules, validate, motherController.getHealthLogs);
 router.post('/:id/health-logs', ownsSelf, healthLogRules, validate, motherController.createHealthLog);
+// '/summary' must be declared before the '/:logId' routes, otherwise Express
+// would match 'summary' as a logId.
+router.get('/:id/health-logs/summary', ownsSelf, motherController.getHealthLogSummary);
+router.put('/:id/health-logs/:logId', ownsSelf, healthLogRules, validate, motherController.updateHealthLog);
+router.delete('/:id/health-logs/:logId', ownsSelf, motherController.deleteHealthLog);
 router.get('/:id/emergency-contacts', ownsSelf, motherController.getEmergencyContacts);
 router.post('/:id/emergency-contacts', ownsSelf, emergencyContactRules, validate, motherController.createEmergencyContact);
 router.post('/:id/emergency-alert', ownsSelf, motherController.emergencyAlert);
