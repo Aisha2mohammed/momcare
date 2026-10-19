@@ -3,6 +3,8 @@
  * Fully integrated with my-backend REST endpoints under /api/v1
  */
 
+import type { Language, Mother, Status } from '../api/types';
+
 // Base URL resolution from environment variable
 const getBaseUrl = (): string => {
   // Check Vite env
@@ -336,6 +338,71 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     });
     return res.data;
+  },
+};
+
+// ─── Admin Users API (mother approval workflow) ──────────────────────────
+// Backend rows use lowercase status codes and a short language code plus
+// `created_at`; the dashboard's `Mother` type is Title-Case with display
+// language labels and `registered`. mapAdminMother bridges the two.
+const STATUS_LABELS: Record<string, Status> = {
+  active: 'Active',
+  inactive: 'Inactive',
+  suspended: 'Suspended',
+  pending: 'Pending',
+  rejected: 'Rejected',
+};
+
+const LANGUAGE_LABELS: Record<string, Language> = {
+  en: 'English',
+  am: 'Amharic',
+  or: 'Afan Oromo',
+  so: 'Somali',
+};
+
+function mapAdminMother(row: any): Mother {
+  return {
+    id: String(row?.id ?? ''),
+    name: row?.name ?? '—',
+    phone: row?.phone ?? '',
+    email: row?.email ?? '',
+    language: LANGUAGE_LABELS[String(row?.language ?? '').toLowerCase()] ?? 'English',
+    week: Number(row?.week ?? 0),
+    dueDate: row?.dueDate ?? '',
+    registered: row?.created_at ? String(row.created_at).slice(0, 10) : '',
+    status: STATUS_LABELS[String(row?.status ?? '').toLowerCase()] ?? 'Inactive',
+  };
+}
+
+export const adminUsersApi = {
+  /** GET /admin/users/pending → pending mothers only */
+  async adminListPendingMothers(): Promise<Mother[]> {
+    const res = await apiRequest<any[]>('/admin/users/pending', { method: 'GET' });
+    return (res.data ?? []).map(mapAdminMother);
+  },
+
+  /** PUT /admin/users/:id/approve */
+  async adminApproveMother(id: string): Promise<Mother> {
+    const res = await apiRequest<any>(`/admin/users/${id}/approve`, { method: 'PUT' });
+    return mapAdminMother(res.data);
+  },
+
+  /** PUT /admin/users/:id/reject */
+  async adminRejectMother(id: string): Promise<Mother> {
+    const res = await apiRequest<any>(`/admin/users/${id}/reject`, { method: 'PUT' });
+    return mapAdminMother(res.data);
+  },
+
+  /** PUT /admin/users/:id/suspend */
+  async adminSuspendMother(id: string): Promise<Mother> {
+    const res = await apiRequest<any>(`/admin/users/${id}/suspend`, { method: 'PUT' });
+    return mapAdminMother(res.data);
+  },
+
+  /** PUT /admin/users/:id/reactivate */
+  async adminReactivateMother(id: string): Promise<Mother> {
+    const res = await apiRequest<any>(`/admin/users/${id}/reactivate`, { method: 'PUT' });
+    return mapAdminMother(res.data);
   },
 };
 
