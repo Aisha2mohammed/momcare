@@ -41,6 +41,9 @@ router.get('/doctors/pending', adminController.getPendingDoctors);
 router.put('/doctors/:id/approve', adminController.approveDoctor);
 router.put('/doctors/:id/reject', adminController.rejectDoctor);
 
+// Mother health logs (read-only mirror of /mothers/:id/health-logs)
+router.get('/mothers/:id/health-logs', paginationRules, validate, adminController.getMotherHealthLogs);
+
 // Health Providers
 router.get('/health-providers', adminController.getHealthProviders);
 router.post('/health-providers', healthProviderRules, validate, adminController.createHealthProvider);
