@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Download, Eye, UserX, UserCheck, ChevronDown, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Download, Eye, UserX, UserCheck, ChevronDown, X, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -13,7 +13,7 @@ type ConfirmModal = {
     open: boolean;
     targetId: string;
     targetName: string;
-    action: 'Suspend' | 'Reactivate';
+    action: 'Suspend' | 'Reactivate' | 'Approve' | 'Reject';
     reason: string;
 };
 
@@ -28,8 +28,20 @@ export default function UsersManager() {
     });
     const [actionLoading, setActionLoading] = useState(false);
 
-    const { mothers, updateMotherStatus } = useMothers();
+    const {
+        mothers,
+        updateMotherStatus,
+        approveMother,
+        rejectMother,
+        reactivateMother,
+        loadPendingMothers,
+    } = useMothers();
     const { doctors, updateDoctorStatus } = useApprovedDoctors();
+
+    // Pull the real pending-mother rows into the table on first load.
+    useEffect(() => {
+        loadPendingMothers();
+    }, [loadPendingMothers]);
 
     // ─── Filter logic ───────────────────────────────────────────────────
     const filteredMothers = mothers.filter(m => {
@@ -45,23 +57,35 @@ export default function UsersManager() {
     });
 
     // ─── Action handlers ─────────────────────────────────────────────────
-    const openConfirm = (id: string, name: string, currentStatus: Status) => {
+    const openConfirm = (id: string, name: string, action: ConfirmModal['action']) => {
         setConfirm({
             open: true,
             targetId: id,
             targetName: name,
-            action: currentStatus === 'Active' ? 'Suspend' : 'Reactivate',
+            action,
             reason: '',
         });
     };
 
     const applyAction = async () => {
         setActionLoading(true);
-        const newStatus: Status = confirm.action === 'Suspend' ? 'Suspended' : 'Active';
-        if (tab === 'Mothers') await updateMotherStatus(confirm.targetId, newStatus, confirm.reason);
-        else await updateDoctorStatus(confirm.targetId, newStatus, confirm.reason);
-        setActionLoading(false);
-        setConfirm(c => ({ ...c, open: false }));
+        try {
+            if (tab === 'Doctors') {
+                const newStatus: Status = confirm.action === 'Suspend' ? 'Suspended' : 'Active';
+                await updateDoctorStatus(confirm.targetId, newStatus, confirm.reason);
+            } else if (confirm.action === 'Approve') {
+                await approveMother(confirm.targetId);
+            } else if (confirm.action === 'Reject') {
+                await rejectMother(confirm.targetId);
+            } else if (confirm.action === 'Reactivate') {
+                await reactivateMother(confirm.targetId);
+            } else {
+                await updateMotherStatus(confirm.targetId, 'Suspended', confirm.reason);
+            }
+        } finally {
+            setActionLoading(false);
+            setConfirm(c => ({ ...c, open: false }));
+        }
     };
 
     const exportCSV = () => {
@@ -129,6 +153,8 @@ export default function UsersManager() {
                         >
                             <option value="All">All Status</option>
                             <option value="Active">Active</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Rejected">Rejected</option>
                             <option value="Suspended">Suspended</option>
                             <option value="Inactive">Inactive</option>
                         </select>
@@ -163,19 +189,30 @@ export default function UsersManager() {
                                         <td className="py-3 pr-4 text-gray-600 text-xs">Wk {m.week}</td>
                                         <td className="py-3 pr-4 text-gray-600 text-xs whitespace-nowrap">{m.dueDate}</td>
                                         <td className="py-3 pr-4">
-                                            <Badge variant={m.status === 'Active' ? 'green' : m.status === 'Suspended' ? 'red' : 'gray'}>{m.status}</Badge>
+                                            <Badge variant={m.status === 'Active' ? 'green' : m.status === 'Pending' ? 'yellow' : m.status === 'Suspended' || m.status === 'Rejected' ? 'red' : 'gray'}>{m.status}</Badge>
                                         </td>
                                         <td className="py-3">
                                             <div className="flex gap-1.5">
                                                 <button onClick={() => setSelectedMother(m)} className="p-1.5 rounded-lg hover:bg-[#fdf2f8] text-[#61183e] transition-colors" title="View">
                                                     <Eye className="w-4 h-4" />
                                                 </button>
-                                                {m.status === 'Active' ? (
-                                                    <button onClick={() => openConfirm(m.id, m.name, m.status)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Suspend">
+                                                {m.status === 'Pending' && (
+                                                    <>
+                                                        <button onClick={() => openConfirm(m.id, m.name, 'Approve')} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Approve">
+                                                            <Check className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => openConfirm(m.id, m.name, 'Reject')} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Reject">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {m.status === 'Active' && (
+                                                    <button onClick={() => openConfirm(m.id, m.name, 'Suspend')} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Suspend">
                                                         <UserX className="w-4 h-4" />
                                                     </button>
-                                                ) : (
-                                                    <button onClick={() => openConfirm(m.id, m.name, m.status)} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Reactivate">
+                                                )}
+                                                {(m.status === 'Suspended' || m.status === 'Rejected') && (
+                                                    <button onClick={() => openConfirm(m.id, m.name, 'Reactivate')} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Reactivate">
                                                         <UserCheck className="w-4 h-4" />
                                                     </button>
                                                 )}
@@ -225,11 +262,11 @@ export default function UsersManager() {
                                                     <Eye className="w-4 h-4" />
                                                 </button>
                                                 {d.status === 'Active' ? (
-                                                    <button onClick={() => openConfirm(d.id, d.name, d.status)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Suspend">
+                                                    <button onClick={() => openConfirm(d.id, d.name, 'Suspend')} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Suspend">
                                                         <UserX className="w-4 h-4" />
                                                     </button>
                                                 ) : (
-                                                    <button onClick={() => openConfirm(d.id, d.name, d.status)} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Reactivate">
+                                                    <button onClick={() => openConfirm(d.id, d.name, 'Reactivate')} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Reactivate">
                                                         <UserCheck className="w-4 h-4" />
                                                     </button>
                                                 )}
@@ -252,7 +289,7 @@ export default function UsersManager() {
                             <div>
                                 <h4 className="text-lg font-bold text-gray-900">{selectedMother.name}</h4>
                                 <p className="text-sm text-gray-500">{selectedMother.email}</p>
-                                <Badge variant={selectedMother.status === 'Active' ? 'green' : selectedMother.status === 'Suspended' ? 'red' : 'gray'} className="mt-1">{selectedMother.status}</Badge>
+                                <Badge variant={selectedMother.status === 'Active' ? 'green' : selectedMother.status === 'Pending' ? 'yellow' : selectedMother.status === 'Suspended' || selectedMother.status === 'Rejected' ? 'red' : 'gray'} className="mt-1">{selectedMother.status}</Badge>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -337,7 +374,7 @@ export default function UsersManager() {
                         </div>
                         <div className="flex gap-3">
                             <Button
-                                variant={confirm.action === 'Suspend' ? 'danger' : 'primary'}
+                                variant={confirm.action === 'Suspend' || confirm.action === 'Reject' ? 'danger' : 'primary'}
                                 size="sm"
                                 className="flex-1"
                                 onClick={applyAction}
