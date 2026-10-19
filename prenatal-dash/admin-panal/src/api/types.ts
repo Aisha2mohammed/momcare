@@ -1,7 +1,7 @@
 // ─── Shared Entity Types ──────────────────────────────────────────────
-export type Status = 'Active' | 'Inactive' | 'Suspended';
+export type Status = 'Active' | 'Inactive' | 'Suspended' | 'Pending' | 'Rejected';
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
-export type Language = 'English' | 'Amharic' | 'Afan Oromo';
+export type Language = 'English' | 'Amharic' | 'Afan Oromo' | 'Somali';
 
 // ─── Mother ───────────────────────────────────────────────────────────
 export interface Mother {
