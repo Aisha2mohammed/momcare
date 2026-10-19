@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/auth/login_page.dart';
-import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
+import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 
@@ -61,9 +61,12 @@ class _SignupPageState extends State<SignupPage> {
             : null,
       );
       if (!mounted) return;
-      Navigator.pushReplacement(
+      // New mothers are created with status='pending', so send them to the
+      // approval screen instead of bypassing the gate via profile setup.
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+        MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+        (route) => false,
       );
     } on ApiException catch (e) {
       if (!mounted) return;
