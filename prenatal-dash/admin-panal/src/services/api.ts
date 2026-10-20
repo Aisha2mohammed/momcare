@@ -367,8 +367,8 @@ function mapAdminMother(row: any): Mother {
     phone: row?.phone ?? '',
     email: row?.email ?? '',
     language: LANGUAGE_LABELS[String(row?.language ?? '').toLowerCase()] ?? 'English',
-    week: Number(row?.week ?? 0),
-    dueDate: row?.dueDate ?? '',
+    week: Number(row?.gestational_week ?? row?.week ?? 0),
+    dueDate: row?.due_date ? String(row.due_date).slice(0, 10) : (row?.dueDate ?? ''),
     registered: row?.created_at ? String(row.created_at).slice(0, 10) : '',
     status: STATUS_LABELS[String(row?.status ?? '').toLowerCase()] ?? 'Inactive',
   };
