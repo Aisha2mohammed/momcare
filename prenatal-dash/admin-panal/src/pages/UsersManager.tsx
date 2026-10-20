@@ -30,18 +30,20 @@ export default function UsersManager() {
 
     const {
         mothers,
+        isLoading,
+        error,
         updateMotherStatus,
         approveMother,
         rejectMother,
         reactivateMother,
-        loadPendingMothers,
+        loadAllUsers,
     } = useMothers();
     const { doctors, updateDoctorStatus } = useApprovedDoctors();
 
-    // Pull the real pending-mother rows into the table on first load.
+    // Load every real mother (all statuses) into the table.
     useEffect(() => {
-        loadPendingMothers();
-    }, [loadPendingMothers]);
+        loadAllUsers();
+    }, [loadAllUsers]);
 
     // ─── Filter logic ───────────────────────────────────────────────────
     const filteredMothers = mothers.filter(m => {
@@ -174,7 +176,21 @@ export default function UsersManager() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {filteredMothers.length === 0 ? (
+                                {isLoading && mothers.length === 0 ? (
+                                    <tr><td colSpan={7} className="py-10 text-center text-gray-400">
+                                        <span className="inline-flex items-center gap-2">
+                                            <span className="w-4 h-4 border-2 border-[#61183e]/30 border-t-[#61183e] rounded-full animate-spin" />
+                                            Loading mothers…
+                                        </span>
+                                    </td></tr>
+                                ) : error ? (
+                                    <tr><td colSpan={7} className="py-10 text-center">
+                                        <p className="text-sm text-red-600 mb-2">{error}</p>
+                                        <Button variant="primary" size="sm" onClick={loadAllUsers}>Retry</Button>
+                                    </td></tr>
+                                ) : mothers.length === 0 ? (
+                                    <tr><td colSpan={7} className="text-center text-gray-400 py-10">No mothers yet</td></tr>
+                                ) : filteredMothers.length === 0 ? (
                                     <tr><td colSpan={7} className="text-center text-gray-400 py-10">No mothers match your filters.</td></tr>
                                 ) : filteredMothers.map(m => (
                                     <tr key={m.id} className="hover:bg-[#fdf2f8]/40 transition-colors">
@@ -211,7 +227,7 @@ export default function UsersManager() {
                                                         <UserX className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {(m.status === 'Suspended' || m.status === 'Rejected') && (
+                                                {(m.status === 'Suspended' || m.status === 'Rejected' || m.status === 'Inactive') && (
                                                     <button onClick={() => openConfirm(m.id, m.name, 'Reactivate')} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Reactivate">
                                                         <UserCheck className="w-4 h-4" />
                                                     </button>
