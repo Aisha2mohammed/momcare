@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Legend, PieChart, Pie, Cell
@@ -6,7 +6,11 @@ import {
 import { Users, FileText, TrendingUp, UserCheck, Activity, Calendar } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { adminStatsApi } from '../services/api';
+import type { Mother } from '../api/types';
 
+// TODO: real data (backend has no time-series endpoint yet)
 // ─── Mock data by date range ───────────────────────────────────────────
 const userGrowthData: Record<string, { month: string; mothers: number; doctors: number }[]> = {
     '7d': [
@@ -28,6 +32,7 @@ const userGrowthData: Record<string, { month: string; mothers: number; doctors: 
     ],
 };
 
+// TODO: real data (backend has no time-series endpoint yet)
 const appointmentData: Record<string, { status: string; count: number }[]> = {
     '7d': [
         { status: 'Scheduled', count: 42 },
@@ -41,6 +46,7 @@ const appointmentData: Record<string, { status: string; count: number }[]> = {
     ],
 };
 
+// TODO: real data (backend has no per-feature usage endpoint yet)
 const featureUsageData = [
     { name: 'Nutrition', value: 1200, color: '#61183e' },
     { name: 'Fetal Dev', value: 980, color: '#e879a8' },
@@ -50,31 +56,57 @@ const featureUsageData = [
     { name: 'Emergency', value: 540, color: '#fce7f3' },
 ];
 
-const recentUsers = [
-    { id: 'M001', name: 'Tigist Alemu', language: 'Amharic', dueDate: '2025-09-12', registered: '2025-05-01', status: 'Active' },
-    { id: 'M002', name: 'Chaltu Gemechu', language: 'Afan Oromo', dueDate: '2025-11-03', registered: '2025-04-28', status: 'Active' },
-    { id: 'M003', name: 'Selam Bekele', language: 'Amharic', dueDate: '2025-08-20', registered: '2025-04-25', status: 'Suspended' },
-    { id: 'M004', name: 'Hirut Tadesse', language: 'Amharic', dueDate: '2025-10-15', registered: '2025-04-20', status: 'Inactive' },
-    { id: 'M005', name: 'Dinkinesh Haile', language: 'Afan Oromo', dueDate: '2025-12-01', registered: '2025-04-18', status: 'Active' },
-];
-
 type DateRange = '7d' | '30d';
+type Stats = Awaited<ReturnType<typeof adminStatsApi.getStats>>;
 
 export default function Dashboard() {
     const [dateRange, setDateRange] = useState<DateRange>('30d');
+    const [stats, setStats] = useState<Stats | null>(null);
+    const [pendingMothers, setPendingMothers] = useState(0);
+    const [recentUsers, setRecentUsers] = useState<Mother[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [err, setErr] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setErr(null);
+        try {
+            const [s, p, r] = await Promise.all([
+                adminStatsApi.getStats(),
+                adminStatsApi.getPendingMothersCount(),
+                adminStatsApi.getRecentUsers(5),
+            ]);
+            setStats(s);
+            setPendingMothers(p);
+            setRecentUsers(r);
+        } catch (e: any) {
+            setErr(e?.message ?? 'Failed to load stats');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        load();
+    }, [load]);
 
     const userGrowth = userGrowthData[dateRange];
     const appointments = appointmentData[dateRange];
-    const totalAppts = appointments.reduce((s, a) => s + a.count, 0);
-    const completedAppts = appointments.find(a => a.status === 'Completed')?.count ?? 0;
+
+    const contentTotal = stats
+        ? stats.content.nutrition + stats.content.fetal + stats.content.exercises +
+          stats.content.sleep_tips + stats.content.music + stats.content.health_tips
+        : 0;
 
     const statsCards = [
-        { label: 'Active Mothers', value: '612', icon: Users, change: '+8%', color: 'bg-[#fdf2f8]', iconColor: 'text-[#61183e]' },
-        { label: 'Active Doctors', value: '12', icon: UserCheck, change: '+2', color: 'bg-blue-50', iconColor: 'text-blue-600' },
-        { label: `Appointments (${dateRange === '7d' ? 'Week' : 'Month'})`, value: String(totalAppts), icon: Calendar, change: `${completedAppts} completed`, color: 'bg-green-50', iconColor: 'text-green-600' },
-        { label: 'Doctor Approval Rate', value: '62%', icon: TrendingUp, change: '5 of 8 approved', color: 'bg-amber-50', iconColor: 'text-amber-600' },
-        { label: 'Total Content Entries', value: '342', icon: FileText, change: '+5%', color: 'bg-purple-50', iconColor: 'text-purple-600' },
-        { label: 'Most-Used Feature', value: 'Nutrition', icon: Activity, change: '1,200 views', color: 'bg-rose-50', iconColor: 'text-rose-600' },
+        { label: 'Total Users', value: String(stats?.users.total ?? 0), icon: Users, change: 'All roles', color: 'bg-[#fdf2f8]', iconColor: 'text-[#61183e]' },
+        { label: 'Mothers', value: String(stats?.users.mothers ?? 0), icon: UserCheck, change: 'Role: mother', color: 'bg-blue-50', iconColor: 'text-blue-600' },
+        { label: 'Doctors', value: String(stats?.users.doctors ?? 0), icon: UserCheck, change: 'Role: doctor', color: 'bg-green-50', iconColor: 'text-green-600' },
+        { label: 'Pending Mothers', value: String(pendingMothers), icon: Activity, change: 'Awaiting approval', color: 'bg-amber-50', iconColor: 'text-amber-600' },
+        { label: 'Total Appointments', value: String(stats?.appointments.total ?? 0), icon: Calendar, change: 'All time', color: 'bg-purple-50', iconColor: 'text-purple-600' },
+        { label: 'Pending Appointments', value: String(stats?.appointments.pending ?? 0), icon: Calendar, change: `${stats?.appointments.confirmed ?? 0} confirmed · ${stats?.appointments.completed ?? 0} completed`, color: 'bg-rose-50', iconColor: 'text-rose-600' },
+        { label: 'Content Entries', value: String(contentTotal), icon: FileText, change: `Fetal ${stats?.content.fetal ?? 0} · Exercises ${stats?.content.exercises ?? 0}`, color: 'bg-[#fdf2f8]', iconColor: 'text-[#61183e]' },
+        { label: 'Nutrition Tips', value: String(stats?.content.nutrition ?? 0), icon: TrendingUp, change: `Sleep ${stats?.content.sleep_tips ?? 0} · Music ${stats?.content.music ?? 0} · Health ${stats?.content.health_tips ?? 0}`, color: 'bg-blue-50', iconColor: 'text-blue-600' },
     ];
 
     return (
@@ -101,20 +133,29 @@ export default function Dashboard() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {statsCards.map((stat) => (
-                    <Card key={stat.label} className="flex items-center gap-4">
-                        <div className={`p-3 rounded-xl ${stat.color} shrink-0`}>
-                            <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-500 mb-0.5">{stat.label}</p>
-                            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{stat.change}</p>
-                        </div>
-                    </Card>
-                ))}
-            </div>
+            {loading ? (
+                <Card className="py-10 text-center text-sm text-gray-500">Loading dashboard…</Card>
+            ) : err ? (
+                <Card className="py-10 text-center">
+                    <p className="text-sm text-red-600 mb-3">{err}</p>
+                    <Button variant="primary" size="sm" onClick={load}>Retry</Button>
+                </Card>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {statsCards.map((stat) => (
+                        <Card key={stat.label} className="flex items-center gap-4">
+                            <div className={`p-3 rounded-xl ${stat.color} shrink-0`}>
+                                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-500 mb-0.5">{stat.label}</p>
+                                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">{stat.change}</p>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+            )}
 
             {/* Charts Row 1 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -207,7 +248,9 @@ export default function Dashboard() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {recentUsers.map((user) => (
+                                {recentUsers.length === 0 ? (
+                                    <tr><td colSpan={4} className="text-center text-gray-400 py-8">No recent signups</td></tr>
+                                ) : recentUsers.map((user) => (
                                     <tr key={user.id} className="hover:bg-[#fdf2f8]/40 transition-colors">
                                         <td className="py-2.5">
                                             <div className="flex items-center gap-2">
@@ -218,9 +261,9 @@ export default function Dashboard() {
                                             </div>
                                         </td>
                                         <td className="py-2.5 text-gray-500 text-xs">{user.language}</td>
-                                        <td className="py-2.5 text-gray-500 text-xs">{user.dueDate}</td>
+                                        <td className="py-2.5 text-gray-500 text-xs">{user.dueDate || '—'}</td>
                                         <td className="py-2.5">
-                                            <Badge variant={user.status === 'Active' ? 'green' : user.status === 'Suspended' ? 'red' : 'gray'}>
+                                            <Badge variant={user.status === 'Active' ? 'green' : user.status === 'Pending' ? 'yellow' : user.status === 'Suspended' || user.status === 'Rejected' ? 'red' : 'gray'}>
                                                 {user.status}
                                             </Badge>
                                         </td>
