@@ -9,7 +9,8 @@ import 'package:pregnancy_appp/services/mother_service.dart';
 String _resolveUrl(String? url) => ApiService.resolveUrl(url);
 
 class FetalDetailsPage extends StatefulWidget {
-  const FetalDetailsPage({super.key});
+  final int? initialWeek;
+  const FetalDetailsPage({super.key, this.initialWeek});
 
   @override
   State<FetalDetailsPage> createState() => _FetalDetailsPageState();
@@ -51,10 +52,12 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
-    int week = 12;
+    int week = widget.initialWeek ?? 12;
     try {
-      final progress = await MotherService.getGestationalWeek();
-      week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
+      if (widget.initialWeek == null) {
+        final progress = await MotherService.getGestationalWeek();
+        week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
+      }
       final data = await ContentService.getFetalByWeek(week, lang: _lang());
       if (!mounted) return;
       setState(() { _week = week; _data = data; });

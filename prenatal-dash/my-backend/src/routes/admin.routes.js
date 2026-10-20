@@ -58,6 +58,11 @@ router.get('/audit-logs', paginationRules, validate, adminController.getAuditLog
 router.delete('/community/posts/:id', adminController.moderatePost);
 router.put('/community/rules', adminController.updateCommunityRules);
 
+// Notifications
+const notificationController = require('../controllers/notification.controller');
+router.get('/notifications', paginationRules, validate, notificationController.getHistory);
+router.post('/notifications', notificationRules, validate, notificationController.sendNow);
+
 // Stats
 router.get('/stats', adminController.getStats);
 

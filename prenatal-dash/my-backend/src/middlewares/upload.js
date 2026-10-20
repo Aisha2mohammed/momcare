@@ -14,12 +14,23 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
+    let ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ext) {
+      if (file.mimetype === 'image/png') ext = '.png';
+      else if (file.mimetype === 'image/webp') ext = '.webp';
+      else ext = '.jpg';
+    }
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExts = [
+    '.jpg', '.jpeg', '.png', '.webp', '.gif',
+    '.mp4', '.webm', '.mov', '.pdf',
+    '.mp3', '.wav', '.ogg', '.m4a', '.aac'
+  ];
   const allowedTypes = [
     'image/jpeg',
     'image/jpg',
@@ -30,7 +41,6 @@ const fileFilter = (req, file, cb) => {
     'video/webm',
     'video/quicktime',
     'application/pdf',
-    // audio, added for music tracks (image + per-language audio uploads)
     'audio/mpeg',
     'audio/mp3',
     'audio/wav',
@@ -41,7 +51,12 @@ const fileFilter = (req, file, cb) => {
     'audio/webm',
   ];
 
-  if (allowedTypes.includes(file.mimetype)) {
+  if (
+    allowedTypes.includes(file.mimetype) ||
+    allowedExts.includes(ext) ||
+    (file.mimetype && file.mimetype.startsWith('image/')) ||
+    (file.mimetype === 'application/octet-stream' && (allowedExts.includes(ext) || !ext))
+  ) {
     cb(null, true);
   } else {
     cb(new Error(`Unsupported file format: ${file.mimetype}`), false);

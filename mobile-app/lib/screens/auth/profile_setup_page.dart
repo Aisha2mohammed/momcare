@@ -4,6 +4,7 @@ import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/status_modal.dart';
 
 class ProfileSetupPage extends StatefulWidget {
   const ProfileSetupPage({super.key});
@@ -81,8 +82,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
 
   Future<void> _saveProfile() async {
     if (_lmpDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select your last menstrual period date.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'LMP Date Required',
+        message: 'Please select your last menstrual period date to track pregnancy accurately.',
       );
       return;
     }
@@ -96,17 +99,32 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         city: _cityController.text.trim(),
       );
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainScreen()),
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Profile Ready!',
+        message: 'Your pregnancy profile is setup and ready.',
+        buttonText: 'Enter App',
+        onDismiss: () {
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainScreen()),
+          );
+        },
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      AppStatusModal.showError(
+        context: context,
+        title: 'Setup Failed',
+        message: e.message,
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

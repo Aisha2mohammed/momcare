@@ -35,7 +35,13 @@ const initSocket = (httpServer) => {
     console.log(`🔌 Socket connected: ${socket.userId} (${socket.userRole})`);
 
     // Join personal room for notifications/appointment updates
-    socket.join(`user:${socket.userId}`);
+    if (socket.userId) {
+      socket.join(`user:${String(socket.userId)}`);
+    }
+    if (socket.userRole) {
+      socket.join(`role:${String(socket.userRole).toLowerCase()}`);
+    }
+    socket.join('all');
 
     // Join doctor-mother chat room
     socket.on('chat:join', (data) => {

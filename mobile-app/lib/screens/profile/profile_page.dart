@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/auth/login_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/widget/status_modal.dart';
 import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:provider/provider.dart';
 
@@ -22,6 +25,8 @@ class _ProfilePageState extends State<ProfilePage> {
   int _gestationalWeek = 0;
   String? _dueDate;
   String? _assignedHospital;
+  String? _profilePhotoUrl;
+  bool _isUploadingPhoto = false;
 
   @override
   void initState() {
@@ -56,12 +61,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (!mounted) return;
 
+      final photo = (profile?['profile_photo'] as String?) ?? (user['profile_photo'] as String?);
+
       setState(() {
         _name = (user['name'] as String?) ?? _name;
         _phone = (user['phone'] as String?) ?? '';
         _gestationalWeek = week;
         _dueDate = dueDate;
         _assignedHospital = assignedHospital.isEmpty ? null : assignedHospital;
+        if (photo != null && photo.isNotEmpty) {
+          _profilePhotoUrl = photo;
+        }
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -72,6 +82,133 @@ class _ProfilePageState extends State<ProfilePage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _pickAndUploadPhoto(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (picked == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final newUrl = await MotherService.uploadProfilePhoto(File(picked.path));
+
+      if (!mounted) return;
+      setState(() {
+        _profilePhotoUrl = newUrl;
+      });
+
+      await _loadProfile();
+
+      if (!mounted) return;
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Photo Uploaded!',
+        message: 'Your profile picture has been updated successfully.',
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      AppStatusModal.showError(
+        context: context,
+        title: 'Upload Failed',
+        message: e.message,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppStatusModal.showError(
+        context: context,
+        title: 'Upload Failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  void _showPhotoPickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Change Profile Photo',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose where to select your profile picture from:',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt_rounded, color: AppColors.primary),
+                  ),
+                  title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Capture using device camera'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickAndUploadPhoto(ImageSource.camera);
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB)),
+                  ),
+                  title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Select an existing photo from gallery'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickAndUploadPhoto(ImageSource.gallery);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _formatDueDate(String? iso) {
@@ -117,17 +254,25 @@ class _ProfilePageState extends State<ProfilePage> {
         city: body['city'] as String?,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(successMessage)),
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Profile Updated',
+        message: successMessage,
       );
       await _loadProfile();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      AppStatusModal.showError(
+        context: context,
+        title: 'Update Failed',
+        message: e.message,
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Update Failed',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -181,20 +326,54 @@ class _ProfilePageState extends State<ProfilePage> {
             Center(
               child: Column(
                 children: [
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                        child: const Icon(Icons.person_rounded, size: 80, color: AppColors.primary),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                        child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
-                      ),
-                    ],
+                  GestureDetector(
+                    onTap: _isUploadingPhoto ? null : _showPhotoPickerSheet,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                          backgroundImage: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
+                              ? NetworkImage(ApiService.resolveUrl(_profilePhotoUrl!))
+                              : null,
+                          child: _isUploadingPhoto
+                              ? Container(
+                                  width: 120,
+                                  height: 120,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.4),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 3,
+                                    ),
+                                  ),
+                                )
+                              : (_profilePhotoUrl == null || _profilePhotoUrl!.isEmpty)
+                                  ? const Icon(Icons.person_rounded, size: 80, color: AppColors.primary)
+                                  : null,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 20),
                   Text(

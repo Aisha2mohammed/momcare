@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'api_service.dart';
 
 class MotherService {
@@ -116,4 +117,15 @@ class MotherService {
     );
     return response['data'] as Map<String, dynamic>;
   }
-}
+
+  static Future<String> uploadProfilePhoto(File file) async {
+    final id = await _motherId();
+    final response = await ApiService.uploadMultipart(
+      path: '/mothers/$id/profile-photo',
+      file: file,
+      fieldName: 'photo',
+    );
+    final data = response['data'] as Map<String, dynamic>? ?? {};
+    return (data['profilePhoto'] ?? '').toString();
+  }
+}

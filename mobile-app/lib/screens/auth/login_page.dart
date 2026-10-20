@@ -8,6 +8,7 @@ import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
 import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/widget/status_modal.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -34,8 +35,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleLogin() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Phone Required',
+        message: 'Please enter your phone number to sign in.',
       );
       return;
     }
@@ -48,32 +51,55 @@ class _LoginPageState extends State<LoginPage> {
         password: password.isNotEmpty ? password : null,
       );
       if (!mounted) return;
+
       if (result.status == 'pending') {
         // A pending mother may sign in, but must not reach the app yet.
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
-          (route) => false,
+        AppStatusModal.showSuccess(
+          context: context,
+          title: 'Account Pending',
+          message: 'Your registration is currently under hospital review. You will be notified once approved.',
+          buttonText: 'Check Status',
+          onDismiss: () {
+            if (!mounted) return;
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+              (route) => false,
+            );
+          },
         );
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => result.needsProfileSetup
-                ? const ProfileSetupPage()
-                : const MainScreen(),
-          ),
+        AppStatusModal.showSuccess(
+          context: context,
+          title: 'Welcome Back!',
+          message: 'Login successful. Taking you to your dashboard...',
+          buttonText: 'Continue',
+          onDismiss: () {
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => result.needsProfileSetup
+                    ? const ProfileSetupPage()
+                    : const MainScreen(),
+              ),
+            );
+          },
         );
       }
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Login Failed',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please check your connection and try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -83,8 +109,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleSendOtp() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Phone Required',
+        message: 'Please enter your phone number to receive an OTP code.',
       );
       return;
     }
@@ -93,21 +121,34 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await AuthService.sendOtp(phone: phone);
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OtpVerificationPage(isLogin: true, phone: phone),
-        ),
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'OTP Code Sent',
+        message: 'A 6-digit verification code was sent to $phone.',
+        buttonText: 'Enter Code',
+        onDismiss: () {
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OtpVerificationPage(isLogin: true, phone: phone),
+            ),
+          );
+        },
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Failed to Send Code',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

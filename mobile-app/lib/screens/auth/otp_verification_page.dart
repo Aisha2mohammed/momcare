@@ -6,6 +6,7 @@ import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
 import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/widget/status_modal.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final bool isLogin;
@@ -44,8 +45,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   Future<void> _handleVerify() async {
     final otp = _otpCode;
     if (otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the full 6-digit code')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Incomplete Code',
+        message: 'Please enter the complete 6-digit verification code.',
       );
       return;
     }
@@ -58,34 +61,47 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       );
       if (!mounted) return;
 
-      if (result.status == 'pending') {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
-          (route) => false,
-        );
-      } else if (result.isNewUser || result.needsProfileSetup) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
-          (route) => false,
-        );
-      } else {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-          (route) => false,
-        );
-      }
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Verified Successfully!',
+        message: 'Your phone number has been verified.',
+        buttonText: 'Continue',
+        onDismiss: () {
+          if (!mounted) return;
+          if (result.status == 'pending') {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+              (route) => false,
+            );
+          } else if (result.isNewUser || result.needsProfileSetup) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+              (route) => false,
+            );
+          } else {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const MainScreen()),
+              (route) => false,
+            );
+          }
+        },
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Verification Failed',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -97,18 +113,25 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     try {
       await AuthService.sendOtp(phone: widget.phone);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP sent successfully')),
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Code Sent',
+        message: 'A fresh verification code has been sent to ${widget.phone}.',
+        buttonText: 'Got It',
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Resend Failed',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isResending = false);
