@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
-import { mockMothers } from '../mockData';
+import { useState, useCallback } from 'react';
 import { mockDoctors } from '../mockData';
 import type { Mother, Doctor, Status } from '../types';
 import { adminUsersApi } from '../../services/api';
 
-let mothersStore: Mother[] = [...mockMothers];
+let mothersStore: Mother[] = [];
 let doctorsApprovedStore: Doctor[] = mockDoctors.filter(d => d.approvalStatus === 'Approved');
 
 /**
@@ -27,6 +26,20 @@ export function useMothers() {
 
     const refresh = useCallback(() => setMothers([...mothersStore]), []);
 
+    /** Load every mother (active, pending, rejected, suspended, inactive). */
+    const loadAllUsers = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            mothersStore = await adminUsersApi.adminListMothers();
+        } catch (e: any) {
+            setError(e?.message ?? 'Failed to load mothers');
+        } finally {
+            setIsLoading(false);
+            refresh();
+        }
+    }, [refresh]);
+
     /** Merge the real pending-mother list into the table (deduped by id). */
     const loadPendingMothers = useCallback(async () => {
         setIsLoading(true);
@@ -44,11 +57,6 @@ export function useMothers() {
             refresh();
         }
     }, [refresh]);
-
-    // Load real pending mothers once when the table mounts.
-    useEffect(() => {
-        loadPendingMothers();
-    }, [loadPendingMothers]);
 
     const approveMother = useCallback(async (id: string): Promise<Mother | null> => {
         setIsLoading(true);
@@ -142,6 +150,7 @@ export function useMothers() {
         approveMother,
         rejectMother,
         reactivateMother,
+        loadAllUsers,
         loadPendingMothers,
         refresh,
     };
