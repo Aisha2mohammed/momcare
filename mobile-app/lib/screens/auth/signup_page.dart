@@ -4,6 +4,7 @@ import 'package:pregnancy_appp/screens/auth/login_page.dart';
 import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/widget/status_modal.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -36,14 +37,18 @@ class _SignupPageState extends State<SignupPage> {
     final phone = _phoneController.text.trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your name')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Name Required',
+        message: 'Please enter your full name to create an account.',
       );
       return;
     }
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Phone Required',
+        message: 'Please enter your phone number to create an account.',
       );
       return;
     }
@@ -63,20 +68,33 @@ class _SignupPageState extends State<SignupPage> {
       if (!mounted) return;
       // New mothers are created with status='pending', so send them to the
       // approval screen instead of bypassing the gate via profile setup.
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
-        (route) => false,
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Registration Submitted!',
+        message: 'Your account has been created successfully and is awaiting hospital approval.',
+        buttonText: 'View Status',
+        onDismiss: () {
+          if (!mounted) return;
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+            (route) => false,
+          );
+        },
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Registration Failed',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

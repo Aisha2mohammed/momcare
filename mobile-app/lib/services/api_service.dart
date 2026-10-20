@@ -1,11 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Centralized API endpoint registry and URL builder for the entire application.
 class ApiEndpoints {
   // Base server connection
-  static const String serverHost = 'http://192.168.10.147:5000';
+  static const String serverHost = 'http://192.168.1.5:5000';
   static const String baseUrl = '$serverHost/api/v1';
 
   // ── Media & Upload URL Resolver ───────────────────────────────────────────
@@ -15,7 +17,7 @@ class ApiEndpoints {
     if (trimmed.startsWith('assets/')) return trimmed;
     String resolved = trimmed;
     if (resolved.contains('localhost')) {
-      resolved = resolved.replaceAll('localhost', '192.168.10.147');
+      resolved = resolved.replaceAll('localhost', '192.168.1.5');
     }
     if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
       return resolved;
@@ -148,8 +150,11 @@ class ApiEndpoints {
   static String postLike(String postId) => '/community/posts/$postId/like';
 
   // ── Notification Endpoints ────────────────────────────────────────────────
+  static const String notificationDevices = '/notifications/devices';
   static String myNotifications({int page = 1, int limit = 50}) =>
       '/notifications/me?page=$page&limit=$limit';
+  static const String unreadNotificationCount = '/notifications/unread-count';
+  static const String markAllNotificationsRead = '/notifications/read-all';
   static String notificationRead(String id) => '/notifications/$id/read';
 
   // ── Chat & Chatbot Endpoints ──────────────────────────────────────────────
@@ -246,6 +251,45 @@ class ApiService {
   static Future<Map<String, dynamic>> delete(String path) async {
     final uri = Uri.parse('$baseUrl$path');
     final response = await http.delete(uri, headers: await _headers());
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> uploadMultipart({
+    required String path,
+    required File file,
+    required String fieldName,
+    Map<String, String>? fields,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final request = http.MultipartRequest('POST', uri);
+    final token = await getToken();
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.headers['Accept'] = 'application/json';
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+
+    final filename = file.path.split(Platform.pathSeparator).last;
+    final ext = filename.contains('.') ? filename.split('.').last.toLowerCase() : 'jpg';
+    final mimeSub = (ext == 'png')
+        ? 'png'
+        : (ext == 'webp')
+            ? 'webp'
+            : (ext == 'gif')
+                ? 'gif'
+                : 'jpeg';
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        fieldName,
+        file.path,
+        contentType: MediaType('image', mimeSub),
+      ),
+    );
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
     return _handleResponse(response);
   }
 

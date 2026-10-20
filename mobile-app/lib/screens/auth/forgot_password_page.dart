@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
+import 'package:pregnancy_appp/widget/status_modal.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -31,8 +32,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Future<void> _requestReset() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Phone Required',
+        message: 'Please enter your phone number to receive a reset code.',
       );
       return;
     }
@@ -42,18 +45,25 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       await AuthService.forgotPassword(phone: phone);
       if (!mounted) return;
       setState(() => _otpSent = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reset code sent to your phone')),
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Reset Code Sent',
+        message: 'A 6-digit verification code was sent to $phone.',
+        buttonText: 'Enter Code',
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Request Failed',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -64,14 +74,18 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final otp = _otpController.text.trim();
     final password = _passwordController.text;
     if (otp.isEmpty || otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the full 6-digit code')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Invalid Code',
+        message: 'Please enter the complete 6-digit code received.',
       );
       return;
     }
     if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Short Password',
+        message: 'Password must be at least 6 characters long.',
       );
       return;
     }
@@ -84,19 +98,29 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         password: password,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset successfully. Please login with your new password.')),
+      AppStatusModal.showSuccess(
+        context: context,
+        title: 'Password Updated!',
+        message: 'Your password was reset successfully. Please log in with your new password.',
+        buttonText: 'Back to Login',
+        onDismiss: () {
+          if (!mounted) return;
+          Navigator.pop(context);
+        },
       );
-      Navigator.pop(context);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Reset Failed',
+        message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.')),
+      AppStatusModal.showError(
+        context: context,
+        title: 'Connection Error',
+        message: 'Network error. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

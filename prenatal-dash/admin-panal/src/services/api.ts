@@ -458,4 +458,74 @@ export const adminStatsApi = {
   },
 };
 
+// ─── Admin Notifications API ──────────────────────────────────────────────
+export interface AdminNotificationItem {
+  id: string | number;
+  title_en?: string;
+  title_am?: string;
+  title_or?: string;
+  title_so?: string;
+  body_en?: string;
+  body_am?: string;
+  body_or?: string;
+  body_so?: string;
+  type?: 'Alert' | 'Tip' | 'Reminder' | string;
+  trimester?: number | null;
+  week?: number | null;
+  month?: number | null;
+  target_group?: string;
+  target_user_id?: string | null;
+  sent_by?: string;
+  scheduled_at?: string | null;
+  sent_at?: string | null;
+  sent_count?: number;
+  open_count?: number;
+  created_at?: string;
+  data?: any;
+}
+
+export interface CreateNotificationPayload {
+  titleEn: string;
+  titleAm: string;
+  titleOr: string;
+  titleSo: string;
+  bodyEn: string;
+  bodyAm: string;
+  bodyOr: string;
+  bodySo: string;
+  type: 'Alert' | 'Tip' | 'Reminder';
+  targetGroup: string;
+  targetUserId?: string;
+  trimester?: number | null;
+  week?: number | null;
+  month?: number | null;
+  scheduledAt?: string | null;
+  data?: Record<string, any>;
+}
+
+export const adminNotificationsApi = {
+  async getHistory(params: { page?: number; limit?: number; status?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.status) query.set('status', params.status);
+    const qs = query.toString();
+    const endpoint = `/notifications/history${qs ? `?${qs}` : ''}`;
+    const res = await apiRequest<AdminNotificationItem[]>(endpoint, { method: 'GET' });
+    return {
+      items: (res.data || []) as AdminNotificationItem[],
+      pagination: res.pagination || { total: (res.data || []).length, page: 1, limit: 20 },
+    };
+  },
+
+  async send(payload: CreateNotificationPayload) {
+    const endpoint = payload.scheduledAt ? '/notifications/schedule' : '/notifications/send';
+    const res = await apiRequest(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return res;
+  },
+};
+
 export default cmsClient;

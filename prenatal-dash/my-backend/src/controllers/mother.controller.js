@@ -100,10 +100,13 @@ exports.updateProfilePhoto = async (req, res, next) => {
     const { id } = req.params;
     const url = `/uploads/${req.file.filename}`;
     const result = await query(
-      'UPDATE mother_profiles SET profile_photo = $1 WHERE user_id = $2 RETURNING profile_photo',
-      [url, id]
+      `INSERT INTO mother_profiles (user_id, profile_photo)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET profile_photo = EXCLUDED.profile_photo, updated_at = NOW()
+       RETURNING profile_photo`,
+      [id, url]
     );
-    if (result.rows.length === 0) return sendError(res, 404, 'Profile not found.');
     return sendSuccess(res, 200, 'Profile photo updated', { profilePhoto: url });
   } catch (err) { next(err); }
 };

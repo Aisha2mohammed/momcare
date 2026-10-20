@@ -82,7 +82,7 @@ const musicRules = [
 const notificationRules = [
   body('title_am').optional(),
   body('body_am').optional(),
-  body('target_group').optional().isIn(['all', 'mothers', 'doctors', 'specific_user']),
+  body('target_group').optional().isIn(['all', 'mothers', 'doctors', 'specific_user', 'user', 'trimester', 'week', 'month']),
 ];
 
 const appointmentRules = [

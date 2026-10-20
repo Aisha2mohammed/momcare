@@ -10,6 +10,8 @@ import 'package:pregnancy_appp/widget/am_i_pregnant_card.dart';
 import 'package:pregnancy_appp/screens/home/fetal_details_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
+import 'package:pregnancy_appp/services/push_service.dart';
+import 'package:pregnancy_appp/services/notification_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -28,8 +30,67 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadData();
+    _setupPushNotifications();
   }
 
+  Future<void> _setupPushNotifications() async {
+    try {
+      final token = await ApiService.getToken();
+      if (token != null && mounted) {
+        await PushService.init(
+          jwt: token,
+          onTap: (data) {
+            if (mounted) {
+              PushService.handleNotificationTap(context, data);
+            }
+          },
+          onInApp: (n) {
+            debugPrint('[Home] In-app notification received: ${n['title']} (type: ${n['type']})');
+            if (mounted && n['title'] != null) {
+              final type = (n['type'] ?? '').toString().toLowerCase();
+              final isAlert = type == 'alert';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: isAlert ? const Color(0xFFDC2626) : const Color(0xFF61183E),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        n['title'].toString(),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      if (n['body'] != null)
+                        Text(
+                          n['body'].toString(),
+                          style: const TextStyle(fontSize: 12, color: Colors.white70),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                  action: SnackBarAction(
+                    label: 'View',
+                    textColor: Colors.amberAccent,
+                    onPressed: () {
+                      final data = n['data'] is Map ? Map<String, dynamic>.from(n['data']) : n;
+                      PushService.handleNotificationTap(context, data);
+                    },
+                  ),
+                ),
+              );
+            }
+          },
+        );
+        // Refresh unread count for top navbar red badge
+        NotificationService.fetchUnreadCount();
+      }
+    } catch (e) {
+      debugPrint('[Home] Push setup error: $e');
+    }
+  }
   Future<void> _loadData() async {
     try {
       final results = await Future.wait([

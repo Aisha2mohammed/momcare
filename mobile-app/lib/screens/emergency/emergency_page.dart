@@ -289,33 +289,202 @@ class _EmergencyPageState extends State<EmergencyPage> {
     }
   }
 
-  Future<void> _shareLocation() async {
+  Future<Position?> _ensureGpsPosition(String lang) async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_EmergencyLocalization.t(lang, 'location_disabled'))),
+      );
+      return null;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_EmergencyLocalization.t(lang, 'location_denied'))),
+      );
+      return null;
+    }
+
+    return await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+  }
+
+  Future<void> _shareLocationToContact({
+    required String name,
+    required String phone,
+  }) async {
     final lang = _currentLang(context);
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_EmergencyLocalization.t(lang, 'location_disabled'))),
-        );
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_EmergencyLocalization.t(lang, 'location_denied'))),
-        );
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Text('Acquiring real-time GPS coordinates...'),
+            ],
+          ),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
+
+      final position = await _ensureGpsPosition(lang);
+      if (position == null) return;
+
+      final mapsUrl = 'https://maps.google.com/?q=${position.latitude},${position.longitude}';
+      final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+      final emergencyMsg = '🚨 EMERGENCY ALERT: I need immediate assistance! Here is my current GPS location:\n$mapsUrl';
+
+      // Open SMS directly addressed to this specific contact
+      final smsUri = Uri.parse('sms:$cleanPhone?body=${Uri.encodeComponent(emergencyMsg)}');
+      await launchUrl(smsUri, mode: LaunchMode.externalApplication);
+
+      // Also register alert with server
+      try {
+        await MotherService.sendEmergencyAlert(position.latitude, position.longitude);
+      } catch (_) {}
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF0D9488),
+          behavior: SnackBarBehavior.floating,
+          content: Text('Sharing GPS location with $name ($phone).'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_EmergencyLocalization.t(lang, 'location_failed'))),
+      );
+    }
+  }
+
+  Future<void> _shareLocation() async {
+    // If mother has contacts, present a quick picker to share to a specific person or all
+    if (_contacts.isNotEmpty) {
+      showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetContext) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Share GPS Location',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Select a contact to send your live location SMS immediately:',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _contacts.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, idx) {
+                        final c = _contacts[idx];
+                        final cName = c['contact_name'] as String? ?? 'Contact';
+                        final cPhone = c['phone'] as String? ?? '';
+                        final cRel = c['relationship'] as String?;
+
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.red.withValues(alpha: 0.1),
+                            child: const Icon(Icons.person_rounded, color: Colors.red),
+                          ),
+                          title: Text(cName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            cRel != null && cRel.isNotEmpty ? '$cPhone ($cRel)' : cPhone,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          ),
+                          trailing: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            icon: const Icon(Icons.send_rounded, size: 16),
+                            label: const Text('Send SMS', style: TextStyle(fontSize: 12)),
+                            onPressed: () {
+                              Navigator.pop(sheetContext);
+                              _shareLocationToContact(name: cName, phone: cPhone);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.emergency_share_rounded),
+                    label: const Text('Broadcast Alert to All Contacts & Doctor'),
+                    onPressed: () async {
+                      Navigator.pop(sheetContext);
+                      _broadcastEmergencyAlert();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      return;
+    }
+
+    // Fallback if no contacts added yet
+    _broadcastEmergencyAlert();
+  }
+
+  Future<void> _broadcastEmergencyAlert() async {
+    final lang = _currentLang(context);
+    try {
+      final position = await _ensureGpsPosition(lang);
+      if (position == null) return;
+
       final result = await MotherService.sendEmergencyAlert(
         position.latitude,
         position.longitude,
@@ -327,7 +496,9 @@ class _EmergencyPageState extends State<EmergencyPage> {
           ? _EmergencyLocalization.t(lang, 'location_shared')
           : _EmergencyLocalization.t(lang, 'location_shared_count')
               .replaceAll('%d', notified.toString());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: const Color(0xFF0D9488)),
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -596,13 +767,42 @@ class _EmergencyPageState extends State<EmergencyPage> {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.phone_in_talk_rounded, color: AppColors.primary),
-            onPressed: () {
-              if (phone.isNotEmpty) {
-                launchUrl(Uri.parse('tel:$phone'), mode: LaunchMode.externalApplication);
-              }
-            },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Share GPS location with $name',
+                icon: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.share_location_rounded, color: Colors.red, size: 20),
+                ),
+                onPressed: () {
+                  if (phone.isNotEmpty) {
+                    _shareLocationToContact(name: name, phone: phone);
+                  }
+                },
+              ),
+              IconButton(
+                tooltip: 'Call $name',
+                icon: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.phone_in_talk_rounded, color: AppColors.primary, size: 20),
+                ),
+                onPressed: () {
+                  if (phone.isNotEmpty) {
+                    launchUrl(Uri.parse('tel:$phone'), mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+            ],
           ),
         ],
       ),
