@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const axios = require('axios'); // ← NEW (AfroMessage SMS)
 const { query, getClient } = require('../config/db');
 const { initFirebase, admin } = require('../config/firebase');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
@@ -27,6 +28,35 @@ const signToken = (id, role = 'user') => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '30d',
   });
+};
+
+// ── Helper: Send SMS through AfroMessage (NEW) ─────────────────────────
+// Needs AFROMESSAGE_API_KEY and AFROMESSAGE_SENDER_ID in .env.
+// Throws an Error if the gateway rejects the message.
+const sendAfroSms = async (phone, message) => {
+  const response = await axios.post(
+    'https://api.afromessage.com/api/send',
+    {
+      from: process.env.AFROMESSAGE_SENDER_ID,
+      to: phone,
+      message,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.AFROMESSAGE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 15000,
+    }
+  );
+
+  // AfroMessage answers { acknowledge: 'success' | 'error', ... }
+  const ack = response.data && response.data.acknowledge;
+  if (response.status !== 200 || (ack && ack !== 'success')) {
+    console.error('AfroMessage API failed:', JSON.stringify(response.data));
+    throw new Error('Failed to send SMS via AfroMessage');
+  }
+  return response.data;
 };
 
 // ── POST /api/v1/auth/register ─────────────────────────────────────────
@@ -193,6 +223,7 @@ exports.adminLogin = async (req, res, next) => {
 };
 
 // ── POST /api/v1/auth/otp/send ─────────────────────────────────────────
+// CHANGED: OTP is now delivered by SMS through AfroMessage.
 exports.sendOtp = async (req, res, next) => {
   try {
     const { phone } = req.body;
@@ -201,16 +232,24 @@ exports.sendOtp = async (req, res, next) => {
       return sendError(res, 400, 'Phone number is required.');
     }
 
-    // In production, integrate with SMS provider (e.g., Twilio, Africa's Talking)
-    // For now, simulate OTP sending
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store OTP temporarily (in production use Redis with TTL)
-    // For demo, we store in a simple in-memory map
     if (!global.otpStore) global.otpStore = new Map();
     global.otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-    console.log(`📱 OTP for ${phone}: ${otp}`);
+    try {
+      await sendAfroSms(phone, `Your MomCare verification code is ${otp}. It expires in 5 minutes.`);
+    } catch (smsErr) {
+      // SMS failed: drop the stored OTP so it can't be used
+      global.otpStore.delete(phone);
+      console.error('Send OTP SMS error:', smsErr.response?.data || smsErr.message);
+      return sendError(res, 502, 'Failed to send OTP via SMS. Please try again.');
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📱 OTP for ${phone}: ${otp}`);
+    }
 
     return sendSuccess(res, 200, 'OTP sent successfully', { phone });
   } catch (err) {
@@ -287,6 +326,7 @@ exports.verifyOtp = async (req, res, next) => {
 };
 
 // ── POST /api/v1/auth/forgot-password ──────────────────────────────────
+// CHANGED: reset OTP is now delivered by SMS through AfroMessage.
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { phone } = req.body;
@@ -301,7 +341,17 @@ exports.forgotPassword = async (req, res, next) => {
     if (!global.otpStore) global.otpStore = new Map();
     global.otpStore.set(`reset:${phone}`, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-    console.log(`🔑 Password Reset OTP for ${phone}: ${otp}`);
+    try {
+      await sendAfroSms(phone, `Your MaternaLink password reset code is ${otp}. It expires in 5 minutes.`);
+    } catch (smsErr) {
+      global.otpStore.delete(`reset:${phone}`);
+      console.error('Forgot password SMS error:', smsErr.response?.data || smsErr.message);
+      return sendError(res, 502, 'Failed to send reset OTP via SMS. Please try again.');
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔑 Password Reset OTP for ${phone}: ${otp}`);
+    }
 
     return sendSuccess(res, 200, 'Reset OTP sent to your phone.');
   } catch (err) {

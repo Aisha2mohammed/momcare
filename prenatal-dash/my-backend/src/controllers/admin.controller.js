@@ -47,7 +47,22 @@ exports.getUsers = async (req, res, next) => {
     const total = parseInt(countResult.rows[0].count, 10);
     const offset = (Number(page) - 1) * Number(limit);
     params.push(Number(limit), offset);
-    const result = await query(`SELECT u.id, u.role, u.name, u.phone, u.email, u.language, u.status, u.created_at FROM users u ${whereClause} ORDER BY u.created_at DESC LIMIT $${idx++} OFFSET $${idx}`, params);
+   const result = await query(
+  `SELECT u.id, u.role, u.name, u.phone, u.email, u.language, u.status, u.created_at,
+          mp.lmp_date,
+          mp.due_date,
+          CASE
+            WHEN mp.lmp_date IS NOT NULL
+              THEN LEAST(42, GREATEST(1, ((CURRENT_DATE - mp.lmp_date::date) / 7) + 1))
+            ELSE mp.gestational_week
+          END AS gestational_week
+   FROM users u
+   LEFT JOIN mother_profiles mp ON mp.user_id = u.id
+   ${whereClause}
+   ORDER BY u.created_at DESC
+   LIMIT $${idx++} OFFSET $${idx}`,
+  params
+);
     return sendPaginated(res, result.rows, page, limit, total);
   } catch (err) { next(err); }
 };

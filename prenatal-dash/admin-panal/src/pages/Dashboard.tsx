@@ -3,7 +3,7 @@ import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Legend, PieChart, Pie, Cell
 } from 'recharts';
-import { Users, FileText, TrendingUp, UserCheck, Activity, Calendar } from 'lucide-react';
+import { Users, FileText, TrendingUp, UserCheck, Activity, Calendar, Baby } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -45,16 +45,6 @@ const appointmentData: Record<string, { status: string; count: number }[]> = {
         { status: 'Cancelled', count: 38 },
     ],
 };
-
-// TODO: real data (backend has no per-feature usage endpoint yet)
-const featureUsageData = [
-    { name: 'Nutrition', value: 1200, color: '#61183e' },
-    { name: 'Fetal Dev', value: 980, color: '#e879a8' },
-    { name: 'Exercise', value: 750, color: '#8b2563' },
-    { name: 'Sleep Tips', value: 620, color: '#c45a8e' },
-    { name: 'Music', value: 870, color: '#f0aad0' },
-    { name: 'Emergency', value: 540, color: '#fce7f3' },
-];
 
 type DateRange = '7d' | '30d';
 type Stats = Awaited<ReturnType<typeof adminStatsApi.getStats>>;
@@ -98,6 +88,15 @@ export default function Dashboard() {
           stats.content.sleep_tips + stats.content.music + stats.content.health_tips
         : 0;
 
+    const featureUsageData = [
+        { name: 'Fetal Dev', value: stats?.content.fetal ?? 0, color: '#61183e' },
+        { name: 'Nutrition', value: stats?.content.nutrition ?? 0, color: '#8b2563' },
+        { name: 'Music', value: stats?.content.music ?? 0, color: '#c45a8e' },
+        { name: 'Exercise', value: stats?.content.exercises ?? 0, color: '#e879a8' },
+        { name: 'Sleep Tips', value: stats?.content.sleep_tips ?? 0, color: '#f0aad0' },
+        { name: 'Health Tips', value: stats?.content.health_tips ?? 0, color: '#cbd5e1' },
+    ];
+
     const statsCards = [
         { label: 'Total Users', value: String(stats?.users.total ?? 0), icon: Users, change: 'All roles', color: 'bg-[#fdf2f8]', iconColor: 'text-[#61183e]' },
         { label: 'Mothers', value: String(stats?.users.mothers ?? 0), icon: UserCheck, change: 'Role: mother', color: 'bg-blue-50', iconColor: 'text-blue-600' },
@@ -105,8 +104,9 @@ export default function Dashboard() {
         { label: 'Pending Mothers', value: String(pendingMothers), icon: Activity, change: 'Awaiting approval', color: 'bg-amber-50', iconColor: 'text-amber-600' },
         { label: 'Total Appointments', value: String(stats?.appointments.total ?? 0), icon: Calendar, change: 'All time', color: 'bg-purple-50', iconColor: 'text-purple-600' },
         { label: 'Pending Appointments', value: String(stats?.appointments.pending ?? 0), icon: Calendar, change: `${stats?.appointments.confirmed ?? 0} confirmed · ${stats?.appointments.completed ?? 0} completed`, color: 'bg-rose-50', iconColor: 'text-rose-600' },
-        { label: 'Content Entries', value: String(contentTotal), icon: FileText, change: `Fetal ${stats?.content.fetal ?? 0} · Exercises ${stats?.content.exercises ?? 0}`, color: 'bg-[#fdf2f8]', iconColor: 'text-[#61183e]' },
-        { label: 'Nutrition Tips', value: String(stats?.content.nutrition ?? 0), icon: TrendingUp, change: `Sleep ${stats?.content.sleep_tips ?? 0} · Music ${stats?.content.music ?? 0} · Health ${stats?.content.health_tips ?? 0}`, color: 'bg-blue-50', iconColor: 'text-blue-600' },
+        { label: 'Fetal Development', value: String(stats?.content.fetal ?? 0), icon: Baby, change: `${stats?.content.fetal ?? 0} weekly stages`, color: 'bg-[#fdf2f8]', iconColor: 'text-[#61183e]' },
+        { label: 'Nutrition Tips', value: String(stats?.content.nutrition ?? 0), icon: TrendingUp, change: `${stats?.content.sleep_tips ?? 0} sleep · ${stats?.content.music ?? 0} music`, color: 'bg-blue-50', iconColor: 'text-blue-600' },
+        { label: 'Total Content Entries', value: String(contentTotal), icon: FileText, change: `${stats?.content.fetal ?? 0} fetal · ${stats?.content.nutrition ?? 0} nutrition · ${(stats?.content.exercises ?? 0) + (stats?.content.sleep_tips ?? 0) + (stats?.content.music ?? 0) + (stats?.content.health_tips ?? 0)} other`, color: 'bg-emerald-50', iconColor: 'text-emerald-600' },
     ];
 
     return (
@@ -201,31 +201,45 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Donut Chart */}
                 <Card>
-                    <h3 className="font-semibold text-gray-800 mb-4">Feature Usage Breakdown</h3>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                            <Pie
-                                data={featureUsageData}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={55}
-                                outerRadius={80}
-                                paddingAngle={3}
-                            >
-                                {featureUsageData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
-                    <div className="grid grid-cols-2 gap-1.5 mt-2">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-gray-800">Feature Usage Breakdown</h3>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#fdf2f8] text-[#61183e]">
+                            Total: {contentTotal}
+                        </span>
+                    </div>
+                    {contentTotal === 0 ? (
+                        <div className="h-[200px] flex items-center justify-center text-xs text-gray-400">
+                            No content entries found
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height={200}>
+                            <PieChart>
+                                <Pie
+                                    data={featureUsageData.filter(f => f.value > 0)}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={55}
+                                    outerRadius={80}
+                                    paddingAngle={3}
+                                >
+                                    {featureUsageData.filter(f => f.value > 0).map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value: any, name: any) => [`${value} entries`, name]} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3 pt-3 border-t border-gray-100">
                         {featureUsageData.map(f => (
-                            <div key={f.name} className="flex items-center gap-1.5 text-xs text-gray-600">
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
-                                {f.name}
+                            <div key={f.name} className="flex items-center justify-between text-xs text-gray-600">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
+                                    <span className="truncate">{f.name}</span>
+                                </div>
+                                <span className="font-semibold text-gray-800 ml-1.5 shrink-0">{f.value}</span>
                             </div>
                         ))}
                     </div>

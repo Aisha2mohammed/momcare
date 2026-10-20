@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Centralized API endpoint registry and URL builder for the entire application.
 class ApiEndpoints {
   // Base server connection
-  static const String serverHost = 'http://192.168.10.163:5000';
+  static const String serverHost = 'http://192.168.10.147:5000';
   static const String baseUrl = '$serverHost/api/v1';
 
   // ── Media & Upload URL Resolver ───────────────────────────────────────────
@@ -15,7 +15,7 @@ class ApiEndpoints {
     if (trimmed.startsWith('assets/')) return trimmed;
     String resolved = trimmed;
     if (resolved.contains('localhost')) {
-      resolved = resolved.replaceAll('localhost', '192.168.10.163');
+      resolved = resolved.replaceAll('localhost', '192.168.10.147');
     }
     if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
       return resolved;
