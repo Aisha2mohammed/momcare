@@ -147,7 +147,7 @@ export const getAuthToken = (): string | null => {
 async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
-): Promise<{ success: boolean; data?: T; pagination?: any; message?: string; error?: string }> {
+): Promise<{ success: boolean; data?: T; meta?: any; pagination?: any; message?: string; error?: string }> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
   const token = getAuthToken();
 
@@ -375,6 +375,12 @@ function mapAdminMother(row: any): Mother {
 }
 
 export const adminUsersApi = {
+  /** GET /admin/users?role=mother → every mother, all statuses (backend caps limit at 100) */
+  async adminListMothers(): Promise<Mother[]> {
+    const res = await apiRequest<any[]>('/admin/users?role=mother&limit=100', { method: 'GET' });
+    return (res.data ?? []).map(mapAdminMother);
+  },
+
   /** GET /admin/users/pending → pending mothers only */
   async adminListPendingMothers(): Promise<Mother[]> {
     const res = await apiRequest<any[]>('/admin/users/pending', { method: 'GET' });
@@ -403,6 +409,52 @@ export const adminUsersApi = {
   async adminReactivateMother(id: string): Promise<Mother> {
     const res = await apiRequest<any>(`/admin/users/${id}/reactivate`, { method: 'PUT' });
     return mapAdminMother(res.data);
+  },
+};
+
+// ─── Admin Dashboard Stats API ────────────────────────────────────────────
+export const adminStatsApi = {
+  async getStats(): Promise<{
+    users: { total: number; active: number; mothers: number; doctors: number; pendingMothers: number };
+    content: { nutrition: number; fetal: number; exercises: number; sleep_tips: number; music: number; health_tips: number };
+    appointments: { total: number; pending: number; confirmed: number; completed: number };
+  }> {
+    const res = await apiRequest<any>('/admin/stats', { method: 'GET' });
+    const d = res.data ?? {};
+    const num = (v: any) => Number(v ?? 0);
+    return {
+      users: {
+        total: num(d.users?.total),
+        active: num(d.users?.active),
+        mothers: num(d.users?.mothers),
+        doctors: num(d.users?.doctors),
+        pendingMothers: 0, // filled by getPendingMothersCount()
+      },
+      content: {
+        nutrition: num(d.content?.nutrition),
+        fetal: num(d.content?.fetal),
+        exercises: num(d.content?.exercises),
+        sleep_tips: num(d.content?.sleep_tips),
+        music: num(d.content?.music),
+        health_tips: num(d.content?.health_tips),
+      },
+      appointments: {
+        total: num(d.appointments?.total),
+        pending: num(d.appointments?.pending),
+        confirmed: num(d.appointments?.confirmed),
+        completed: num(d.appointments?.completed),
+      },
+    };
+  },
+
+  async getPendingMothersCount(): Promise<number> {
+    const res = await apiRequest<any>('/admin/users?role=mother&status=pending&limit=1', { method: 'GET' });
+    return Number(res.meta?.total ?? 0);
+  },
+
+  async getRecentUsers(limit = 5): Promise<Mother[]> {
+    const res = await apiRequest<any[]>(`/admin/users?limit=${limit}`, { method: 'GET' });
+    return (res.data ?? []).map(mapAdminMother);
   },
 };
 
