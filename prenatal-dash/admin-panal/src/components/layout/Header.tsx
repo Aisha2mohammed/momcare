@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Check, UserCheck, AlertTriangle, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bell, Check, UserCheck, AlertTriangle, LogOut } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LanguageSwitcher } from '../LanguageSwitcher';
 import { useAuth } from '../../context/AuthContext';
-import { useSidebar } from '../../context/SidebarContext';
+
 
 const pageMap: Record<string, { key: string; subtitle: string; fallbackTitle?: string }> = {
     '/': { key: 'dashboard', subtitle: 'Overview of platform activity' },
@@ -24,7 +23,7 @@ const pageMap: Record<string, { key: string; subtitle: string; fallbackTitle?: s
     '/music': { key: 'music', subtitle: 'Manage audio & relaxation content' },
     '/notifications': { key: 'notifications', subtitle: 'Manage platform alerts & push reminders' },
     '/emergency': { key: 'emergency', subtitle: 'Manage hospital contacts & health warnings' },
-    '/language': { key: 'language', subtitle: 'Manage localization & translations' },
+   
     '/community': { key: 'community', subtitle: 'Monitor, moderate, and manage user posts' },
     '/announcements': { key: 'announcements', subtitle: 'Broadcast notifications to mothers and doctors' },
     '/audit-log': { key: 'auditLog', subtitle: 'Complete audit history of admin actions' },
@@ -35,7 +34,7 @@ export function Header() {
     const { t } = useTranslation();
     const location = useLocation();
     const { user, logout } = useAuth();
-    const { isCollapsed, toggleCollapse, toggleMobileOpen } = useSidebar();
+   
 
     // Match exact path or prefix for detail pages like /doctor-approvals/:id
     let page = pageMap[location.pathname];
@@ -72,29 +71,9 @@ export function Header() {
         <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-3 sm:px-6 shadow-xs shrink-0 z-30 relative">
             {/* Left section: Hamburger / Toggle & Page Title */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                {/* Mobile Hamburger Drawer Toggle */}
-                <button
-                    onClick={toggleMobileOpen}
-                    className="lg:hidden p-2 rounded-xl text-gray-600 hover:text-[#61183e] hover:bg-[#fdf2f8] transition-colors shrink-0"
-                    title="Open Navigation Menu"
-                    aria-label="Toggle navigation menu"
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
+             
 
-                {/* Desktop Collapse / Expand Toggle */}
-                <button
-                    onClick={toggleCollapse}
-                    className="hidden lg:flex p-2 rounded-xl text-gray-500 hover:text-[#61183e] hover:bg-[#fdf2f8] transition-colors shrink-0"
-                    title={isCollapsed ? 'Expand sidebar' : 'Contract sidebar'}
-                    aria-label={isCollapsed ? 'Expand sidebar' : 'Contract sidebar'}
-                >
-                    {isCollapsed ? (
-                        <PanelLeftOpen className="w-5 h-5 text-[#61183e]" />
-                    ) : (
-                        <PanelLeftClose className="w-5 h-5 text-gray-500" />
-                    )}
-                </button>
+              
 
                 {/* Page title and subtitle */}
                 <div className="min-w-0">
@@ -109,10 +88,7 @@ export function Header() {
 
             {/* Right section: Language Switcher, Notifications, User profile */}
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                {/* Language Switcher */}
-                <div className="shrink-0">
-                    <LanguageSwitcher />
-                </div>
+              
 
                 {/* Notification Bell */}
                 <div className="relative" ref={notifRef}>

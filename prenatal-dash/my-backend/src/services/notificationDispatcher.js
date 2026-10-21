@@ -159,7 +159,13 @@ async function dispatchNotification(n) {
       io.to('all').emit('notification', groupPayload);
       io.to('all').emit('notification:new', groupPayload);
       io.to('all').emit('notification:count_update');
-    } else if (n.target_group === 'mothers') {
+    } else if (
+      n.target_group === 'mothers' ||
+      ['trimester', 'week', 'month'].includes(n.target_group) ||
+      n.trimester ||
+      n.week ||
+      n.month
+    ) {
       io.to('role:mother').emit('notification', groupPayload);
       io.to('role:mother').emit('notification:new', groupPayload);
       io.to('role:mother').emit('notification:count_update');

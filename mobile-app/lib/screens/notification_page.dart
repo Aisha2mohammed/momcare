@@ -29,6 +29,7 @@ class NotificationPage extends StatefulWidget {
 class _NotificationPageState extends State<NotificationPage> {
   final List<Map<String, dynamic>> _notifications = [];
   final Set<String> _readingIds = {};
+  final Set<String> _unreadIds = {};
 
   bool _loading = true;
   String? _error;
@@ -47,13 +48,32 @@ class _NotificationPageState extends State<NotificationPage> {
     try {
       final notifications = await NotificationService.getMyNotifications();
       if (!mounted) return;
+
+      final notifList = notifications.map((n) => n as Map<String, dynamic>).toList();
+      final unread = <String>{};
+      for (final n in notifList) {
+        final id = (n['id'] ?? '').toString();
+        final isRead = n['is_read'] == true || n['is_read'] == 'true' || n['is_read'] == 1;
+        if (!isRead && id.isNotEmpty) {
+          unread.add(id);
+        }
+      }
+
       setState(() {
         _notifications
           ..clear()
-          ..addAll(notifications.map((n) => n as Map<String, dynamic>));
+          ..addAll(notifList);
+        _unreadIds
+          ..clear()
+          ..addAll(unread);
       });
-      // Synchronize unread counter with backend
-      NotificationService.fetchUnreadCount();
+
+      // Synchronize and mark read on backend so the red count number in top navbar disappears
+      try {
+        await NotificationService.markAllRead();
+      } catch (_) {
+        NotificationService.unreadCount.value = 0;
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -67,12 +87,13 @@ class _NotificationPageState extends State<NotificationPage> {
 
   Future<void> _markRead(Map<String, dynamic> notification) async {
     final id = (notification['id'] ?? '').toString();
-    if (id.isEmpty || notification['is_read'] == true) return;
+    if (id.isEmpty) return;
     if (_readingIds.contains(id)) return;
 
-    // Optimistic: reflect read state locally
+    // Immediately remove the red dot indicator when viewed inside it
     setState(() {
       notification['is_read'] = true;
+      _unreadIds.remove(id);
       _readingIds.add(id);
     });
 
@@ -86,8 +107,7 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Future<void> _markAllAsRead() async {
-    final unreadCount = _notifications.where((n) => n['is_read'] != true).length;
-    if (unreadCount == 0) {
+    if (_unreadIds.isEmpty && !_notifications.any((n) => n['is_read'] != true)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('All notifications are already marked as read.'),
@@ -98,6 +118,7 @@ class _NotificationPageState extends State<NotificationPage> {
     }
 
     setState(() {
+      _unreadIds.clear();
       for (final n in _notifications) {
         n['is_read'] = true;
       }
@@ -518,7 +539,9 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Widget _buildNotificationItem(Map<String, dynamic> notification) {
-    final isRead = notification['is_read'] == true;
+    final id = (notification['id'] ?? '').toString();
+    final isRead = !_unreadIds.contains(id) &&
+        (notification['is_read'] == true || notification['is_read'] == 'true' || notification['is_read'] == 1);
     final title = (notification['title'] ?? notification['title_en'] ?? notification['title_am'] ?? '').toString().trim();
     final body = (notification['body'] ?? notification['body_en'] ?? notification['body_am'] ?? '').toString().trim();
     final time = _timeAgo(

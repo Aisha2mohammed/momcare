@@ -17,7 +17,7 @@ import SleepPositionManager from './pages/SleepPositionManager';
 import MusicLibraryManager from './pages/MusicLibraryManager';
 import NotificationsManager from './pages/NotificationsManager';
 import EmergencyContactsManager from './pages/EmergencyContactsManager';
-import LanguageManager from './pages/LanguageManager';
+
 import Announcements from './pages/Announcements';
 import AuditLog from './pages/AuditLog';
 import CommunityModeration from './pages/CommunityModeration';
@@ -61,7 +61,7 @@ export default function App() {
               <Route path="music" element={<MusicLibraryManager />} />
               <Route path="notifications" element={<NotificationsManager />} />
               <Route path="emergency" element={<EmergencyContactsManager />} />
-              <Route path="language" element={<LanguageManager />} />
+      
               <Route path="announcements" element={<Announcements />} />
               <Route path="audit-log" element={<AuditLog />} />
               <Route path="community" element={<CommunityModeration />} />

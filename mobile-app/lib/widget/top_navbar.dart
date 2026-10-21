@@ -24,7 +24,7 @@ class _CustomTopNavbarState extends State<CustomTopNavbar> with WidgetsBindingOb
     // Fetch latest unread notifications count from backend on load
     NotificationService.fetchUnreadCount();
     // Keep unread count synchronized periodically while app is active
-    _syncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _syncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) {
         NotificationService.fetchUnreadCount();
       }

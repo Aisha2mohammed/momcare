@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
-const { validate, paginationRules, healthProviderRules } = require('../utils/validators');
+const { validate, paginationRules, healthProviderRules, notificationRules } = require('../utils/validators');
 const { requireAdmin } = require('../middlewares/roleGuard');
 
 router.use(requireAdmin);

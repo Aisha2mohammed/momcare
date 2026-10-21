@@ -165,8 +165,9 @@ class PushService {
       Future.delayed(const Duration(seconds: 15), () => _recentlyReceivedIds.remove(id));
     }
 
-    // Increment reactive unread counter for top navbar badge
+    // Increment reactive unread counter for top navbar badge and sync count
     NotificationService.incrementUnread();
+    NotificationService.fetchUnreadCount();
 
     // Trigger in-app UI callback and heads-up banner
     onInApp(notification);

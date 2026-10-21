@@ -271,7 +271,7 @@ exports.markRead = async (req, res, next) => {
     const userRole = req.user.role;
 
     const existing = await query(
-      'SELECT id, target_group, target_user_id FROM notifications WHERE id = $1 AND sent_at IS NOT NULL',
+      'SELECT id, target_group, target_user_id, trimester, week, month FROM notifications WHERE id = $1 AND sent_at IS NOT NULL',
       [id]
     );
     if (existing.rows.length === 0) return sendError(res, 404, 'Notification not found.');
@@ -279,7 +279,13 @@ exports.markRead = async (req, res, next) => {
     const n = existing.rows[0];
     const inScope =
       n.target_group === 'all' ||
-      (n.target_group === 'mothers' && userRole === 'mother') ||
+      (userRole === 'mother' && (
+        n.target_group === 'mothers' ||
+        ['trimester', 'week', 'month'].includes(n.target_group) ||
+        n.trimester !== null ||
+        n.week !== null ||
+        n.month !== null
+      )) ||
       (n.target_group === 'doctors' && userRole === 'doctor') ||
       String(n.target_user_id) === String(userId);
     if (!inScope) {
