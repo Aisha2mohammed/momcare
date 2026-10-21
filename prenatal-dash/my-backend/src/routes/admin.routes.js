@@ -55,8 +55,12 @@ router.put('/health-providers/:id/status', adminController.toggleHealthProviderS
 router.get('/audit-logs', paginationRules, validate, adminController.getAuditLogs);
 
 // Community Moderation
-router.delete('/community/posts/:id', adminController.moderatePost);
-router.put('/community/rules', adminController.updateCommunityRules);
+const communityController = require('../controllers/community.controller');
+router.get('/community/posts', paginationRules, validate, communityController.getAdminPosts);
+router.put('/community/posts/:id/dismiss-flag', communityController.dismissFlag);
+router.delete('/community/posts/:id', communityController.deletePost);
+router.get('/community/rules', communityController.getCommunityRules);
+router.put('/community/rules', communityController.updateCommunityRules);
 
 // Notifications
 const notificationController = require('../controllers/notification.controller');

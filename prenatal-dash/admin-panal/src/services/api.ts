@@ -3,7 +3,7 @@
  * Fully integrated with my-backend REST endpoints under /api/v1
  */
 
-import type { Language, Mother, Status } from '../api/types';
+import type { Language, Mother, Status, Post } from '../api/types';
 
 // Base URL resolution from environment variable
 const getBaseUrl = (): string => {
@@ -525,6 +525,45 @@ export const adminNotificationsApi = {
       body: JSON.stringify(payload),
     });
     return res;
+  },
+};
+
+export const adminCommunityApi = {
+  async getPosts(params: { trimester?: string; flaggedOnly?: boolean; search?: string; page?: number; limit?: number } = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.trimester && params.trimester !== 'All') query.set('trimester', params.trimester);
+    if (params.flaggedOnly !== undefined) query.set('flaggedOnly', String(params.flaggedOnly));
+    if (params.search) query.set('search', params.search);
+
+    const qs = query.toString();
+    const endpoint = `/admin/community/posts${qs ? `?${qs}` : ''}`;
+    const res = await apiRequest<Post[]>(endpoint, { method: 'GET' });
+    return {
+      items: (res.data || []) as Post[],
+      pagination: res.pagination || { total: (res.data || []).length, page: 1, limit: 50 },
+    };
+  },
+
+  async deletePost(id: string) {
+    return apiRequest(`/admin/community/posts/${id}`, { method: 'DELETE' });
+  },
+
+  async dismissFlag(id: string) {
+    return apiRequest(`/admin/community/posts/${id}/dismiss-flag`, { method: 'PUT' });
+  },
+
+  async getRules(): Promise<{ content: string; updatedAt?: string }> {
+    const res = await apiRequest<{ content: string; updatedAt?: string }>('/admin/community/rules', { method: 'GET' });
+    return res.data || { content: '' };
+  },
+
+  async updateRules(content: string) {
+    return apiRequest('/admin/community/rules', {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
   },
 };
 

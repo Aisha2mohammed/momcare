@@ -142,12 +142,31 @@ class ApiEndpoints {
   // ── Community Endpoints ───────────────────────────────────────────────────
   static const String communityGroups = '/community/groups';
   static const String communityPosts = '/community/posts';
+  static const String communityRules = '/community/rules';
+  static String communityFeed({int page = 1, int limit = 50, String? groupId}) {
+    final groupParam = (groupId != null && groupId.isNotEmpty && groupId != 'all') ? '&groupId=$groupId' : '';
+    return '/community/posts?page=$page&limit=$limit$groupParam';
+  }
   static String groupPosts(String groupId, {int page = 1, int limit = 50}) =>
       '/community/groups/$groupId/posts?page=$page&limit=$limit';
   static String postComments(String postId, {int page = 1, int limit = 50}) =>
       '/community/posts/$postId/comments?page=$page&limit=$limit';
   static String postCommentsCreate(String postId) => '/community/posts/$postId/comments';
   static String postLike(String postId) => '/community/posts/$postId/like';
+  static String postFlag(String postId) => '/community/posts/$postId/flag';
+  static String postUpdate(String postId) => '/community/posts/$postId';
+  static String postDelete(String postId) => '/community/posts/$postId';
+
+  // ── Direct Messaging (Mother-to-Mother) ──────────────────────────────────
+  static const String directMessageConversations = '/community/direct-messages/conversations';
+  static String directMessages(String otherUserId, {int page = 1, int limit = 50}) =>
+      '/community/direct-messages/$otherUserId?page=$page&limit=$limit';
+  static String sendDirectMessage(String otherUserId) =>
+      '/community/direct-messages/$otherUserId';
+  static String directMessageUpdate(String messageId) =>
+      '/community/direct-messages/messages/$messageId';
+  static String directMessageDelete(String messageId) =>
+      '/community/direct-messages/messages/$messageId';
 
   // ── Notification Endpoints ────────────────────────────────────────────────
   static const String notificationDevices = '/notifications/devices';
@@ -172,6 +191,7 @@ class ApiService {
 
   static const String _tokenKey = 'jwt_token';
   static const String _userIdKey = 'user_id';
+  static const String _userRoleKey = 'user_role';
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -198,10 +218,40 @@ class ApiService {
     return prefs.getString(_userIdKey);
   }
 
+  static Future<void> saveUserRole(String role) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userRoleKey, role);
+  }
+
+  static Future<String?> getUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final role = prefs.getString(_userRoleKey);
+    if (role != null && role.isNotEmpty) return role;
+
+    final token = await getToken();
+    if (token != null) {
+      try {
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final normalized = base64Url.normalize(parts[1]);
+          final payload = utf8.decode(base64Url.decode(normalized));
+          final map = jsonDecode(payload);
+          final r = map['role']?.toString();
+          if (r != null && r.isNotEmpty) {
+            await prefs.setString(_userRoleKey, r);
+            return r;
+          }
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userIdKey);
+    await prefs.remove(_userRoleKey);
   }
 
   static Future<Map<String, String>> _headers() async {

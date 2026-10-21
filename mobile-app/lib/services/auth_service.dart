@@ -42,6 +42,9 @@ class AuthService {
     if (user['id'] != null) {
       await ApiService.saveUserId(user['id'].toString());
     }
+    if (user['role'] != null) {
+      await ApiService.saveUserRole(user['role'].toString());
+    }
     return AuthResult(token: token, user: user);
   }
 
@@ -78,6 +81,9 @@ class AuthService {
     }
     if (user != null && user['id'] != null) {
       await ApiService.saveUserId(user['id'].toString());
+    }
+    if (user != null && user['role'] != null) {
+      await ApiService.saveUserRole(user['role'].toString());
     }
   }
 
@@ -117,6 +123,9 @@ class AuthService {
     final user = data['user'] as Map<String, dynamic>?;
     if (user != null && user['id'] != null) {
       await ApiService.saveUserId(user['id'].toString());
+    }
+    if (user != null && user['role'] != null) {
+      await ApiService.saveUserRole(user['role'].toString());
     }
     return AuthResult(
       token: token,

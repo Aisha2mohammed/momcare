@@ -31,10 +31,44 @@ const getClient = async () => {
   return client;
 };
 
+const initDbSchema = async () => {
+  try {
+    await query(`
+      ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN DEFAULT false;
+      ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS report_count INTEGER DEFAULT 0;
+      ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS report_reason TEXT;
+
+      CREATE TABLE IF NOT EXISTS community_rules (
+        id VARCHAR(50) PRIMARY KEY DEFAULT 'default',
+        content TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message_text TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT false,
+        is_edited BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false;
+      CREATE INDEX IF NOT EXISTS idx_direct_messages_sender ON direct_messages(sender_id);
+      CREATE INDEX IF NOT EXISTS idx_direct_messages_receiver ON direct_messages(receiver_id);
+      CREATE INDEX IF NOT EXISTS idx_direct_messages_created_at ON direct_messages(created_at);
+    `);
+    console.log('✅ Community & Direct Messaging database schema verified');
+  } catch (err) {
+    console.warn('⚠️ Note during schema init:', err.message);
+  }
+};
+
 const testConnection = async () => {
   try {
     const result = await query('SELECT NOW() as current_time');
     console.log(`✅ PostgreSQL connected at ${result.rows[0].current_time}`);
+    await initDbSchema();
     return true;
   } catch (err) {
     console.error('❌ PostgreSQL connection failed:', err.message);
@@ -42,4 +76,4 @@ const testConnection = async () => {
   }
 };
 
-module.exports = { pool, query, getClient, testConnection };
+module.exports = { pool, query, getClient, testConnection, initDbSchema };

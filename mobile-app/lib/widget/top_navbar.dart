@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/notification_page.dart';
+import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/services/mother_service.dart';
 import 'package:pregnancy_appp/services/notification_service.dart';
 
 class CustomTopNavbar extends StatefulWidget implements PreferredSizeWidget {
@@ -21,7 +23,8 @@ class _CustomTopNavbarState extends State<CustomTopNavbar> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Fetch latest unread notifications count from backend on load
+    // Fetch latest profile and unread notifications count from backend on load
+    MotherService.loadInitialProfile();
     NotificationService.fetchUnreadCount();
     // Keep unread count synchronized periodically while app is active
     _syncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -34,6 +37,7 @@ class _CustomTopNavbarState extends State<CustomTopNavbar> with WidgetsBindingOb
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      MotherService.loadInitialProfile();
       NotificationService.fetchUnreadCount();
     }
   }
@@ -56,10 +60,28 @@ class _CustomTopNavbarState extends State<CustomTopNavbar> with WidgetsBindingOb
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 28),
+            ValueListenableBuilder<String?>(
+              valueListenable: MotherService.profilePhoto,
+              builder: (context, photo, _) {
+                final hasPhoto = photo != null && photo.trim().isNotEmpty;
+                return Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                    backgroundImage: hasPhoto ? NetworkImage(ApiService.resolveUrl(photo)) : null,
+                    child: hasPhoto
+                        ? null
+                        : const Icon(Icons.person_rounded, color: AppColors.primary, size: 24),
+                  ),
+                );
+              },
             ),
             ValueListenableBuilder<int>(
               valueListenable: NotificationService.unreadCount,

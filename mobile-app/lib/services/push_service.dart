@@ -47,6 +47,7 @@ const _channelGeneral = AndroidNotificationChannel(
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
   static IO.Socket? _socket;
+  static IO.Socket? get socket => _socket;
 
   /// Setup push notifications (both FCM and WebSocket in-app)
   static Future<void> init({
