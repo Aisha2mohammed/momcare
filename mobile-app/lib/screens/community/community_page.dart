@@ -18,7 +18,6 @@ class _CommunityPageState extends State<CommunityPage>
   late TabController _tabController;
   String _searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _quickPostController = TextEditingController();
 
   final List<Map<String, dynamic>> _groups = [];
   final List<dynamic> _posts = [];
@@ -27,7 +26,6 @@ class _CommunityPageState extends State<CommunityPage>
 
   bool _loadingGroups = true;
   bool _loadingPosts = false;
-  bool _isSubmittingQuickPost = false;
   String? _groupsError;
   String? _postsError;
 
@@ -42,7 +40,6 @@ class _CommunityPageState extends State<CommunityPage>
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
-    _quickPostController.dispose();
     super.dispose();
   }
 
@@ -209,10 +206,10 @@ class _CommunityPageState extends State<CommunityPage>
               onPressed: () => _showAddPostModal(context),
               backgroundColor: AppColors.primary,
               elevation: 4,
-              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+              icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
               label: const Text(
-                "Send Post",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                "Post",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
               ),
             )
           : null,
@@ -235,7 +232,7 @@ class _CommunityPageState extends State<CommunityPage>
                     ),
                     ElevatedButton.icon(
                       onPressed: () => _showAddPostModal(context),
-                      icon: const Icon(Icons.send_rounded, size: 15),
+                      icon: const Icon(Icons.add_rounded, size: 17),
                       label: const Text("Post"),
                       style: ElevatedButton.styleFrom(
                         foregroundColor: Colors.white,
@@ -347,9 +344,7 @@ class _CommunityPageState extends State<CommunityPage>
                 Column(
                   children: [
                     SizedBox(height: 38, child: _buildGroupChips()),
-                    const SizedBox(height: 8),
-                    _buildQuickPostBar(),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 10),
                     Expanded(child: _buildPostsArea(filteredPosts)),
                   ],
                 ),
@@ -373,122 +368,6 @@ class _CommunityPageState extends State<CommunityPage>
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Quick Post Bar with Direct Send Button ─────────────────────────────
-  Future<void> _handleQuickPostSubmit() async {
-    final content = _quickPostController.text.trim();
-    if (content.isEmpty) return;
-
-    final groupId = _selectedGroupId ?? (_groups.isNotEmpty ? _groups.first['id'] as String? : null);
-    if (groupId == null) {
-      AppStatusModal.showError(
-        context: context,
-        title: 'No Group Selected',
-        message: 'Please choose or wait for a community group to load.',
-      );
-      return;
-    }
-
-    final groupName = _groupNameById(groupId) ?? 'the community';
-
-    setState(() => _isSubmittingQuickPost = true);
-    try {
-      await CommunityService.createPost(
-        groupId: groupId,
-        content: content,
-        isAnonymous: false,
-      );
-      _quickPostController.clear();
-      FocusScope.of(context).unfocus();
-      if (!mounted) return;
-      await _loadPosts(groupId, showSpinner: false);
-      if (!mounted) return;
-      AppStatusModal.showSuccess(
-        context: context,
-        title: 'Post Published!',
-        message: 'Your post was successfully shared in $groupName.',
-      );
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      AppStatusModal.showError(
-        context: context,
-        title: 'Could Not Post',
-        message: e.message,
-      );
-    } catch (_) {
-      if (!mounted) return;
-      AppStatusModal.showError(
-        context: context,
-        title: 'Could Not Post',
-        message: 'Network error. Please try again.',
-      );
-    } finally {
-      if (mounted) setState(() => _isSubmittingQuickPost = false);
-    }
-  }
-
-  Widget _buildQuickPostBar() {
-    final groupName = _groupNameById(_selectedGroupId);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 17,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-            child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _quickPostController,
-              enabled: !_isSubmittingQuickPost,
-              decoration: InputDecoration(
-                hintText: groupName != null
-                    ? "Share with $groupName..."
-                    : "Share something with other mothers...",
-                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13.5),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-              ),
-              onSubmitted: (_) => _handleQuickPostSubmit(),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: _isSubmittingQuickPost
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send_rounded, color: Colors.white, size: 17),
-              tooltip: "Send Post",
-              onPressed: _isSubmittingQuickPost ? null : _handleQuickPostSubmit,
             ),
           ),
         ],
@@ -738,7 +617,8 @@ class _CommunityPageState extends State<CommunityPage>
   // ── Add Post Modal ────────────────────────────────────────────────────
   void _showAddPostModal(BuildContext context) {
     final textController = TextEditingController();
-    var selectedGroupId = _selectedGroupId ?? (_groups.isNotEmpty ? _groups.first['id'] as String? : null);
+    final targetGroupId = _selectedGroupId ?? (_groups.isNotEmpty ? _groups.first['id'] as String? : null);
+    final groupName = _groupNameById(targetGroupId) ?? 'Community';
     var isAnonymous = false;
     var submitting = false;
 
@@ -748,29 +628,36 @@ class _CommunityPageState extends State<CommunityPage>
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final groupName = _groupNameById(selectedGroupId) ?? 'Community';
-
           Future<void> submit() async {
             final content = textController.text.trim();
-            if (content.isEmpty) return;
-            if (selectedGroupId == null) {
-              AppStatusModal.showError(
-                context: ctx,
-                title: 'No Group Selected',
-                message: 'Please choose a group to post in.',
+            if (content.isEmpty) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(
+                  content: Text('Please enter something to share.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
               return;
             }
+            if (targetGroupId == null) {
+              AppStatusModal.showError(
+                context: ctx,
+                title: 'No Group Selected',
+                message: 'Please choose or wait for a community group to load.',
+              );
+              return;
+            }
+
             setModalState(() => submitting = true);
             try {
               await CommunityService.createPost(
-                groupId: selectedGroupId!,
+                groupId: targetGroupId,
                 content: content,
                 isAnonymous: isAnonymous,
               );
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
-              await _loadPosts(selectedGroupId!, showSpinner: false);
+              await _loadPosts(targetGroupId, showSpinner: false);
               if (!mounted) return;
               AppStatusModal.showSuccess(
                 context: context,
@@ -801,41 +688,55 @@ class _CommunityPageState extends State<CommunityPage>
             child: Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 20,
+                    offset: Offset(0, -4),
+                  ),
+                ],
               ),
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Drag Handle
                   Center(
                     child: Container(
-                      width: 40,
-                      height: 4,
+                      width: 42,
+                      height: 4.5,
                       decoration: BoxDecoration(
                         color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+
+                  // Header Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       IconButton(
+                        visualDensity: VisualDensity.compact,
                         onPressed: submitting ? null : () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close_rounded),
+                        icon: const Icon(Icons.close_rounded, size: 22),
                       ),
                       const Text(
-                        "Create New Post",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        "Share with Community",
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         ),
                         onPressed: submitting ? null : submit,
@@ -854,82 +755,114 @@ class _CommunityPageState extends State<CommunityPage>
                     ],
                   ),
                   const SizedBox(height: 14),
-                  if (_groups.length > 1) ...[
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _groups.map((g) {
-                          final gid = g['id'] as String?;
-                          final isSelected = gid == selectedGroupId;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(g['name'] as String? ?? 'Group'),
-                              selected: isSelected,
-                              selectedColor: AppColors.primary,
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : Colors.grey[700],
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                              onSelected: submitting
-                                  ? null
-                                  : (sel) {
-                                      if (sel && gid != null) {
-                                        setModalState(() => selectedGroupId = gid);
-                                      }
-                                    },
-                            ),
-                          );
-                        }).toList(),
-                      ),
+
+                  // Target Community Group Banner (shares directly to the community group, no group selector)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
                     ),
-                    const SizedBox(height: 10),
-                  ] else ...[
-                    Row(
+                    child: Row(
                       children: [
-                        const Icon(Icons.groups_rounded, size: 16, color: AppColors.primary),
-                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.groups_rounded, size: 16, color: Colors.white),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            "Posting to $groupName",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.w600),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Sharing to Community Group",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                groupName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                  ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Content Input Box
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: Colors.grey[200]!),
                     ),
                     child: TextField(
                       controller: textController,
-                      maxLines: 5,
+                      minLines: 5,
+                      maxLines: 8,
                       autofocus: true,
                       decoration: InputDecoration(
-                        hintText: "What's on your mind? Share pregnancy questions, tips or thoughts...",
-                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                        hintText: "What's on your mind? Share pregnancy questions, tips, or experiences with other mothers...",
+                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14, height: 1.4),
                         border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
                       ),
-                      style: const TextStyle(fontSize: 14.5),
+                      style: const TextStyle(fontSize: 14.5, height: 1.45),
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // Anonymous toggle
                   Row(
                     children: [
                       Expanded(
                         child: Row(
                           children: [
-                            const Icon(Icons.visibility_off_rounded, color: AppColors.primary, size: 20),
-                            const SizedBox(width: 8),
-                            const Text("Post anonymously", style: TextStyle(fontSize: 14)),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: isAnonymous ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey[100],
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isAnonymous ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                color: isAnonymous ? AppColors.primary : Colors.grey[600],
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Post anonymously",
+                                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  "Hides your identity from other mothers",
+                                  style: TextStyle(fontSize: 11.5, color: Colors.grey[500]),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -943,6 +876,8 @@ class _CommunityPageState extends State<CommunityPage>
                     ],
                   ),
                   const SizedBox(height: 16),
+
+                  // Bottom Submit Button
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -960,11 +895,13 @@ class _CommunityPageState extends State<CommunityPage>
                           )
                         : const Icon(Icons.send_rounded, size: 18),
                     label: Text(
-                      submitting ? "Posting to Community..." : "Send Post to Community",
+                      submitting ? "Sharing..." : "Send Post to $groupName",
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                 ],
               ),
             ),

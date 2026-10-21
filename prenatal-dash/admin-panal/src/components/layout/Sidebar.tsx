@@ -13,7 +13,6 @@ import {
     Music,
     Bell,
     HeartPulse,
-    Globe,
     Shield,
     Megaphone,
     ClipboardList,
@@ -60,7 +59,7 @@ const navSections = [
             { icon: Music, label: 'Music & Relaxation', key: 'music', path: '/music', badge: 0 },
             { icon: Bell, label: 'Tracker & Notifications', key: 'notifications', path: '/notifications', badge: 0 },
             { icon: HeartPulse, label: 'Emergency & Health', key: 'emergency', path: '/emergency', badge: 0 },
-            { icon: Globe, label: 'Language Options', key: 'language', path: '/language', badge: 0 },
+          
         ],
     },
     {

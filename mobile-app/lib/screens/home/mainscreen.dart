@@ -56,7 +56,7 @@ class _MainScreenState extends State<MainScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.local_hospital, color: AppColors.primary),
@@ -72,7 +72,7 @@ class _MainScreenState extends State<MainScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.smart_toy_rounded, color: AppColors.primary),
@@ -82,6 +82,24 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatBotPage()));
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.forum_rounded, color: AppColors.primary),
+                ),
+                title: const Text("Community Discussion", style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text("Share and read posts in community groups"),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _selectedIndex = 1;
+                  });
                 },
               ),
               const SizedBox(height: 24),
@@ -99,15 +117,17 @@ class _MainScreenState extends State<MainScreen> {
       appBar: const CustomTopNavbar(),
       body: _pages[_selectedIndex], 
       
-     // Floating Action Button with generic + icon
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: FloatingActionButton(
-          onPressed: () => _showActionMenu(context),
-          backgroundColor: AppColors.primary,
-          child: const Icon(Icons.add, color: Colors.white, size: 28),
-        ),
-      ),
+      // Floating Action Button: hidden on Community page so Community's + Post FAB can show cleanly
+      floatingActionButton: _selectedIndex == 1
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: FloatingActionButton(
+                onPressed: () => _showActionMenu(context),
+                backgroundColor: AppColors.primary,
+                child: const Icon(Icons.add, color: Colors.white, size: 28),
+              ),
+            ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       
       bottomNavigationBar: CustomBottomNavigationBar(
