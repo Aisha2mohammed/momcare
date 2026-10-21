@@ -487,17 +487,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
             const SizedBox(height: 30),
 
-            TextButton.icon(
-              onPressed: _logout,
-              icon: const Icon(Icons.logout_rounded, color: Colors.red),
-              label: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              style: TextButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.red[50],
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              ),
-            ),
-            const SizedBox(height: 20),
+          
           ],
         ),
       ),

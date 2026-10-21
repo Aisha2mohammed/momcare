@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertTriangle, Trash2, CheckCircle, MessageSquare, BookOpen, Filter, Search } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useCommunity } from '../api/hooks/useCommunity';
+import { adminCommunityApi } from '../services/api';
 import type { TrimesterGroup } from '../api/types';
 
 const subTabs = ['Flagged Posts', 'Post Browser', 'Community Rules'] as const;
@@ -35,6 +36,15 @@ export default function CommunityModeration() {
     const [search, setSearch] = useState('');
     const [rules, setRules] = useState(DEFAULT_RULES);
     const [rulesSaved, setRulesSaved] = useState(false);
+    const [isSavingRules, setIsSavingRules] = useState(false);
+
+    useEffect(() => {
+        adminCommunityApi.getRules()
+            .then(res => {
+                if (res?.content) setRules(res.content);
+            })
+            .catch(err => console.error('Failed to load rules:', err));
+    }, []);
 
     const flaggedPosts = useCommunity(undefined, true);
     const allPosts = useCommunity(trimesterFilter === 'All' ? undefined : trimesterFilter, false);
@@ -45,9 +55,16 @@ export default function CommunityModeration() {
     );
 
     const handleSaveRules = async () => {
-        await new Promise(r => setTimeout(r, 500));
-        setRulesSaved(true);
-        setTimeout(() => setRulesSaved(false), 2500);
+        setIsSavingRules(true);
+        try {
+            await adminCommunityApi.updateRules(rules);
+            setRulesSaved(true);
+            setTimeout(() => setRulesSaved(false), 2500);
+        } catch (err: any) {
+            alert(err.message || 'Failed to save rules');
+        } finally {
+            setIsSavingRules(false);
+        }
     };
 
     const formatDate = (iso: string) =>
@@ -225,7 +242,9 @@ export default function CommunityModeration() {
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm font-mono leading-relaxed focus:outline-none focus:border-[#61183e] focus:ring-2 focus:ring-[#61183e]/20 resize-none"
                     />
                     <div className="mt-4">
-                        <Button variant="primary" size="sm" onClick={handleSaveRules}>Save Rules</Button>
+                        <Button variant="primary" size="sm" onClick={handleSaveRules} disabled={isSavingRules}>
+                            {isSavingRules ? 'Saving...' : 'Save Rules'}
+                        </Button>
                     </div>
                 </Card>
             )}
