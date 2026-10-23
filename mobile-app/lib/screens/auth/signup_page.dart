@@ -71,13 +71,13 @@ class _SignupPageState extends State<SignupPage> {
       AppStatusModal.showSuccess(
         context: context,
         title: 'Registration Submitted!',
-        message: 'Your account has been created successfully and is awaiting hospital approval.',
+        message: 'Your account has been created successfully and is awaiting Admin approval.',
         buttonText: 'View Status',
         onDismiss: () {
           if (!mounted) return;
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+            MaterialPageRoute(builder: (context) => PendingApprovalPage(phone: phone)),
             (route) => false,
           );
         },
@@ -138,7 +138,7 @@ class _SignupPageState extends State<SignupPage> {
               Center(
                 child: RichText(
                   text: const TextSpan(
-                    text: 'Enat ',
+                    text: 'Mom ',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -146,7 +146,7 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     children: [
                       TextSpan(
-                        text: 'Circle',
+                        text: 'Care',
                         style: TextStyle(color: AppColors.primary),
                       ),
                     ],

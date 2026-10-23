@@ -4,18 +4,94 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse'
 const { dispatchNotification } = require('../services/notificationDispatcher');
 const { logAdminAction } = require('../services/auditLogger');
 
-// Which notifications belong in a user's inbox ($1 = user id, $2 = role)
-const SCOPE = `(n.target_group = 'all'
-    OR ($2 = 'mother' AND (
-         n.target_group = 'mothers'
-         OR n.target_group IN ('trimester', 'week', 'month')
-         OR n.trimester IS NOT NULL
-         OR n.week IS NOT NULL
-         OR n.month IS NOT NULL
-       ))
-    OR (n.target_group = 'doctors' AND $2 = 'doctor')
-    OR n.target_user_id = $1)
-  AND n.sent_at IS NOT NULL`;
+// ── Helper: Stage calculations ──────────────────────────────────────────
+function getStageFromWeek(week) {
+  const w = Number(week);
+  if (!w || isNaN(w)) return { trimester: null, month: null };
+  const trimester = w <= 13 ? 1 : w <= 26 ? 2 : 3;
+  let month = 1;
+  if (w <= 4) month = 1;
+  else if (w <= 8) month = 2;
+  else if (w <= 13) month = 3;
+  else if (w <= 17) month = 4;
+  else if (w <= 21) month = 5;
+  else if (w <= 26) month = 6;
+  else if (w <= 30) month = 7;
+  else if (w <= 35) month = 8;
+  else month = 9;
+  return { trimester, month };
+}
+
+function getTrimesterFromMonth(month) {
+  const m = Number(month);
+  if (!m || isNaN(m)) return null;
+  return m <= 3 ? 1 : m <= 6 ? 2 : 3;
+}
+
+// Helper: Calculate mother's current pregnancy stage dynamically from LMP
+async function getUserPregnancyStage(userId, role) {
+  if (role !== 'mother') {
+    return { week: null, trimester: null, month: null };
+  }
+  const res = await query(
+    `SELECT
+       COALESCE(
+         CASE
+           WHEN lmp_date IS NOT NULL THEN
+             LEAST(42, GREATEST(1, ((CURRENT_DATE - lmp_date::date) / 7) + 1))
+           ELSE gestational_week
+         END,
+         1
+       ) AS cur_week
+     FROM mother_profiles
+     WHERE user_id = $1`,
+    [userId]
+  );
+  if (res.rows.length === 0) {
+    return { week: 1, trimester: 1, month: 1 };
+  }
+  const curWeek = Number(res.rows[0].cur_week) || 1;
+  const { trimester, month } = getStageFromWeek(curWeek);
+  return { week: curWeek, trimester, month };
+}
+
+// Which notifications belong in a user's inbox based on role, stage (week/month/trimester), or direct targeting
+function buildInboxCondition(offset = 1) {
+  const p1 = `$${offset}`;     // userId
+  const p2 = `$${offset + 1}`; // role
+  const p3 = `$${offset + 2}`; // current week
+  const p4 = `$${offset + 3}`; // current month
+  const p5 = `$${offset + 4}`; // current trimester
+
+  return `
+    (
+      -- 1. Direct notification to specific user
+      n.target_user_id = ${p1}
+      OR
+      -- 2. Doctor group broadcast
+      (n.target_group = 'doctors' AND ${p2} = 'doctor')
+      OR
+      -- 3. General broadcast to all users (not filtered by week/month/trimester)
+      (n.target_group = 'all' AND n.week IS NULL AND n.trimester IS NULL AND n.month IS NULL)
+      OR
+      -- 4. Mother-specific notifications
+      (${p2} = 'mother' AND (
+        -- General to all mothers (no stage targeting)
+        (n.target_group = 'mothers' AND n.week IS NULL AND n.trimester IS NULL AND n.month IS NULL)
+        OR
+        -- Targeted specifically by week (matches mother's current week)
+        (n.week IS NOT NULL AND n.week = ${p3})
+        OR
+        -- Targeted specifically by month (without specific week; matches mother's current month)
+        (n.week IS NULL AND n.month IS NOT NULL AND n.month = ${p4})
+        OR
+        -- Targeted specifically by trimester (without specific week or month; matches current trimester)
+        (n.week IS NULL AND n.month IS NULL AND n.trimester IS NOT NULL AND n.trimester = ${p5})
+      ))
+    )
+    AND n.sent_at IS NOT NULL
+  `;
+}
 
 // ── POST /api/v1/notifications/send ──────────────────────────────────
 exports.sendNow = async (req, res, next) => {
@@ -49,12 +125,33 @@ exports.sendNow = async (req, res, next) => {
     const notifType = type || 'Reminder';
     const finalTargetGroup = targetGroup || target_group || (audience && audience.type) || 'all';
     const finalTargetUserId = targetUserId || target_user_id || (audience && audience.type === 'user' ? audience.value : null);
-    const finalTrimester = trimester !== undefined && trimester !== '' && trimester !== null ? parseInt(trimester, 10) : (audience && audience.type === 'trimester' ? parseInt(audience.value, 10) : null);
-    const finalWeek = week !== undefined && week !== '' && week !== null ? parseInt(week, 10) : null;
-    const finalMonth = month !== undefined && month !== '' && month !== null ? parseInt(month, 10) : null;
-    const finalSchedule = scheduledAt || scheduled_at || schedule || null;
+    
+    let finalWeek = (week !== undefined && week !== '' && week !== null) ? parseInt(week, 10) : null;
+    let finalMonth = (month !== undefined && month !== '' && month !== null) ? parseInt(month, 10) : null;
+    let finalTrimester = (trimester !== undefined && trimester !== '' && trimester !== null)
+      ? parseInt(trimester, 10)
+      : (audience && audience.type === 'trimester' ? parseInt(audience.value, 10) : null);
 
+    // Auto-derive trimester and month if week is explicitly provided
+    if (finalWeek) {
+      const derived = getStageFromWeek(finalWeek);
+      if (!finalTrimester) finalTrimester = derived.trimester;
+      if (!finalMonth) finalMonth = derived.month;
+    } else if (finalMonth && !finalTrimester) {
+      finalTrimester = getTrimesterFromMonth(finalMonth);
+    }
+
+    const finalSchedule = scheduledAt || scheduled_at || schedule || null;
     const isFutureSchedule = finalSchedule && new Date(finalSchedule) > new Date();
+
+    const mergedData = {
+      screen: 'notifications',
+      type: notifType,
+      week: finalWeek,
+      month: finalMonth,
+      trimester: finalTrimester,
+      ...data,
+    };
 
     const result = await query(
       `INSERT INTO notifications (
@@ -72,7 +169,7 @@ exports.sendNow = async (req, res, next) => {
         finalTargetGroup, finalTargetUserId || null, 'admin',
         isFutureSchedule ? new Date(finalSchedule) : null,
         isFutureSchedule ? null : new Date(),
-        JSON.stringify(data),
+        JSON.stringify(mergedData),
       ]
     );
     const notification = result.rows[0];
@@ -82,14 +179,14 @@ exports.sendNow = async (req, res, next) => {
       await query('UPDATE notifications SET sent_count = $1 WHERE id = $2', [delivery.delivered, notification.id]);
 
       await logAdminAction(req.user.id, 'SEND', 'notifications', notification.id, {
-        targetGroup: finalTargetGroup, title: tEn || tAm, type: notifType,
+        targetGroup: finalTargetGroup, title: tEn || tAm, type: notifType, week: finalWeek, trimester: finalTrimester, month: finalMonth,
       });
 
       return sendSuccess(res, 200, 'Notification sent', { notification, delivery });
     }
 
     await logAdminAction(req.user.id, 'SCHEDULE', 'notifications', notification.id, {
-      targetGroup: finalTargetGroup, scheduledAt: finalSchedule, type: notifType,
+      targetGroup: finalTargetGroup, scheduledAt: finalSchedule, type: notifType, week: finalWeek, trimester: finalTrimester, month: finalMonth,
     });
     return sendSuccess(res, 201, 'Notification scheduled', notification);
   } catch (err) {
@@ -135,9 +232,29 @@ exports.schedule = async (req, res, next) => {
     const notifType = type || 'Reminder';
     const finalTargetGroup = targetGroup || target_group || (audience && audience.type) || 'all';
     const finalTargetUserId = targetUserId || target_user_id || (audience && audience.type === 'user' ? audience.value : null);
-    const finalTrimester = trimester !== undefined && trimester !== '' && trimester !== null ? parseInt(trimester, 10) : (audience && audience.type === 'trimester' ? parseInt(audience.value, 10) : null);
-    const finalWeek = week !== undefined && week !== '' && week !== null ? parseInt(week, 10) : null;
-    const finalMonth = month !== undefined && month !== '' && month !== null ? parseInt(month, 10) : null;
+    
+    let finalWeek = (week !== undefined && week !== '' && week !== null) ? parseInt(week, 10) : null;
+    let finalMonth = (month !== undefined && month !== '' && month !== null) ? parseInt(month, 10) : null;
+    let finalTrimester = (trimester !== undefined && trimester !== '' && trimester !== null)
+      ? parseInt(trimester, 10)
+      : (audience && audience.type === 'trimester' ? parseInt(audience.value, 10) : null);
+
+    if (finalWeek) {
+      const derived = getStageFromWeek(finalWeek);
+      if (!finalTrimester) finalTrimester = derived.trimester;
+      if (!finalMonth) finalMonth = derived.month;
+    } else if (finalMonth && !finalTrimester) {
+      finalTrimester = getTrimesterFromMonth(finalMonth);
+    }
+
+    const mergedData = {
+      screen: 'notifications',
+      type: notifType,
+      week: finalWeek,
+      month: finalMonth,
+      trimester: finalTrimester,
+      ...data,
+    };
 
     const result = await query(
       `INSERT INTO notifications (
@@ -153,12 +270,12 @@ exports.schedule = async (req, res, next) => {
         bAm, bOr, bEn, bSo,
         notifType, finalTrimester, finalWeek, finalMonth,
         finalTargetGroup, finalTargetUserId || null, 'admin',
-        new Date(finalSchedule), JSON.stringify(data),
+        new Date(finalSchedule), JSON.stringify(mergedData),
       ]
     );
 
     await logAdminAction(req.user.id, 'SCHEDULE', 'notifications', result.rows[0].id, {
-      targetGroup: finalTargetGroup, scheduledAt: finalSchedule, type: notifType,
+      targetGroup: finalTargetGroup, scheduledAt: finalSchedule, type: notifType, week: finalWeek, trimester: finalTrimester, month: finalMonth,
     });
     return sendSuccess(res, 201, 'Notification scheduled', result.rows[0]);
   } catch (err) {
@@ -201,9 +318,13 @@ exports.getMyNotifications = async (req, res, next) => {
     const lang = req.user.language || 'am';
     const offset = (Number(page) - 1) * Number(limit);
 
+    const stage = await getUserPregnancyStage(userId, userRole);
+    const whereClause = buildInboxCondition(1);
+    const params = [userId, userRole, stage.week, stage.month, stage.trimester];
+
     const countResult = await query(
-      `SELECT COUNT(*) FROM notifications n WHERE ${SCOPE}`,
-      [userId, userRole]
+      `SELECT COUNT(*) FROM notifications n WHERE ${whereClause}`,
+      params
     );
     const total = parseInt(countResult.rows[0].count, 10);
 
@@ -218,10 +339,10 @@ exports.getMyNotifications = async (req, res, next) => {
                 WHERE nr.notification_id = n.id AND nr.user_id = $1
               ), false) AS is_read
        FROM notifications n
-       WHERE ${SCOPE}
+       WHERE ${whereClause}
        ORDER BY n.created_at DESC
-       LIMIT $3 OFFSET $4`,
-      [userId, userRole, Number(limit), offset]
+       LIMIT $6 OFFSET $7`,
+      [...params, Number(limit), offset]
     );
 
     return sendPaginated(res, result.rows.map((r) => localize(r, lang)), page, limit, total);
@@ -233,14 +354,19 @@ exports.getMyNotifications = async (req, res, next) => {
 // ── GET /api/v1/notifications/unread-count ───────────────────────────
 exports.getUnreadCount = async (req, res, next) => {
   try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const stage = await getUserPregnancyStage(userId, userRole);
+    const whereClause = buildInboxCondition(1);
+
     const result = await query(
       `SELECT COUNT(*) FROM notifications n
-       WHERE ${SCOPE}
+       WHERE ${whereClause}
          AND NOT EXISTS (
            SELECT 1 FROM notification_reads nr
            WHERE nr.notification_id = n.id AND nr.user_id = $1
          )`,
-      [req.user.id, req.user.role]
+      [userId, userRole, stage.week, stage.month, stage.trimester]
     );
     return sendSuccess(res, 200, 'Unread count', { count: parseInt(result.rows[0].count, 10) });
   } catch (err) {
@@ -251,11 +377,16 @@ exports.getUnreadCount = async (req, res, next) => {
 // ── PUT /api/v1/notifications/read-all ───────────────────────────────
 exports.markAllRead = async (req, res, next) => {
   try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const stage = await getUserPregnancyStage(userId, userRole);
+    const whereClause = buildInboxCondition(1);
+
     await query(
       `INSERT INTO notification_reads (notification_id, user_id)
-       SELECT n.id, $1 FROM notifications n WHERE ${SCOPE}
+       SELECT n.id, $1 FROM notifications n WHERE ${whereClause}
        ON CONFLICT (notification_id, user_id) DO NOTHING`,
-      [req.user.id, req.user.role]
+      [userId, userRole, stage.week, stage.month, stage.trimester]
     );
     return sendSuccess(res, 200, 'All notifications marked as read', { count: 0 });
   } catch (err) {
@@ -269,6 +400,7 @@ exports.markRead = async (req, res, next) => {
     const { id } = req.params;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const stage = await getUserPregnancyStage(userId, userRole);
 
     const existing = await query(
       'SELECT id, target_group, target_user_id, trimester, week, month FROM notifications WHERE id = $1 AND sent_at IS NOT NULL',
@@ -277,17 +409,15 @@ exports.markRead = async (req, res, next) => {
     if (existing.rows.length === 0) return sendError(res, 404, 'Notification not found.');
 
     const n = existing.rows[0];
-    const inScope =
-      n.target_group === 'all' ||
-      (userRole === 'mother' && (
-        n.target_group === 'mothers' ||
-        ['trimester', 'week', 'month'].includes(n.target_group) ||
-        n.trimester !== null ||
-        n.week !== null ||
-        n.month !== null
-      )) ||
-      (n.target_group === 'doctors' && userRole === 'doctor') ||
-      String(n.target_user_id) === String(userId);
+    const isDirect = String(n.target_user_id) === String(userId);
+    const isDoctor = n.target_group === 'doctors' && userRole === 'doctor';
+    const isAllGeneral = n.target_group === 'all' && !n.week && !n.trimester && !n.month;
+    const isMotherGeneral = userRole === 'mother' && n.target_group === 'mothers' && !n.week && !n.trimester && !n.month;
+    const isMotherWeek = userRole === 'mother' && n.week !== null && Number(n.week) === stage.week;
+    const isMotherMonth = userRole === 'mother' && n.week === null && n.month !== null && Number(n.month) === stage.month;
+    const isMotherTrimester = userRole === 'mother' && n.week === null && n.month === null && n.trimester !== null && Number(n.trimester) === stage.trimester;
+
+    const inScope = isDirect || isDoctor || isAllGeneral || isMotherGeneral || isMotherWeek || isMotherMonth || isMotherTrimester;
     if (!inScope) {
       return sendError(res, 403, 'Forbidden. This notification does not belong to you.');
     }

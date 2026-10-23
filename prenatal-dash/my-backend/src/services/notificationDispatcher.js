@@ -22,51 +22,99 @@ function localize(n, lang) {
   };
 }
 
+function getMonthWeekRange(month) {
+  const m = Number(month);
+  switch (m) {
+    case 1: return [1, 4];
+    case 2: return [5, 8];
+    case 3: return [9, 13];
+    case 4: return [14, 17];
+    case 5: return [18, 21];
+    case 6: return [22, 26];
+    case 7: return [27, 30];
+    case 8: return [31, 35];
+    case 9: return [36, 42];
+    default: return [1, 42];
+  }
+}
+
+function getTrimesterWeekRange(trimester) {
+  const t = Number(trimester);
+  switch (t) {
+    case 1: return [1, 13];
+    case 2: return [14, 26];
+    case 3: return [27, 42];
+    default: return [1, 42];
+  }
+}
+
 // Who should receive this notification?
 async function getRecipients(n) {
   let r;
   const tg = String(n.target_group || '').toLowerCase();
+  const targetWeek = (n.week !== undefined && n.week !== null && n.week !== '') ? Number(n.week) : null;
+  const targetMonth = (n.month !== undefined && n.month !== null && n.month !== '') ? Number(n.month) : null;
+  const targetTrimester = (n.trimester !== undefined && n.trimester !== null && n.trimester !== '') ? Number(n.trimester) : null;
+
   if ((tg === 'specific_user' || tg === 'user') && n.target_user_id) {
     r = await query('SELECT id, language FROM users WHERE id = $1', [n.target_user_id]);
-  } else if (tg === 'mothers') {
-    r = await query(`SELECT id, language FROM users WHERE role = 'mother'`);
   } else if (tg === 'doctors') {
-    r = await query(`SELECT id, language FROM users WHERE role = 'doctor'`);
-  } else if (tg === 'trimester' || n.trimester) {
-    const trim = Number(n.trimester || 1);
-    const weekMin = trim === 1 ? 1 : trim === 2 ? 14 : 27;
-    const weekMax = trim === 1 ? 13 : trim === 2 ? 26 : 42;
+    r = await query("SELECT id, language FROM users WHERE role = 'doctor'");
+  } else if (targetWeek !== null) {
+    // Specific pregnancy week
     r = await query(`
       SELECT u.id, u.language FROM users u
       LEFT JOIN mother_profiles mp ON mp.user_id = u.id
       WHERE u.role = 'mother' AND (
-        (mp.gestational_week BETWEEN $1 AND $2) OR
-        (mp.lmp_date IS NOT NULL AND ((CURRENT_DATE - mp.lmp_date::date)/7 + 1) BETWEEN $1 AND $2)
+        COALESCE(
+          CASE
+            WHEN mp.lmp_date IS NOT NULL THEN
+              LEAST(42, GREATEST(1, ((CURRENT_DATE - mp.lmp_date::date) / 7) + 1))
+            ELSE mp.gestational_week
+          END,
+          1
+        ) = $1
+      )
+    `, [targetWeek]);
+  } else if (targetMonth !== null) {
+    // Specific pregnancy month
+    const [weekMin, weekMax] = getMonthWeekRange(targetMonth);
+    r = await query(`
+      SELECT u.id, u.language FROM users u
+      LEFT JOIN mother_profiles mp ON mp.user_id = u.id
+      WHERE u.role = 'mother' AND (
+        COALESCE(
+          CASE
+            WHEN mp.lmp_date IS NOT NULL THEN
+              LEAST(42, GREATEST(1, ((CURRENT_DATE - mp.lmp_date::date) / 7) + 1))
+            ELSE mp.gestational_week
+          END,
+          1
+        ) BETWEEN $1 AND $2
       )
     `, [weekMin, weekMax]);
-  } else if (tg === 'week' || n.week) {
-    const wk = Number(n.week);
+  } else if (targetTrimester !== null) {
+    // Specific pregnancy trimester
+    const [weekMin, weekMax] = getTrimesterWeekRange(targetTrimester);
     r = await query(`
       SELECT u.id, u.language FROM users u
       LEFT JOIN mother_profiles mp ON mp.user_id = u.id
       WHERE u.role = 'mother' AND (
-        mp.gestational_week = $1 OR
-        (mp.lmp_date IS NOT NULL AND ((CURRENT_DATE - mp.lmp_date::date)/7 + 1) = $1)
-      )
-    `, [wk]);
-  } else if (tg === 'month' || n.month) {
-    const mo = Number(n.month);
-    const weekMin = (mo - 1) * 4 + 1;
-    const weekMax = mo * 4 + (mo === 9 ? 6 : 0);
-    r = await query(`
-      SELECT u.id, u.language FROM users u
-      LEFT JOIN mother_profiles mp ON mp.user_id = u.id
-      WHERE u.role = 'mother' AND (
-        (mp.gestational_week BETWEEN $1 AND $2) OR
-        (mp.lmp_date IS NOT NULL AND ((CURRENT_DATE - mp.lmp_date::date)/7 + 1) BETWEEN $1 AND $2)
+        COALESCE(
+          CASE
+            WHEN mp.lmp_date IS NOT NULL THEN
+              LEAST(42, GREATEST(1, ((CURRENT_DATE - mp.lmp_date::date) / 7) + 1))
+            ELSE mp.gestational_week
+          END,
+          1
+        ) BETWEEN $1 AND $2
       )
     `, [weekMin, weekMax]);
+  } else if (tg === 'mothers') {
+    // All mothers (no week/month/trimester restriction)
+    r = await query("SELECT id, language FROM users WHERE role = 'mother'");
   } else {
+    // All users
     r = await query('SELECT id, language FROM users');
   }
   return r.rows;
@@ -105,7 +153,7 @@ async function dispatchNotification(n) {
     (isOnline ? online : offline).push(u);
   });
 
-  // 1. Online -> WebSocket (in-app, instant)
+  // 1. Online -> WebSocket (in-app, instant to targeted users)
   online.forEach((u) => {
     const loc = localize(n, u.language);
     const payload = {
@@ -132,25 +180,27 @@ async function dispatchNotification(n) {
     io.to(`user:${u.id}`).emit('notification:count_update');
   });
 
-  // Broadcast to role or all rooms for instant active client updates
-  if (io) {
+  // Broadcast to general rooms only when NOT targeted by stage or specific user
+  const hasStageTargeting = (n.week !== null && n.week !== undefined && n.week !== '') ||
+                            (n.month !== null && n.month !== undefined && n.month !== '') ||
+                            (n.trimester !== null && n.trimester !== undefined && n.trimester !== '') ||
+                            Boolean(n.target_user_id);
+
+  if (io && !hasStageTargeting) {
     const locEn = localize(n, 'en');
     const groupPayload = {
       id: String(n.id),
       title: locEn.title,
       body: locEn.body,
       type: n.type || 'reminder',
-      week: n.week ? Number(n.week) : null,
-      month: n.month ? Number(n.month) : null,
-      trimester: n.trimester ? Number(n.trimester) : null,
+      week: null,
+      month: null,
+      trimester: null,
       targetGroup: n.target_group,
       data: {
         screen: (n.data && n.data.screen) || 'notifications',
         notificationId: String(n.id),
         type: String(n.type || 'reminder'),
-        week: n.week ? String(n.week) : '',
-        month: n.month ? String(n.month) : '',
-        trimester: n.trimester ? String(n.trimester) : '',
         ...n.data,
       },
     };
@@ -159,16 +209,14 @@ async function dispatchNotification(n) {
       io.to('all').emit('notification', groupPayload);
       io.to('all').emit('notification:new', groupPayload);
       io.to('all').emit('notification:count_update');
-    } else if (
-      n.target_group === 'mothers' ||
-      ['trimester', 'week', 'month'].includes(n.target_group) ||
-      n.trimester ||
-      n.week ||
-      n.month
-    ) {
+    } else if (n.target_group === 'mothers') {
       io.to('role:mother').emit('notification', groupPayload);
       io.to('role:mother').emit('notification:new', groupPayload);
       io.to('role:mother').emit('notification:count_update');
+    } else if (n.target_group === 'doctors') {
+      io.to('role:doctor').emit('notification', groupPayload);
+      io.to('role:doctor').emit('notification:new', groupPayload);
+      io.to('role:doctor').emit('notification:count_update');
     }
   }
 

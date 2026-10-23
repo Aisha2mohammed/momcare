@@ -20,7 +20,7 @@ class AuthResult {
   /// Non-mothers never get progress fields and must never be sent to setup.
   bool get needsProfileSetup {
     if (user['role'] != 'mother') return false;
-    final lmpDate = user['lmpDate'];
+    final lmpDate = user['lmpDate'] ?? user['lmp_date'];
     return lmpDate == null || lmpDate.toString().trim().isEmpty;
   }
 }
@@ -39,6 +39,7 @@ class AuthService {
     final token = data['token'] as String;
     final user = data['user'] as Map<String, dynamic>;
     await ApiService.saveToken(token);
+    await ApiService.saveUserPhone(phone);
     if (user['id'] != null) {
       await ApiService.saveUserId(user['id'].toString());
     }
@@ -76,6 +77,7 @@ class AuthService {
     final data = response['data'] as Map<String, dynamic>;
     final token = data['token'] as String?;
     final user = data['user'] as Map<String, dynamic>?;
+    await ApiService.saveUserPhone(phone);
     if (token != null) {
       await ApiService.saveToken(token);
     }
@@ -120,6 +122,7 @@ class AuthService {
     final data = response['data'] as Map<String, dynamic>;
     final token = data['token'] as String;
     await ApiService.saveToken(token);
+    await ApiService.saveUserPhone(phone);
     final user = data['user'] as Map<String, dynamic>?;
     if (user != null && user['id'] != null) {
       await ApiService.saveUserId(user['id'].toString());
@@ -132,5 +135,11 @@ class AuthService {
       user: user ?? {},
       isNewUser: data['isNewUser'] as bool? ?? false,
     );
+  }
+
+  /// Check current account status (pending, active, rejected, suspended)
+  static Future<Map<String, dynamic>> checkStatus() async {
+    final response = await ApiService.get(ApiEndpoints.authStatus);
+    return response['data'] as Map<String, dynamic>;
   }
 }

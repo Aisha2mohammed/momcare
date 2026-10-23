@@ -13,5 +13,6 @@ router.post('/forgot-password', forgotPasswordRules, validate, authController.fo
 router.post('/reset-password', resetPasswordRules, validate, authController.resetPassword);
 router.post('/admin/register', authController.adminRegister);
 router.put('/fcm-token', auth, authController.updateFcmToken);
+router.get('/status', auth, authController.getStatus);
 
 module.exports = router;

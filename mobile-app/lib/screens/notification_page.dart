@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/emergency/emergency_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
+import 'package:pregnancy_appp/services/mother_service.dart';
 import 'package:pregnancy_appp/services/notification_service.dart';
 
 class _TypeConfig {
@@ -31,6 +32,9 @@ class _NotificationPageState extends State<NotificationPage> {
   final Set<String> _readingIds = {};
   final Set<String> _unreadIds = {};
 
+  int? _currentWeek;
+  int? _currentTrimester;
+
   bool _loading = true;
   String? _error;
 
@@ -40,12 +44,34 @@ class _NotificationPageState extends State<NotificationPage> {
     _load();
   }
 
+  int _getMonthFromWeek(int w) {
+    if (w <= 4) return 1;
+    if (w <= 8) return 2;
+    if (w <= 13) return 3;
+    if (w <= 17) return 4;
+    if (w <= 21) return 5;
+    if (w <= 26) return 6;
+    if (w <= 30) return 7;
+    if (w <= 35) return 8;
+    return 9;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
+      // 1. Fetch current pregnancy progress (for stage context banner)
+      try {
+        final progress = await MotherService.getGestationalWeek();
+        _currentWeek = progress['currentWeek'] as int?;
+        _currentTrimester = progress['currentTrimester'] as int?;
+      } catch (_) {
+        // Fallback for non-mothers or when profile is still initializing
+      }
+
+      // 2. Fetch notifications filtered by backend based on current stage
       final notifications = await NotificationService.getMyNotifications();
       if (!mounted) return;
 
@@ -478,6 +504,128 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  Widget _buildStageHeaderBanner() {
+    if (_currentWeek == null || _currentWeek! <= 0) return const SizedBox.shrink();
+    final week = _currentWeek!;
+    final month = _getMonthFromWeek(week);
+    final trimester = _currentTrimester ?? (week <= 13 ? 1 : week <= 26 ? 2 : 3);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.08),
+            const Color(0xFFFDF2F8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.pregnant_woman_rounded,
+              color: AppColors.primary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Week $week Update',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Active Stage',
+                        style: TextStyle(
+                          color: Color(0xFF0D9488),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Month $month • Trimester $trimester • Tailored for your progress',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardChip({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 3.5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 10.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBody() {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
@@ -508,31 +656,56 @@ class _NotificationPageState extends State<NotificationPage> {
       );
     }
     if (_notifications.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      return RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.primary,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
-            Icon(Icons.notifications_off_rounded, size: 48, color: Colors.grey[300]),
-            const SizedBox(height: 12),
-            Text("No notifications yet.", style: TextStyle(color: Colors.grey[500])),
-            const SizedBox(height: 4),
-            Text(
-              "Updates from your care team will appear here.",
-              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            if (_currentWeek != null && _currentWeek! > 0) _buildStageHeaderBanner(),
+            const SizedBox(height: 40),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.notifications_off_rounded, size: 48, color: Colors.grey[300]),
+                  const SizedBox(height: 12),
+                  Text("No notifications yet.", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      _currentWeek != null
+                          ? "You are up to date with Week $_currentWeek guidelines! New alerts and tips will appear here."
+                          : "Updates from your care team will appear here.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       );
     }
+
+    final hasBanner = _currentWeek != null && _currentWeek! > 0;
+    final totalCount = _notifications.length + (hasBanner ? 1 : 0);
+
     return RefreshIndicator(
       onRefresh: _load,
       color: AppColors.primary,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _notifications.length,
+        itemCount: totalCount,
         itemBuilder: (context, index) {
-          return _buildNotificationItem(_notifications[index]);
+          if (hasBanner && index == 0) {
+            return _buildStageHeaderBanner();
+          }
+          final notifIndex = hasBanner ? index - 1 : index;
+          return _buildNotificationItem(_notifications[notifIndex]);
         },
       ),
     );
@@ -550,6 +723,14 @@ class _NotificationPageState extends State<NotificationPage> {
 
     final rawType = (notification['type'] ?? notification['data']?['type'])?.toString();
     final typeConfig = _getTypeConfig(rawType);
+
+    final trimester = notification['trimester'] ?? notification['data']?['trimester'];
+    final week = notification['week'] ?? notification['data']?['week'];
+    final month = notification['month'] ?? notification['data']?['month'];
+
+    final hasStage = (trimester != null && trimester.toString().isNotEmpty) ||
+        (week != null && week.toString().isNotEmpty) ||
+        (month != null && month.toString().isNotEmpty);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -640,6 +821,33 @@ class _NotificationPageState extends State<NotificationPage> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                      if (hasStage) ...[
+                        const SizedBox(height: 7),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (week != null && week.toString().isNotEmpty)
+                              _buildCardChip(
+                                label: 'Week $week',
+                                color: const Color(0xFF0D9488),
+                                icon: Icons.child_care_rounded,
+                              ),
+                            if (month != null && month.toString().isNotEmpty)
+                              _buildCardChip(
+                                label: 'Month $month',
+                                color: const Color(0xFFD97706),
+                                icon: Icons.calendar_view_month_rounded,
+                              ),
+                            if (trimester != null && trimester.toString().isNotEmpty)
+                              _buildCardChip(
+                                label: 'Trimester $trimester',
+                                color: AppColors.primary,
+                                icon: Icons.calendar_today_rounded,
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
