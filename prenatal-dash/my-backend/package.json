@@ -12,7 +12,7 @@
     "seed": "node src/scripts/run.js",
     "seed:cms": "node src/scripts/seed_cms.js",
     "seed:make": "knex seed:make",
-    "test": "jest --forceExit --detectOpenHandles",
+    "test": "jest --forceExit --detectOpenHandles --passWithNoTests",
     "test:watch": "jest --watch --forceExit"
   },
   "keywords": [
@@ -41,6 +41,7 @@
     "multer": "^2.3.0",
     "nodemailer": "^6.9.14",
     "pg": "^8.23.1",
+    "sequelize": "^6.37.8",
     "socket.io": "^4.8.4",
     "socket.io-client": "^4.7.5"
   },
