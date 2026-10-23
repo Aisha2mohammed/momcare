@@ -71,7 +71,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           if (result.status == 'pending') {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+              MaterialPageRoute(builder: (context) => PendingApprovalPage(phone: widget.phone)),
               (route) => false,
             );
           } else if (result.isNewUser || result.needsProfileSetup) {
@@ -83,7 +83,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           } else {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const MainScreen()),
+              MaterialPageRoute(builder: (context) => const MainScreen(showWelcomeNotification: true)),
               (route) => false,
             );
           }

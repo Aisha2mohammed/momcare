@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -48,6 +49,25 @@ class PushService {
   static final _fcm = FirebaseMessaging.instance;
   static IO.Socket? _socket;
   static IO.Socket? get socket => _socket;
+
+  static final StreamController<Map<String, dynamic>> _statusUpdateController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static Stream<Map<String, dynamic>> get onStatusUpdate => _statusUpdateController.stream;
+
+  /// Trigger a beautiful general welcome push notification when logging in or entering the app
+  static Future<void> showWelcomeNotification({String? name}) async {
+    final displayName = (name != null && name.trim().isNotEmpty) ? ' $name' : '';
+    await showLocalNotification({
+      'id': 'welcome_login_${DateTime.now().millisecondsSinceEpoch}',
+      'title': 'Welcome to MomCare! 🌸',
+      'body': 'Welcome$displayName! Your pregnancy journey begins with loving care, expert tracking, and daily wellness tips.',
+      'type': 'reminder',
+      'data': {
+        'screen': 'home',
+        'action': 'welcome_greeting',
+      },
+    });
+  }
 
   /// Setup push notifications (both FCM and WebSocket in-app)
   static Future<void> init({
@@ -207,6 +227,16 @@ class PushService {
       _socket!.on('notification:new', handleIncoming);
       _socket!.on('notification:count_update', (_) {
         NotificationService.fetchUnreadCount();
+      });
+      _socket!.on('user:approved', (payload) {
+        debugPrint('[PushService] user:approved event received: $payload');
+        _statusUpdateController.add({'status': 'active', 'approved': true});
+      });
+      _socket!.on('user:status_changed', (payload) {
+        debugPrint('[PushService] user:status_changed event received: $payload');
+        if (payload is Map) {
+          _statusUpdateController.add(Map<String, dynamic>.from(payload));
+        }
       });
 
       _socket!.onConnect((_) {

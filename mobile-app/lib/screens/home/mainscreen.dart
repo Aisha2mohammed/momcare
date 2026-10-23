@@ -9,10 +9,11 @@ import 'package:pregnancy_appp/screens/chatbot_page.dart';
 import 'package:pregnancy_appp/screens/connect_doctor_page.dart';
 import 'package:pregnancy_appp/widget/buttom_navbar.dart';
 import 'package:pregnancy_appp/widget/top_navbar.dart';
-
+import 'package:pregnancy_appp/services/push_service.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final bool showWelcomeNotification;
+  const MainScreen({super.key, this.showWelcomeNotification = false});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -20,6 +21,68 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.showWelcomeNotification) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _triggerWelcome();
+      });
+    }
+  }
+
+  Future<void> _triggerWelcome() async {
+    // 1. Trigger OS heads-up push notification
+    await PushService.showWelcomeNotification();
+
+    // 2. Display in-app beautiful floating greeting
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF61183E),
+        behavior: SnackBarBehavior.floating,
+        elevation: 6,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: const Duration(seconds: 5),
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.favorite, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome to MomCare! 🌸',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Your trusted companion for pregnancy and motherhood.',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   final List<Widget> _pages = [
     const HomePage(),
@@ -82,24 +145,6 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatBotPage()));
-                },
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.forum_rounded, color: AppColors.primary),
-                ),
-                title: const Text("Community Discussion", style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text("Share and read posts in community groups"),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _selectedIndex = 1;
-                  });
                 },
               ),
               const SizedBox(height: 24),

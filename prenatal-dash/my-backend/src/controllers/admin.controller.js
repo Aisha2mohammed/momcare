@@ -2,6 +2,8 @@ const { query } = require('../config/db');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const { logAdminAction } = require('../services/auditLogger');
 const { sendEmail } = require('../config/mailer');
+const { dispatchNotification } = require('../services/notificationDispatcher');
+const { getIO } = require('../config/socket');
 
 exports.getDashboard = async (req, res, next) => {
   try {
@@ -105,12 +107,59 @@ exports.approveUser = async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await query(
-      `UPDATE users SET status = 'active', approved_by = $1, approved_at = NOW() WHERE id = $2 AND role = 'mother' RETURNING id, name, phone, email, role, status, approved_at`,
+      `UPDATE users SET status = 'active', approved_by = $1, approved_at = NOW() WHERE id = $2 RETURNING id, name, phone, email, role, status, language, approved_at`,
       [req.user.id, id]
     );
-    if (result.rows.length === 0) return sendError(res, 404, 'Mother not found.');
+    if (result.rows.length === 0) return sendError(res, 404, 'User not found.');
+    const user = result.rows[0];
+
     await logAdminAction(req.user.id, 'APPROVE', 'users', id, { status: 'active' });
-    return sendSuccess(res, 200, 'Mother approved', result.rows[0]);
+
+    // Send in-app and push notification to the approved user
+    try {
+      const notifRes = await query(
+        `INSERT INTO notifications (
+          title_en, title_am, title_or, title_so,
+          body_en, body_am, body_or, body_so,
+          type, target_group, target_user_id, sent_by, sent_at, data
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13::jsonb)
+        RETURNING *`,
+        [
+          'Account Approved 🎉',
+          'መለያዎ ፀድቋል 🎉',
+          'Herregni keessan mirkanaa\'eera 🎉',
+          'Koontadaada waa la ansixiyay 🎉',
+          'Welcome to MomCare! Your account has been approved by admin. You can now access all maternal care features.',
+          'እንኳን ወደ MomCare በደህና መጡ! መለያዎ በአስተዳዳሪው ፀድቋል። አሁን ሁሉንም የእናቶች እንክብካቤ አገልግሎቶች መጠቀም ይችላሉ።',
+          'Baga gara MomCare nagaan dhuftan! Herregni keessan bulchaan mirkanaa\'eera. Amma tajaajila hunda fayyadamuu dandeessu.',
+          'Ku soo dhowow MomCare! Koontadaada waxaa ansixiyay maamulka. Hadda waxaad isticmaali kartaa dhammaan adeegyada.',
+          'System',
+          'user',
+          id,
+          'admin',
+          JSON.stringify({ screen: 'home', action: 'account_approved', status: 'active' })
+        ]
+      );
+
+      if (notifRes.rows.length > 0) {
+        await dispatchNotification(notifRes.rows[0]);
+      }
+    } catch (notifErr) {
+      console.error('Failed to dispatch user approval notification:', notifErr.message);
+    }
+
+    // Direct socket event to notify any live waiting screen
+    try {
+      const io = getIO();
+      if (io) {
+        io.to(`user:${id}`).emit('user:status_changed', { id, status: 'active' });
+        io.to(`user:${id}`).emit('user:approved', { id, status: 'active' });
+      }
+    } catch (sErr) {
+      console.error('Socket emission error:', sErr.message);
+    }
+
+    return sendSuccess(res, 200, 'Mother approved', user);
   } catch (err) { next(err); }
 };
 
@@ -118,12 +167,55 @@ exports.rejectUser = async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await query(
-      `UPDATE users SET status = 'rejected', rejected_at = NOW() WHERE id = $1 AND role = 'mother' RETURNING id, name, phone, email, role, status, rejected_at`,
+      `UPDATE users SET status = 'rejected', rejected_at = NOW() WHERE id = $1 RETURNING id, name, phone, email, role, status, language, rejected_at`,
       [id]
     );
-    if (result.rows.length === 0) return sendError(res, 404, 'Mother not found.');
+    if (result.rows.length === 0) return sendError(res, 404, 'User not found.');
+    const user = result.rows[0];
+
     await logAdminAction(req.user.id, 'REJECT', 'users', id, { status: 'rejected' });
-    return sendSuccess(res, 200, 'Mother rejected', result.rows[0]);
+
+    try {
+      const notifRes = await query(
+        `INSERT INTO notifications (
+          title_en, title_am, title_or, title_so,
+          body_en, body_am, body_or, body_so,
+          type, target_group, target_user_id, sent_by, sent_at, data
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13::jsonb)
+        RETURNING *`,
+        [
+          'Registration Status Update',
+          'የምዝገባ ሁኔታ ማሻሻያ',
+          'Haala Galmee',
+          'Cusbooneysiinta Xaaladda',
+          'Your account application was reviewed and could not be approved at this time. Please contact support.',
+          'የመለያ ማመልከቻዎ ታይቷል እና በአሁኑ ጊዜ ማጽደቅ አልተቻለም። እባክዎ ድጋፍ ሰጪን ያነጋግሩ።',
+          'Iyyannoon herrega keessanii ilaallamee yeroo ammaa mirkanaa\'uu hin dandeenye. Maaloo deeggarsa qunnamaa.',
+          'Codsigaaga dib ayaa loo eegay lamana ansixin karo xilligan. Fadlan la xiriir caawinta.',
+          'System',
+          'user',
+          id,
+          'admin',
+          JSON.stringify({ action: 'account_rejected', status: 'rejected' })
+        ]
+      );
+
+      if (notifRes.rows.length > 0) {
+        await dispatchNotification(notifRes.rows[0]);
+      }
+    } catch (notifErr) {
+      console.error('Failed to dispatch user rejection notification:', notifErr.message);
+    }
+
+    try {
+      const io = getIO();
+      if (io) {
+        io.to(`user:${id}`).emit('user:status_changed', { id, status: 'rejected' });
+        io.to(`user:${id}`).emit('user:rejected', { id, status: 'rejected' });
+      }
+    } catch (sErr) {}
+
+    return sendSuccess(res, 200, 'Mother rejected', user);
   } catch (err) { next(err); }
 };
 

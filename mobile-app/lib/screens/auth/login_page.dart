@@ -11,7 +11,8 @@ import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/widget/status_modal.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final String? initialPhone;
+  const LoginPage({super.key, this.initialPhone});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -24,6 +25,14 @@ class _LoginPageState extends State<LoginPage> {
 
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialPhone != null && widget.initialPhone!.trim().isNotEmpty) {
+      _phoneController.text = widget.initialPhone!.trim();
+    }
+  }
 
   @override
   void dispose() {
@@ -57,13 +66,13 @@ class _LoginPageState extends State<LoginPage> {
         AppStatusModal.showSuccess(
           context: context,
           title: 'Account Pending',
-          message: 'Your registration is currently under hospital review. You will be notified once approved.',
+          message: 'Your registration is currently under admin review. You will be notified once approved.',
           buttonText: 'Check Status',
           onDismiss: () {
             if (!mounted) return;
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const PendingApprovalPage()),
+              MaterialPageRoute(builder: (context) => PendingApprovalPage(phone: phone)),
               (route) => false,
             );
           },
@@ -72,7 +81,7 @@ class _LoginPageState extends State<LoginPage> {
         AppStatusModal.showSuccess(
           context: context,
           title: 'Welcome Back!',
-          message: 'Login successful. Taking you to your dashboard...',
+          message: 'Login successful. Taking you to your home...',
           buttonText: 'Continue',
           onDismiss: () {
             if (!mounted) return;
@@ -81,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
               MaterialPageRoute(
                 builder: (context) => result.needsProfileSetup
                     ? const ProfileSetupPage()
-                    : const MainScreen(),
+                    : const MainScreen(showWelcomeNotification: true),
               ),
             );
           },
@@ -334,7 +343,11 @@ class _LoginPageState extends State<LoginPage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                        MaterialPageRoute(
+                          builder: (context) => ForgotPasswordPage(
+                            initialPhone: _phoneController.text.trim(),
+                          ),
+                        ),
                       );
                     },
                     child: const Text(

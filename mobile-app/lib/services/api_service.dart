@@ -32,6 +32,7 @@ class ApiEndpoints {
   static const String otpVerify = '/auth/otp/verify';
   static const String forgotPassword = '/auth/forgot-password';
   static const String resetPassword = '/auth/reset-password';
+  static const String authStatus = '/auth/status';
 
   // ── Mother Endpoints ──────────────────────────────────────────────────────
   static String motherProfile(String motherId) => '/mothers/$motherId/profile';
@@ -192,6 +193,7 @@ class ApiService {
   static const String _tokenKey = 'jwt_token';
   static const String _userIdKey = 'user_id';
   static const String _userRoleKey = 'user_role';
+  static const String _userPhoneKey = 'user_phone';
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -216,6 +218,16 @@ class ApiService {
   static Future<String?> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_userIdKey);
+  }
+
+  static Future<void> saveUserPhone(String phone) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userPhoneKey, phone);
+  }
+
+  static Future<String?> getUserPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userPhoneKey);
   }
 
   static Future<void> saveUserRole(String role) async {
@@ -252,6 +264,7 @@ class ApiService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_userIdKey);
     await prefs.remove(_userRoleKey);
+    await prefs.remove(_userPhoneKey);
   }
 
   static Future<Map<String, String>> _headers() async {

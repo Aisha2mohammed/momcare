@@ -38,6 +38,18 @@ const initDbSchema = async () => {
       ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS report_count INTEGER DEFAULT 0;
       ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS report_reason TEXT;
 
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITH TIME ZONE;
+
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS trimester INTEGER;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS week INTEGER;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS month INTEGER;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'Reminder';
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title_so TEXT;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body_so TEXT;
+
       CREATE TABLE IF NOT EXISTS community_rules (
         id VARCHAR(50) PRIMARY KEY DEFAULT 'default',
         content TEXT NOT NULL,
@@ -58,7 +70,7 @@ const initDbSchema = async () => {
       CREATE INDEX IF NOT EXISTS idx_direct_messages_receiver ON direct_messages(receiver_id);
       CREATE INDEX IF NOT EXISTS idx_direct_messages_created_at ON direct_messages(created_at);
     `);
-    console.log('✅ Community & Direct Messaging database schema verified');
+    console.log('✅ Community, Direct Messaging, User Approval & Notifications database schema verified');
   } catch (err) {
     console.warn('⚠️ Note during schema init:', err.message);
   }

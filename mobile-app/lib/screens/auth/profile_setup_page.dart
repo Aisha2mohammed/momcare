@@ -20,12 +20,14 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
 
   DateTime? _lmpDate;
   DateTime? _dueDate;
+  int? _calculatedWeek;
+  int? _calculatedTrimester;
+  int? _daysRemaining;
+
   String _selectedLanguage = 'en';
   bool _isLoading = false;
 
-  /// Display name -> the code the backend stores in `users.language`.
-  /// Must match the set accepted by `ContentService._language()`.
-  /// Note: Afan Oromo is 'or' here, not the 'om' locale used by L10n.
+  /// Display name -> code backend stores in `users.language`.
   static const Map<String, String> _languageCodes = {
     'English': 'en',
     'Amharic': 'am',
@@ -48,8 +50,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     super.dispose();
   }
 
-  /// Pre-fills anything already on the profile. A missing mother_profiles row
-  /// is normal here, so failures are ignored rather than surfaced.
+  /// Pre-fills anything already on the profile.
   Future<void> _prefill() async {
     try {
       final data = await MotherService.getProfile();
@@ -67,16 +68,34 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       final profile = data['profile'];
       if (profile is Map<String, dynamic>) {
         _cityController.text = (profile['city'] as String?) ?? '';
+        final lmpStr = profile['lmp_date']?.toString();
+        if (lmpStr != null && lmpStr.isNotEmpty) {
+          try {
+            final parsedLmp = DateTime.parse(lmpStr);
+            _calculateDueDate(parsedLmp);
+          } catch (_) {}
+        }
       }
     } catch (_) {
-      // Nothing saved yet - start from a blank form.
+      // Start from a blank form if not yet created
     }
   }
 
   void _calculateDueDate(DateTime lmp) {
+    final now = DateTime.now();
+    final daysSinceLmp = now.difference(lmp).inDays;
+    final rawWeek = (daysSinceLmp / 7).floor() + 1;
+    final clampedWeek = rawWeek.clamp(1, 42);
+    final trimester = clampedWeek <= 13 ? 1 : (clampedWeek <= 26 ? 2 : 3);
+    final dueDate = lmp.add(const Duration(days: 280));
+    final daysLeft = dueDate.difference(now).inDays.clamp(0, 280);
+
     setState(() {
       _lmpDate = lmp;
-      _dueDate = lmp.add(const Duration(days: 280)); // 40 weeks typically
+      _dueDate = dueDate;
+      _calculatedWeek = clampedWeek;
+      _calculatedTrimester = trimester;
+      _daysRemaining = daysLeft;
     });
   }
 
@@ -85,7 +104,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       AppStatusModal.showError(
         context: context,
         title: 'LMP Date Required',
-        message: 'Please select your last menstrual period date to track pregnancy accurately.',
+        message: 'Please select your Last Menstrual Period (LMP) date so MomCare can calculate and display your pregnancy week accurately.',
       );
       return;
     }
@@ -99,16 +118,20 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         city: _cityController.text.trim(),
       );
       if (!mounted) return;
+
       AppStatusModal.showSuccess(
         context: context,
-        title: 'Profile Ready!',
-        message: 'Your pregnancy profile is setup and ready.',
-        buttonText: 'Enter App',
+        title: 'Profile Ready! 🌸',
+        message: 'You are currently in Week $_calculatedWeek! Your personalized pregnancy timeline, weekly tips, and fetal development tracker are ready.',
+        buttonText: 'Enter MomCare',
         onDismiss: () {
           if (!mounted) return;
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const MainScreen()),
+            MaterialPageRoute(
+              builder: (context) => const MainScreen(showWelcomeNotification: true),
+            ),
+            (route) => false,
           );
         },
       );
@@ -158,7 +181,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F9),
       appBar: AppBar(
-        title: const Text('Profile Setup', style: TextStyle(color: Colors.black)),
+        title: const Text('Personalize Your Care', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -169,105 +192,189 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Personal Info', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
+              const Text('Personal Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D1625))),
+              const SizedBox(height: 14),
 
               TextField(
                 controller: _nameController,
                 decoration: InputDecoration(
                   labelText: 'Full Name',
+                  prefixIcon: const Icon(Icons.person_outline, color: AppColors.primary),
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               TextField(
                 controller: _ageController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Age',
-                  // There is no age column on users or mother_profiles, so this
-                  // value is intentionally not submitted. See FRONTEND_ISSUES.md.
-                  helperText: 'Not saved yet',
+                  labelText: 'Age (optional)',
+                  prefixIcon: const Icon(Icons.cake_outlined, color: AppColors.primary),
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               TextField(
                 controller: _cityController,
                 decoration: InputDecoration(
-                  labelText: 'City',
+                  labelText: 'City / Region',
+                  prefixIcon: const Icon(Icons.location_city_outlined, color: AppColors.primary),
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
                 ),
               ),
               const SizedBox(height: 24),
 
-              const Text('Pregnancy Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
+              const Text('Pregnancy Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D1625))),
+              const SizedBox(height: 6),
+              const Text(
+                'Enter your Last Menstrual Period (LMP) to calculate your current pregnancy week and due date.',
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 14),
+
+              // LMP Selector Button
               GestureDetector(
                 onTap: () => _selectLMP(context),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _lmpDate != null ? AppColors.primary : Colors.grey.shade300,
+                      width: _lmpDate != null ? 1.5 : 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _lmpDate == null
-                            ? 'Select Last Menstrual Period (LMP)'
-                            : 'LMP: ${DateFormat('MMM dd, yyyy').format(_lmpDate!)}',
-                        style: TextStyle(color: _lmpDate == null ? Colors.black54 : Colors.black, fontSize: 16),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_month_rounded, color: _lmpDate != null ? AppColors.primary : Colors.grey.shade600),
+                          const SizedBox(width: 12),
+                          Text(
+                            _lmpDate == null
+                                ? 'Select LMP Date'
+                                : 'LMP: ${DateFormat('MMMM dd, yyyy').format(_lmpDate!)}',
+                            style: TextStyle(
+                              color: _lmpDate == null ? Colors.black54 : Colors.black87,
+                              fontSize: 15,
+                              fontWeight: _lmpDate != null ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ],
                       ),
-                      const Icon(Icons.calendar_today, color: AppColors.primary),
+                      const Icon(Icons.arrow_drop_down, color: AppColors.primary),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _dueDate == null
-                          ? 'Estimated Due Date (Auto)'
-                          : 'Due: ${DateFormat('MMM dd, yyyy').format(_dueDate!)}',
-                      style: TextStyle(color: _dueDate == null ? Colors.black45 : Colors.black, fontSize: 16, fontWeight: FontWeight.w600),
+
+              // Real-time Pregnancy Week Calculation Card
+              if (_calculatedWeek != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF61183E), Color(0xFF8B2659)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const Icon(Icons.child_care, color: Colors.black45),
-                  ],
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.child_care_rounded, color: Colors.white, size: 24),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Week $_calculatedWeek of 40',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _calculatedTrimester == 1
+                                  ? '1st Trimester'
+                                  : _calculatedTrimester == 2
+                                      ? '2nd Trimester'
+                                      : '3rd Trimester',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Estimated Due Date: ${DateFormat('MMMM dd, yyyy').format(_dueDate!)}',
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '~$_daysRemaining days remaining until delivery',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
+
               const SizedBox(height: 24),
 
-              const Text('Preferences', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
+              const Text('App Language', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D1625))),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _selectedLanguage,
                 decoration: InputDecoration(
                   labelText: 'Preferred Language',
+                  prefixIcon: const Icon(Icons.language_rounded, color: AppColors.primary),
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
                 ),
                 items: _languages.map((String lang) {
                   return DropdownMenuItem<String>(
@@ -283,7 +390,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                         });
                       },
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 36),
 
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveProfile,
@@ -292,8 +399,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
+                  elevation: 2,
                 ),
                 child: _isLoading
                     ? const SizedBox(
@@ -301,9 +409,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                         height: 22,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Complete Setup', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    : const Text(
+                        'Complete Setup & View Week',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 30),
             ],
           ),
         ),
