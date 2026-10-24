@@ -25,13 +25,13 @@ class _WellnessPageState extends State<WellnessPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Wellness Hub",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Text(
+              AppStrings.of(context, 'wellness_hub'),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              "Take care of yourself and your baby",
+              AppStrings.of(context, 'wellness_subtitle'),
               style: TextStyle(fontSize: 15, color: Colors.grey[600]),
             ),
             const SizedBox(height: 25),
@@ -73,13 +73,13 @@ class _WellnessPageState extends State<WellnessPage> {
               
                 _buildWellnessCard(
                   context,
-                  "Journal",
+                  AppStrings.of(context, 'journal'),
                   Icons.book_rounded,
                   () => Navigator.push(context, MaterialPageRoute(builder: (context) => const JournalPage())),
                 ),
                 _buildWellnessCard(
                   context,
-                  "Birth Plan",
+                  AppStrings.of(context, 'birth_plan'),
                   Icons.checklist_rounded,
                   () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BirthPlanPage())),
                 ),
@@ -98,13 +98,13 @@ class _WellnessPageState extends State<WellnessPage> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
-                    "Daily Motivation",
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    AppStrings.of(context, 'daily_motivation'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
-                  SizedBox(height: 10),
-                  Text(
+                  const SizedBox(height: 10),
+                  const Text(
                     "\"The most precious jewels you'll ever have around your neck are the arms of your children.\"",
                     style: TextStyle(
                       color: Colors.white,

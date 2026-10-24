@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
+import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/screens/home/fetal_details_page.dart';
 import 'package:pregnancy_appp/services/content_service.dart';
 
@@ -18,14 +19,12 @@ class AmIPregnantCard extends StatefulWidget {
 }
 
 class _AmIPregnantCardState extends State<AmIPregnantCard> {
-  // Loading-frame placeholders only: initState overwrites week and
-  // daysRemaining from the widget before the first build, and _load()
-  // overwrites the per-week fields. None of these are used as fallbacks.
   int _week = 12;
   int _daysRemaining = 196;
   String _sizeComparison = "Plum";
   int _heartRate = 160;
   bool _loading = true;
+  String? _lastLocale;
 
   @override
   void initState() {
@@ -33,6 +32,16 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
     _week = widget.week;
     _daysRemaining = widget.daysRemaining;
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final currentLocale = Localizations.localeOf(context).languageCode;
+    if (_lastLocale != null && _lastLocale != currentLocale) {
+      _load();
+    }
+    _lastLocale = currentLocale;
   }
 
   @override
@@ -45,16 +54,16 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
     }
   }
 
-  /// Fetches per-week data only (heart rate + size comparison) for the week
-  /// home.dart passed in. Gestational progress is NOT fetched here — that is
-  /// home.dart's job, and it hands us the live week and daysRemaining.
   Future<void> _load() async {
     try {
-      final data = await ContentService.getFetalByWeek(widget.week);
+      final lang = mounted ? Localizations.localeOf(context).languageCode : null;
+      final data = await ContentService.getFetalByWeek(widget.week, lang: lang);
       if (!mounted) return;
 
       final heartRate = (data['heartRate'] as num?)?.toInt();
-      final sizeRaw = data['size_comparison'] ?? data['size_comparison_en'];
+      final sizeRaw = (lang != null && data['size_comparison_$lang'] != null && data['size_comparison_$lang'].toString().isNotEmpty)
+          ? data['size_comparison_$lang']
+          : (data['size_comparison'] ?? data['size_comparison_en']);
 
       setState(() {
         if (heartRate != null) _heartRate = heartRate;
@@ -130,15 +139,15 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    "Week $_week",
+                    "${AppStrings.of(context, 'week')} $_week",
                     style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 10),
                 
-                const Text(
-                  "Your Pregnancy\nThis Week",
-                  style: TextStyle(
+                Text(
+                  AppStrings.of(context, 'your_pregnancy_this_week'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -147,11 +156,20 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
                 ),
                 const SizedBox(height: 14),
                 
-                _buildListItem(Icons.child_care_rounded, "Size of a $_sizeComparison"),
+                _buildListItem(
+                  Icons.child_care_rounded,
+                  AppStrings.of(context, 'size_comparison_text', [_sizeComparison]),
+                ),
                 const SizedBox(height: 10),
-                _buildListItem(Icons.favorite_rounded, "Heart rate: $_heartRate bpm"),
+                _buildListItem(
+                  Icons.favorite_rounded,
+                  AppStrings.of(context, 'heart_rate_text', [_heartRate]),
+                ),
                 const SizedBox(height: 10),
-                _buildListItem(Icons.calendar_month_rounded, "$_daysRemaining days remaining"),
+                _buildListItem(
+                  Icons.calendar_month_rounded,
+                  AppStrings.of(context, 'days_remaining_text', [_daysRemaining]),
+                ),
                 
                 const SizedBox(height: 20),
                 
@@ -172,9 +190,9 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    "View Details",
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  child: Text(
+                    AppStrings.of(context, 'view_details'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],

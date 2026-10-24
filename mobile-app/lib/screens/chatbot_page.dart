@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
+import 'package:pregnancy_appp/l10n/l10n.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/chatbot_service.dart';
 
@@ -82,8 +83,8 @@ class _ChatBotPageState extends State<ChatBotPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Pregnancy Assistant", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text(_error != null ? "Currently offline" : "Always active",
+                Text(AppStrings.of(context, 'ai_assistant'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(_error != null ? AppStrings.of(context, 'currently_offline') : AppStrings.of(context, 'always_active'),
                     style: TextStyle(fontSize: 12, color: _error != null ? Colors.orange[700] : Colors.green[600])),
               ],
             ),
@@ -122,7 +123,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
                   ),
                   TextButton(
                     onPressed: _sendMessage,
-                    child: const Text("Retry"),
+                    child: Text(AppStrings.of(context, 'retry')),
                   ),
                 ],
               ),
@@ -155,7 +156,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
               child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
             ),
             const SizedBox(width: 10),
-            Text("Thinking...", style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+            Text(AppStrings.of(context, 'thinking'), style: TextStyle(color: Colors.grey[500], fontSize: 14)),
           ],
         ),
       ),
@@ -210,7 +211,7 @@ class _ChatBotPageState extends State<ChatBotPage> {
               textInputAction: TextInputAction.send,
               enabled: !_sending,
               decoration: InputDecoration(
-                hintText: "Type a message...",
+                hintText: AppStrings.of(context, 'type_message'),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
                   borderSide: BorderSide.none,

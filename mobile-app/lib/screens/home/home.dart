@@ -149,7 +149,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "$greetingName, your baby is growing beautifully!",
+                      AppStrings.of(context, 'baby_growing', [greetingName]),
                       style: TextStyle(
                         fontSize: 15,
                         color: Colors.grey[600],
@@ -192,7 +192,14 @@ class _HomePageState extends State<HomePage> {
                             final now = DateTime.now();
                             final monday = now.subtract(Duration(days: now.weekday - 1));
                             final thisDay = monday.add(Duration(days: index));
-                            final days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                            final daysMap = {
+                              'am': ["ሰኞ", "ማክሰ", "ረቡዕ", "ሐሙስ", "አርብ", "ቅዳሜ", "እሁድ"],
+                              'om': ["Wix", "Kib", "Rob", "Kam", "Jim", "San", "Dil"],
+                              'so': ["Isni", "Tala", "Arba", "Kham", "Jum", "Saba", "Axad"],
+                              'en': ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                            };
+                            final currentLocale = Localizations.localeOf(context).languageCode;
+                            final days = daysMap[currentLocale] ?? daysMap['en']!;
                             final bool isToday = thisDay.year == now.year &&
                                                  thisDay.month == now.month &&
                                                  thisDay.day == now.day;
@@ -281,9 +288,9 @@ class _HomePageState extends State<HomePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "Wellness Guides",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    AppStrings.of(context, 'wellness_guides'),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -292,7 +299,7 @@ class _HomePageState extends State<HomePage> {
               _buildWellnessRow(
                 context,
                 AppStrings.of(context, 'music'),
-                "Relaxation Music",
+                AppStrings.of(context, 'relaxation_music'),
                 Icons.audiotrack_rounded,
                 Colors.purple[50]!,
                 const MusicPage()
@@ -300,7 +307,7 @@ class _HomePageState extends State<HomePage> {
               _buildWellnessRow(
                 context,
                 AppStrings.of(context, 'exercise'),
-                "Stay Active",
+                AppStrings.of(context, 'stay_active'),
                 Icons.fitness_center_rounded,
                 Colors.orange[50]!,
                 const ExercisePage()
@@ -308,7 +315,7 @@ class _HomePageState extends State<HomePage> {
               _buildWellnessRow(
                 context,
                 AppStrings.of(context, 'sleeping'),
-                "Better Sleep",
+                AppStrings.of(context, 'better_sleep'),
                 Icons.bedtime_rounded,
                 Colors.indigo[50]!,
                 const SleepTipsPage()
@@ -316,7 +323,7 @@ class _HomePageState extends State<HomePage> {
               _buildWellnessRow(
                 context,
                 AppStrings.of(context, 'nutrition'),
-                "Nutrition Guide",
+                AppStrings.of(context, 'nutrition'),
                 Icons.restaurant_rounded,
                 Colors.green[50]!,
                 const NutritionGuidePage()
@@ -356,10 +363,16 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text("Ask our Assistant", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
-                  Text("Get instant and safe answers", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                children: [
+                  Text(
+                    AppStrings.of(context, 'ask_assistant'),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    AppStrings.of(context, 'ask_assistant_subtitle'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
                 ],
               ),
             ),
@@ -405,7 +418,10 @@ class _HomePageState extends State<HomePage> {
           ),
           TextButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => targetPage)),
-            child: const Text("See All", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+            child: Text(
+              AppStrings.of(context, 'see_all'),
+              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
           ),
         ],
       ),

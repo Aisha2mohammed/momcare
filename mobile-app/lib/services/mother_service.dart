@@ -28,9 +28,7 @@ class MotherService {
     final profile = data['profile'] as Map<String, dynamic>?;
     final photo = (profile?['profile_photo'] as String?) ?? (user['profile_photo'] as String?);
     final name = user['name'] as String?;
-    if (photo != null && photo.isNotEmpty) {
-      profilePhoto.value = photo;
-    }
+    profilePhoto.value = (photo != null && photo.isNotEmpty) ? photo : null;
     if (name != null && name.isNotEmpty) {
       motherName.value = name;
     }
@@ -156,5 +154,11 @@ class MotherService {
       profilePhoto.value = photo;
     }
     return photo;
+  }
+
+  static Future<void> deleteProfilePhoto() async {
+    final id = await _motherId();
+    await ApiService.delete('/mothers/$id/profile-photo');
+    profilePhoto.value = null;
   }
 }

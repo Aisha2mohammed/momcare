@@ -67,8 +67,11 @@ exports.updateProfile = async (req, res, next) => {
         profileUpdates.push(`due_date = $${pIndex++}`); profileValues.push(dueDate);
         profileUpdates.push(`gestational_week = $${pIndex++}`); profileValues.push(gestationalWeek);
       }
-      if (city) { profileUpdates.push(`city = $${pIndex++}`); profileValues.push(city); }
-      if (profilePhoto) { profileUpdates.push(`profile_photo = $${pIndex++}`); profileValues.push(profilePhoto); }
+      if (city !== undefined) { profileUpdates.push(`city = $${pIndex++}`); profileValues.push(city || null); }
+      if (profilePhoto !== undefined) {
+        profileUpdates.push(`profile_photo = $${pIndex++}`);
+        profileValues.push(profilePhoto && profilePhoto.trim().length > 0 ? profilePhoto.trim() : null);
+      }
 
       if (profileUpdates.length > 0) {
         profileValues.push(id);
@@ -108,6 +111,20 @@ exports.updateProfilePhoto = async (req, res, next) => {
       [id, url]
     );
     return sendSuccess(res, 200, 'Profile photo updated', { profilePhoto: url });
+  } catch (err) { next(err); }
+};
+
+exports.deleteProfilePhoto = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await query(
+      `UPDATE mother_profiles SET profile_photo = NULL, updated_at = NOW() WHERE user_id = $1`,
+      [id]
+    );
+    try {
+      await query(`UPDATE users SET profile_photo = NULL WHERE id = $1`, [id]);
+    } catch (_) {}
+    return sendSuccess(res, 200, 'Profile photo removed');
   } catch (err) { next(err); }
 };
 
