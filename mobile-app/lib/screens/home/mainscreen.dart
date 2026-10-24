@@ -10,6 +10,7 @@ import 'package:pregnancy_appp/screens/connect_doctor_page.dart';
 import 'package:pregnancy_appp/widget/buttom_navbar.dart';
 import 'package:pregnancy_appp/widget/top_navbar.dart';
 import 'package:pregnancy_appp/services/push_service.dart';
+import 'package:pregnancy_appp/l10n/l10n.dart';
 
 class MainScreen extends StatefulWidget {
   final bool showWelcomeNotification;
@@ -113,7 +114,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(AppStrings.of(context, 'quick_actions'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ListTile(
                 leading: Container(
@@ -124,8 +125,8 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   child: const Icon(Icons.local_hospital, color: AppColors.primary),
                 ),
-                title: const Text("Connect Doctor", style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text("Book appointments & find  doctors"),
+                title: Text(AppStrings.of(context, 'connect_doctor'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(AppStrings.of(context, 'connect_doctor_desc')),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ConnectClinicPage()));
@@ -140,8 +141,8 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   child: const Icon(Icons.smart_toy_rounded, color: AppColors.primary),
                 ),
-                title: const Text("AI Assistant", style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text("Chat with Enat AI Bot"),
+                title: Text(AppStrings.of(context, 'ai_assistant'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(AppStrings.of(context, 'ai_assistant_desc')),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatBotPage()));

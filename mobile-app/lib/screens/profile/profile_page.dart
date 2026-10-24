@@ -110,21 +110,71 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       AppStatusModal.showSuccess(
         context: context,
-        title: 'Photo Uploaded!',
-        message: 'Your profile picture has been updated successfully.',
+        title: AppStrings.of(context, 'photo_uploaded'),
+        message: AppStrings.of(context, 'photo_uploaded_msg'),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
       AppStatusModal.showError(
         context: context,
-        title: 'Upload Failed',
+        title: AppStrings.of(context, 'upload_failed'),
         message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
       AppStatusModal.showError(
         context: context,
-        title: 'Upload Failed',
+        title: AppStrings.of(context, 'upload_failed'),
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  Future<void> _confirmAndDeletePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.of(context, 'remove_photo')),
+        content: Text(AppStrings.of(context, 'remove_photo_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppStrings.of(context, 'cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(AppStrings.of(context, 'remove_photo')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _deletePhoto();
+    }
+  }
+
+  Future<void> _deletePhoto() async {
+    setState(() => _isUploadingPhoto = true);
+    try {
+      await MotherService.deleteProfilePhoto();
+      if (!mounted) return;
+      setState(() {
+        _profilePhotoUrl = null;
+      });
+      AppStatusModal.showSuccess(
+        context: context,
+        title: AppStrings.of(context, 'remove_photo'),
+        message: AppStrings.of(context, 'remove_photo_success'),
+      );
+      await _loadProfile();
+    } catch (e) {
+      if (!mounted) return;
+      AppStatusModal.showError(
+        context: context,
+        title: AppStrings.of(context, 'upload_failed'),
         message: e.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
@@ -133,6 +183,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showPhotoPickerSheet() {
+    final hasPhoto = _profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -157,14 +208,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Change Profile Photo',
-                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                Text(
+                  AppStrings.of(context, 'change_photo'),
+                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Choose where to select your profile picture from:',
+                  AppStrings.of(context, 'choose_photo_source'),
                   style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
@@ -178,8 +229,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: const Icon(Icons.camera_alt_rounded, color: AppColors.primary),
                   ),
-                  title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Capture using device camera'),
+                  title: Text(AppStrings.of(context, 'take_photo'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(AppStrings.of(context, 'capture_camera')),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _pickAndUploadPhoto(ImageSource.camera);
@@ -195,13 +246,35 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: const Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB)),
                   ),
-                  title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Select an existing photo from gallery'),
+                  title: Text(AppStrings.of(context, 'choose_gallery'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(AppStrings.of(context, 'select_gallery')),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _pickAndUploadPhoto(ImageSource.gallery);
                   },
                 ),
+                if (hasPhoto) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                    ),
+                    title: Text(
+                      AppStrings.of(context, 'remove_photo'),
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.red),
+                    ),
+                    subtitle: Text(AppStrings.of(context, 'remove_photo_confirm')),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _confirmAndDeletePhoto();
+                    },
+                  ),
+                ],
                 const SizedBox(height: 8),
               ],
             ),
@@ -231,10 +304,10 @@ class _ProfilePageState extends State<ProfilePage> {
           decoration: InputDecoration(labelText: label),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.of(context, 'cancel'))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
+            child: Text(AppStrings.of(context, 'save')),
           ),
         ],
       ),
@@ -256,7 +329,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       AppStatusModal.showSuccess(
         context: context,
-        title: 'Profile Updated',
+        title: AppStrings.of(context, 'account_settings'),
         message: successMessage,
       );
       await _loadProfile();
@@ -264,14 +337,14 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       AppStatusModal.showError(
         context: context,
-        title: 'Update Failed',
+        title: AppStrings.of(context, 'upload_failed'),
         message: e.message,
       );
     } catch (e) {
       if (!mounted) return;
       AppStatusModal.showError(
         context: context,
-        title: 'Update Failed',
+        title: AppStrings.of(context, 'upload_failed'),
         message: 'Network error. Please try again.',
       );
     } finally {
@@ -377,21 +450,23 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    _isLoading ? 'Loading...' : _name,
+                    _isLoading ? AppStrings.of(context, 'loading') : _name,
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _isLoading
                         ? '...'
-                        : (_gestationalWeek > 0 ? '$_gestationalWeek Weeks Pregnant' : 'Pregnancy details not set'),
+                        : (_gestationalWeek > 0
+                            ? AppStrings.of(context, 'weeks_pregnant', [_gestationalWeek])
+                            : AppStrings.of(context, 'pregnancy_details_not_set')),
                     style: const TextStyle(color: Colors.grey, fontSize: 15),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13), textAlign: TextAlign.center),
                     const SizedBox(height: 8),
-                    OutlinedButton(onPressed: _loadProfile, child: const Text('Retry')),
+                    OutlinedButton(onPressed: _loadProfile, child: Text(AppStrings.of(context, 'retry'))),
                   ],
                 ],
               ),
@@ -408,9 +483,9 @@ class _ProfilePageState extends State<ProfilePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildStatItem("Week", _gestationalWeek > 0 ? '$_gestationalWeek' : '--'),
-                  _buildStatItem("Phone", _phone),
-                  _buildStatItem("Due Date", _formatDueDate(_dueDate)),
+                  _buildStatItem(AppStrings.of(context, 'week'), _gestationalWeek > 0 ? '$_gestationalWeek' : '--'),
+                  _buildStatItem(AppStrings.of(context, 'stat_phone'), _phone.isNotEmpty ? _phone : '--'),
+                  _buildStatItem(AppStrings.of(context, 'stat_due_date'), _formatDueDate(_dueDate)),
                 ],
               ),
             ],
@@ -430,7 +505,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Assigned hospital: $_assignedHospital',
+                        AppStrings.of(context, 'assigned_hospital', [_assignedHospital!]),
                         style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -440,30 +515,30 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 25),
             ],
 
-            _buildSettingsSection("Account Settings", [
+            _buildSettingsSection(AppStrings.of(context, 'account_settings'), [
               _buildSettingsTile(
                 Icons.person_outline_rounded,
-                "Personal Information",
+                AppStrings.of(context, 'personal_info'),
                 onTap: () => _editText(
-                  'Edit Name',
+                  AppStrings.of(context, 'edit_name'),
                   _name,
-                  'Full Name',
+                  AppStrings.of(context, 'full_name'),
                   (value) => _updateProfile({'name': value}, 'Name updated'),
                 ),
               ),
               _buildSettingsTile(
                 Icons.calendar_month_rounded,
-                "Pregnancy Details (LMP)",
+                AppStrings.of(context, 'pregnancy_details'),
                 onTap: _selectLMP,
               ),
             ]),
 
             const SizedBox(height: 25),
 
-            _buildSettingsSection("App Settings", [
+            _buildSettingsSection(AppStrings.of(context, 'app_settings'), [
               _buildSettingsTile(
                 Icons.notifications_none_rounded,
-                "Notifications",
+                AppStrings.of(context, 'notifications'),
                 onTap: _showNotificationsScreen,
               ),
               Consumer<LocaleProvider>(
@@ -480,14 +555,12 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               _buildSettingsTile(
                 Icons.security_rounded,
-                "Privacy & Security",
+                AppStrings.of(context, 'privacy_security'),
                 onTap: _showPrivacyScreen,
               ),
             ]),
 
             const SizedBox(height: 30),
-
-          
           ],
         ),
       ),
@@ -616,23 +689,23 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Notifications",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppStrings.of(context, 'notifications'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const ListTile(
-                leading: Icon(Icons.notifications_active_outlined, color: AppColors.primary),
-                title: Text("Push notifications"),
-                subtitle: Text("Managed by your phone settings"),
+              ListTile(
+                leading: const Icon(Icons.notifications_active_outlined, color: AppColors.primary),
+                title: Text(AppStrings.of(context, 'push_notifications')),
+                subtitle: Text(AppStrings.of(context, 'managed_by_phone')),
               ),
               ListTile(
                 leading: const Icon(Icons.settings_outlined, color: AppColors.primary),
-                title: const Text("Open system settings"),
+                title: Text(AppStrings.of(context, 'open_system_settings')),
                 onTap: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Open your phone Settings → Apps → Pregnancy App → Notifications")),
+                    SnackBar(content: Text('Open your phone Settings → Apps → MomCare → Notifications')),
                   );
                 },
               ),
@@ -665,35 +738,35 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Privacy & Security",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppStrings.of(context, 'privacy_security'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               ListTile(
                 leading: const Icon(Icons.lock_reset_outlined, color: AppColors.primary),
-                title: const Text("Change password"),
-                subtitle: const Text("We will email you a reset link"),
+                title: Text(AppStrings.of(context, 'change_password')),
+                subtitle: Text(AppStrings.of(context, 'reset_link_sent')),
                 onTap: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Password reset link will be sent to your email")),
+                    SnackBar(content: Text(AppStrings.of(context, 'reset_link_sent'))),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.primary),
-                title: const Text("Privacy policy"),
+                title: Text(AppStrings.of(context, 'privacy_policy')),
                 onTap: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Privacy policy screen coming soon")),
+                    SnackBar(content: Text(AppStrings.of(context, 'policy_coming_soon'))),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: Colors.red),
-                title: const Text("Log out", style: TextStyle(color: Colors.red)),
+                title: Text(AppStrings.of(context, 'log_out'), style: const TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
                   _logout();

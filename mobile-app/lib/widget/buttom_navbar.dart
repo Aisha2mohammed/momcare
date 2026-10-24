@@ -36,11 +36,11 @@ class CustomBottomNavigationBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(0, Icons.home_rounded, 'Home'), // 'Home' not in l10n, using literal
-              _buildNavItem(1, Icons.groups_rounded, 'Community'), // Not in l10n
-              _buildNavItem(2, Icons.spa_rounded, 'Wellness'),
+              _buildNavItem(0, Icons.home_rounded, AppStrings.of(context, 'nav_home')),
+              _buildNavItem(1, Icons.groups_rounded, AppStrings.of(context, 'nav_community')),
+              _buildNavItem(2, Icons.spa_rounded, AppStrings.of(context, 'nav_wellness')),
               _buildNavItem(3, Icons.emergency_rounded, AppStrings.of(context, 'emergency')),
-              _buildNavItem(4, Icons.person_rounded, 'Profile'), // Not in l10n
+              _buildNavItem(4, Icons.person_rounded, AppStrings.of(context, 'nav_profile')),
             ],
           ),
         ),

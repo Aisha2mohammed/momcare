@@ -26,6 +26,11 @@ router.post(
   upload.single('photo'),
   motherController.updateProfilePhoto
 );
+router.delete(
+  '/:id/profile-photo',
+  ownsSelf,
+  motherController.deleteProfilePhoto
+);
 router.get('/:id/gestational-week', ownsSelf, motherController.getGestationalWeek);
 router.get('/:id/health-logs', ownsSelf, paginationRules, validate, motherController.getHealthLogs);
 router.post('/:id/health-logs', ownsSelf, healthLogRules, validate, motherController.createHealthLog);
