@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Centralized API endpoint registry and URL builder for the entire application.
 class ApiEndpoints {
-  // Base server connection
-  static const String serverHost = 'http://10.57.131.167:5000';
+  // Base server connection (Live Hosting via HTTPS)
+  static const String serverHost = 'https://api-momcare.techsuya.com';
   static const String baseUrl = '$serverHost/api/v1';
 
   // ── Media & Upload URL Resolver ───────────────────────────────────────────
@@ -15,16 +15,47 @@ class ApiEndpoints {
     if (url == null || url.trim().isEmpty) return '';
     final trimmed = url.trim();
     if (trimmed.startsWith('assets/')) return trimmed;
+    
     String resolved = trimmed;
-    if (resolved.contains('localhost')) {
-      resolved = resolved.replaceAll('localhost', '10.57.131.167');
+
+    // Replace any legacy local development references with production host
+    if (resolved.contains('localhost') || resolved.contains('10.57.131.167') || resolved.contains('10.0.2.2')) {
+      resolved = resolved
+          .replaceAll('http://localhost:5000', serverHost)
+          .replaceAll('http://10.57.131.167:5000', serverHost)
+          .replaceAll('http://10.0.2.2:5000', serverHost)
+          .replaceAll('localhost', 'api-momcare.techsuya.com')
+          .replaceAll('10.57.131.167', 'api-momcare.techsuya.com')
+          .replaceAll('http://', 'https://');
     }
+
+    // If it's already a full valid URL, return it
     if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
       return resolved;
     }
+
+    // Relative path handling
     return resolved.startsWith('/') ? '$serverHost$resolved' : '$serverHost/$resolved';
   }
+// class ApiEndpoints {
+//   // Base server connection
+//   static const String serverHost = 'http://10.57.131.167:5000';
+//   static const String baseUrl = '$serverHost/api/v1';
 
+//   // ── Media & Upload URL Resolver ───────────────────────────────────────────
+//   static String resolveUrl(String? url) {
+//     if (url == null || url.trim().isEmpty) return '';
+//     final trimmed = url.trim();
+//     if (trimmed.startsWith('assets/')) return trimmed;
+//     String resolved = trimmed;
+//     if (resolved.contains('localhost')) {
+//       resolved = resolved.replaceAll('localhost', '10.57.131.167');
+//     }
+//     if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
+//       return resolved;
+//     }
+//     return resolved.startsWith('/') ? '$serverHost$resolved' : '$serverHost/$resolved';
+//   }
   // ── Auth Endpoints ────────────────────────────────────────────────────────
   static const String login = '/auth/login';
   static const String register = '/auth/register';

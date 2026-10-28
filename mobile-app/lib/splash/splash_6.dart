@@ -20,7 +20,7 @@ class Splash6 extends StatelessWidget {
               // Enat Circle
               RichText(
                 text: const TextSpan(
-                  text: 'Enat ',
+                  text: 'Mom ',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -28,7 +28,7 @@ class Splash6 extends StatelessWidget {
                   ),
                   children: [
                     TextSpan(
-                      text: 'Circle',
+                      text: 'Care',
                       style: TextStyle(
                         color: AppColors.primary,
                       ),
