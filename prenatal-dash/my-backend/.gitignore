@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Service account secrets & private keys
+secrets/*.json
+firebase-service-account.json
+*.pem
+*.key
+
+# Uploads directory - preserve folder via .gitkeep but ignore uploaded files
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db

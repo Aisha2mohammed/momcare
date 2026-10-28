@@ -19,7 +19,7 @@ class Splash3 extends StatelessWidget {
               // Enat Circle
               RichText(
                 text: const TextSpan(
-                  text: 'Enat ',
+                  text: 'Mom ',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -27,7 +27,7 @@ class Splash3 extends StatelessWidget {
                   ),
                   children: [
                     TextSpan(
-                      text: 'Circle',
+                      text: 'Care',
                       style: TextStyle(
                         color: AppColors.primary,
                       ),
@@ -75,7 +75,7 @@ class Splash3 extends StatelessWidget {
               const SizedBox(height: 16),
               // Subtitle
               const Text(
-                'Track your pregnancy week by week, monitor your baby’s growth, and stay connected with your clinic through appointments, checkups, and personalized care in Enat Circle.',
+                'Track your pregnancy week by week, monitor your baby’s growth, and stay connected with your Doctor through appointments, checkups, and personalized care in Mom care.',
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.5,
