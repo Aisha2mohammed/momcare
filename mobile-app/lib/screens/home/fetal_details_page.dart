@@ -52,12 +52,20 @@ class _FetalDetailsPageState extends State<FetalDetailsPage>
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
-    int week = widget.initialWeek ?? 12;
+    int week = widget.initialWeek ?? 0;
     try {
+      if (week <= 0) {
+        final cached = await MotherService.getCachedGestationalWeek();
+        if (cached != null && (cached['currentWeek'] as int? ?? 0) > 0) {
+          week = cached['currentWeek'] as int;
+        }
+      }
       if (widget.initialWeek == null) {
         final progress = await MotherService.getGestationalWeek();
-        week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
+        final curr = (progress['currentWeek'] as num?)?.toInt() ?? 0;
+        if (curr > 0) week = curr;
       }
+      if (week <= 0) week = 1;
       final data = await ContentService.getFetalByWeek(week, lang: _lang());
       if (!mounted) return;
       setState(() { _week = week; _data = data; });

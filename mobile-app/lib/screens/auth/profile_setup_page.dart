@@ -53,6 +53,13 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   /// Pre-fills anything already on the profile.
   Future<void> _prefill() async {
     try {
+      final cached = await MotherService.getCachedGestationalWeek();
+      if (cached != null && cached['lmpDate'] != null && mounted) {
+        try {
+          final parsed = DateTime.parse(cached['lmpDate'].toString());
+          _calculateDueDate(parsed);
+        } catch (_) {}
+      }
       final data = await MotherService.getProfile();
       if (!mounted) return;
       final user = data['user'];

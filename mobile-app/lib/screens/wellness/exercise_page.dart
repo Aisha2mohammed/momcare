@@ -165,19 +165,7 @@ class _ExerciseListState extends State<_ExerciseList> {
 
   Map<String, dynamic>? _weekInfo;
 
-  static String _defaultExerciseWhy(String lang) {
-    if (lang == 'am') return 'መደበኛ ቀላል እንቅስቃሴ የደም ዝውውርን ያሻሽላል፣ የወገብ ህመምን ያቃልላል።';
-    if (lang == 'om' || lang == 'or') return 'Sochii salphaa yeroo yerootiin hojjechuun dhiiga sochoodhaa, cinaacha dugdaa hir’isa.';
-    if (lang == 'so') return 'Dhaqdhaqaaq fudud oo joogto ah waxa uu horumariyaa wareega dhiigga.';
-    return 'Regular gentle movement improves circulation, eases back pain and helps you sleep better.';
-  }
 
-  static String _defaultExerciseTips(String lang) {
-    if (lang == 'am') return 'በቂ ውሃ ይጠጡ፣ የሰውነትዎን ስሜት ያዳምጡ፣ እና ከፍተኛ ጫና ያላቸውን እንቅስቃሴዎች ያስወግዱ።';
-    if (lang == 'om' || lang == 'or') return 'Bishaan gahaa dhugaa, qaama kee dhagaggeeffadhu, sochii humna ol ta\'e irraa fagaadhu.';
-    if (lang == 'so') return 'Cab biyo kugu filan, dhegeyso jirkaaga, kana fogow dhaqdhaqaaqyada culculus.';
-    return 'Stay hydrated, listen to your body, and avoid high-impact activities or lying flat on your back.';
-  }
 
   @override
   void initState() {
@@ -317,9 +305,6 @@ class _ExerciseListState extends State<_ExerciseList> {
         }
       }
     }
-    if (whyImportant.isEmpty) {
-      whyImportant = _defaultExerciseWhy(currentLang);
-    }
 
     String exerciseTips = resolveStr(_weekInfo, [
       'exercise_tips_$lKey', 'exercise_tips_$currentLang',
@@ -344,9 +329,6 @@ class _ExerciseListState extends State<_ExerciseList> {
         }
       }
     }
-    if (exerciseTips.isEmpty) {
-      exerciseTips = _defaultExerciseTips(currentLang);
-    }
 
     final listView = _items.isEmpty
         ? ListView(
@@ -369,8 +351,10 @@ class _ExerciseListState extends State<_ExerciseList> {
                   ),
                 ),
               ),
-              WellnessInfoCard.whyImportant(context: context, content: whyImportant),
-              WellnessInfoCard.exerciseTips(context: context, content: exerciseTips),
+              if (whyImportant.trim().isNotEmpty)
+                WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+              if (exerciseTips.trim().isNotEmpty)
+                WellnessInfoCard.exerciseTips(context: context, content: exerciseTips),
             ],
           )
         : ListView.builder(
@@ -378,12 +362,17 @@ class _ExerciseListState extends State<_ExerciseList> {
             itemCount: _items.length + 1,
             itemBuilder: (context, index) {
               if (index == _items.length) {
+                if (whyImportant.trim().isEmpty && exerciseTips.trim().isEmpty) {
+                  return const SizedBox.shrink();
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    WellnessInfoCard.whyImportant(context: context, content: whyImportant),
-                    WellnessInfoCard.exerciseTips(context: context, content: exerciseTips),
+                    if (whyImportant.trim().isNotEmpty)
+                      WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                    if (exerciseTips.trim().isNotEmpty)
+                      WellnessInfoCard.exerciseTips(context: context, content: exerciseTips),
                   ],
                 );
               }

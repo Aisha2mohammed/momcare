@@ -164,19 +164,7 @@ class _SleepTipsListState extends State<_SleepTipsList> {
   String? _lastLang;
   String _currentType = 'do';
 
-  static String _defaultSleepWhy(String lang) {
-    if (lang == 'am') return 'በግራ ጎን መተኛት ወደ ልጅዎ የሚሄደውን የደም ዝውውር ያሻሽላል።';
-    if (lang == 'om' || lang == 'or') return 'Cinaacha bitaatiin ciisuun dhangala’aa dhiigaa daa’imaaf ni dabala.';
-    if (lang == 'so') return 'Seexashada dhinaca bidix waxa ay hagaajisaa socodka dhiigga ee ilmaha.';
-    return 'Sleeping on your left side improves blood flow to your baby and reduces swelling.';
-  }
 
-  static String _defaultSleepTips(String lang) {
-    if (lang == 'am') return 'በግራ ጎን ትራስ በጉልበቶች መሀል አድርገው ይተኙ እና ከመተኛትዎ በፊት ከባድ ምግብ አይመገቡ።';
-    if (lang == 'om' || lang == 'or') return 'Cinaacha bitaatiin boraatii jilba gidduu kaa’uun ciisaa, hirriba dura nyaata ulfaataa irraa fagaadhaa.';
-    if (lang == 'so') return 'Sii dhinaca bidix oo barkimo lugaha dhexdeeda saar, iskana ilaali cunto culus hurdada ka hor.';
-    return 'Sleep on your left side with a pillow between your knees and avoid heavy meals before bedtime.';
-  }
 
   
 
@@ -317,9 +305,6 @@ class _SleepTipsListState extends State<_SleepTipsList> {
         }
       }
     }
-    if (whyImportant.isEmpty) {
-      whyImportant = _defaultSleepWhy(currentLang);
-    }
 
     String sleepingTips = resolveStr(_weekInfo, [
       'sleeping_tips_$lKey', 'sleeping_tips_$currentLang',
@@ -344,9 +329,6 @@ class _SleepTipsListState extends State<_SleepTipsList> {
         }
       }
     }
-    if (sleepingTips.isEmpty) {
-      sleepingTips = _defaultSleepTips(currentLang);
-    }
 
     final listView = _items.isEmpty
         ? ListView(
@@ -369,8 +351,10 @@ class _SleepTipsListState extends State<_SleepTipsList> {
                   ),
                 ),
               ),
-              WellnessInfoCard.whyImportant(context: context, content: whyImportant),
-              WellnessInfoCard.sleepingTips(context: context, content: sleepingTips),
+              if (whyImportant.trim().isNotEmpty)
+                WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+              if (sleepingTips.trim().isNotEmpty)
+                WellnessInfoCard.sleepingTips(context: context, content: sleepingTips),
             ],
           )
         : ListView.builder(
@@ -378,12 +362,17 @@ class _SleepTipsListState extends State<_SleepTipsList> {
             itemCount: _items.length + 1,
             itemBuilder: (context, index) {
               if (index == _items.length) {
+                if (whyImportant.trim().isEmpty && sleepingTips.trim().isEmpty) {
+                  return const SizedBox.shrink();
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    WellnessInfoCard.whyImportant(context: context, content: whyImportant),
-                    WellnessInfoCard.sleepingTips(context: context, content: sleepingTips),
+                    if (whyImportant.trim().isNotEmpty)
+                      WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                    if (sleepingTips.trim().isNotEmpty)
+                      WellnessInfoCard.sleepingTips(context: context, content: sleepingTips),
                   ],
                 );
               }

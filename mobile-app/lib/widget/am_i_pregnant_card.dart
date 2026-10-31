@@ -19,10 +19,10 @@ class AmIPregnantCard extends StatefulWidget {
 }
 
 class _AmIPregnantCardState extends State<AmIPregnantCard> {
-  int _week = 12;
-  int _daysRemaining = 196;
-  String _sizeComparison = "Plum";
-  int _heartRate = 160;
+  int _week = 0;
+  int _daysRemaining = 0;
+  String? _sizeComparison;
+  int? _heartRate;
   bool _loading = true;
   String? _lastLocale;
 
@@ -31,7 +31,11 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
     super.initState();
     _week = widget.week;
     _daysRemaining = widget.daysRemaining;
-    _load();
+    if (_week > 0) {
+      _load();
+    } else {
+      _loading = false;
+    }
   }
 
   @override
@@ -39,7 +43,7 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
     super.didChangeDependencies();
     final currentLocale = Localizations.localeOf(context).languageCode;
     if (_lastLocale != null && _lastLocale != currentLocale) {
-      _load();
+      if (_week > 0) _load();
     }
     _lastLocale = currentLocale;
   }
@@ -47,29 +51,53 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
   @override
   void didUpdateWidget(covariant AmIPregnantCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.week != widget.week) {
+    if (oldWidget.week != widget.week || oldWidget.daysRemaining != widget.daysRemaining) {
       _week = widget.week;
       _daysRemaining = widget.daysRemaining;
-      _load();
+      if (_week > 0) {
+        _load();
+      }
     }
   }
 
   Future<void> _load() async {
+    if (_week <= 0) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final lang = mounted ? Localizations.localeOf(context).languageCode : null;
-      final data = await ContentService.getFetalByWeek(widget.week, lang: lang);
+      final data = await ContentService.getFetalByWeek(_week, lang: lang);
       if (!mounted) return;
 
-      final heartRate = (data['heartRate'] as num?)?.toInt();
-      final sizeRaw = (lang != null && data['size_comparison_$lang'] != null && data['size_comparison_$lang'].toString().isNotEmpty)
-          ? data['size_comparison_$lang']
-          : (data['size_comparison'] ?? data['size_comparison_en']);
+      final hrRaw = (data['heartRate'] ?? data['heart_rate']) as num?;
+      final heartRate = hrRaw?.toInt();
+
+      String? sizeStr;
+      if (lang != null &&
+          data['size_comparison_$lang'] != null &&
+          data['size_comparison_$lang'].toString().trim().isNotEmpty) {
+        sizeStr = data['size_comparison_$lang'].toString().trim();
+      } else if (data['size_comparison'] != null &&
+          data['size_comparison'].toString().trim().isNotEmpty) {
+        sizeStr = data['size_comparison'].toString().trim();
+      } else if (data['sizeComparison'] != null &&
+          data['sizeComparison'].toString().trim().isNotEmpty) {
+        sizeStr = data['sizeComparison'].toString().trim();
+      } else if (data['size_comparison_en'] != null &&
+          data['size_comparison_en'].toString().trim().isNotEmpty) {
+        sizeStr = data['size_comparison_en'].toString().trim();
+      }
+
+      final drRaw = (data['daysRemaining'] ?? data['days_remaining']) as num?;
+      final daysRem = widget.daysRemaining > 0
+          ? widget.daysRemaining
+          : (drRaw?.toInt() ?? _daysRemaining);
 
       setState(() {
-        if (heartRate != null) _heartRate = heartRate;
-        if (sizeRaw != null && sizeRaw.toString().isNotEmpty) {
-          _sizeComparison = sizeRaw.toString();
-        }
+        _heartRate = heartRate;
+        _sizeComparison = sizeStr;
+        if (daysRem > 0) _daysRemaining = daysRem;
         _loading = false;
       });
     } catch (_) {
@@ -79,7 +107,7 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_loading && _week > 0) {
       return Container(
         height: 200,
         decoration: BoxDecoration(
@@ -132,17 +160,18 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Week badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
+                if (_week > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "${AppStrings.of(context, 'week')} $_week",
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  child: Text(
-                    "${AppStrings.of(context, 'week')} $_week",
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                ),
                 const SizedBox(height: 10),
                 
                 Text(
@@ -156,29 +185,38 @@ class _AmIPregnantCardState extends State<AmIPregnantCard> {
                 ),
                 const SizedBox(height: 14),
                 
-                _buildListItem(
-                  Icons.child_care_rounded,
-                  AppStrings.of(context, 'size_comparison_text', [_sizeComparison]),
-                ),
-                const SizedBox(height: 10),
-                _buildListItem(
-                  Icons.favorite_rounded,
-                  AppStrings.of(context, 'heart_rate_text', [_heartRate]),
-                ),
-                const SizedBox(height: 10),
-                _buildListItem(
-                  Icons.calendar_month_rounded,
-                  AppStrings.of(context, 'days_remaining_text', [_daysRemaining]),
-                ),
+                if (_sizeComparison != null && _sizeComparison!.isNotEmpty) ...[
+                  _buildListItem(
+                    Icons.child_care_rounded,
+                    AppStrings.of(context, 'size_comparison_text', [_sizeComparison!]),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (_heartRate != null && _heartRate! > 0) ...[
+                  _buildListItem(
+                    Icons.favorite_rounded,
+                    AppStrings.of(context, 'heart_rate_text', [_heartRate!]),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (_daysRemaining > 0) ...[
+                  _buildListItem(
+                    Icons.calendar_month_rounded,
+                    AppStrings.of(context, 'days_remaining_text', [_daysRemaining]),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
                 
                 // View Details Button
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const FetalDetailsPage()),
+                      MaterialPageRoute(
+                        builder: (_) => FetalDetailsPage(initialWeek: _week > 0 ? _week : null),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(

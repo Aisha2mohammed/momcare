@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
+import 'mother_service.dart';
 
 class AuthResult {
   final String token;
@@ -46,6 +49,21 @@ class AuthService {
     if (user['role'] != null) {
       await ApiService.saveUserRole(user['role'].toString());
     }
+    final lmpDate = user['lmpDate'] ?? user['lmp_date'];
+    if (lmpDate != null && lmpDate.toString().isNotEmpty) {
+      final live = MotherService.calculateProgressFromLmp(lmpDate.toString());
+      if (live.isNotEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(MotherService.userLmpKey, lmpDate.toString());
+          await prefs.setString('cached_gestational_week', jsonEncode(live));
+          MotherService.pregnancyProgress.value = live;
+        } catch (_) {}
+      }
+    }
+    if (user['name'] != null && user['name'].toString().isNotEmpty) {
+      MotherService.motherName.value = user['name'].toString();
+    }
     return AuthResult(token: token, user: user);
   }
 
@@ -86,6 +104,21 @@ class AuthService {
     }
     if (user != null && user['role'] != null) {
       await ApiService.saveUserRole(user['role'].toString());
+    }
+    final actualLmp = lmpDate ?? (user != null ? (user['lmpDate'] ?? user['lmp_date']) : null);
+    if (actualLmp != null && actualLmp.toString().isNotEmpty) {
+      final live = MotherService.calculateProgressFromLmp(actualLmp.toString());
+      if (live.isNotEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(MotherService.userLmpKey, actualLmp.toString());
+          await prefs.setString('cached_gestational_week', jsonEncode(live));
+          MotherService.pregnancyProgress.value = live;
+        } catch (_) {}
+      }
+    }
+    if (name.isNotEmpty) {
+      MotherService.motherName.value = name;
     }
   }
 
@@ -129,6 +162,18 @@ class AuthService {
     }
     if (user != null && user['role'] != null) {
       await ApiService.saveUserRole(user['role'].toString());
+    }
+    final lmp = user?['lmpDate'] ?? user?['lmp_date'];
+    if (lmp != null && lmp.toString().isNotEmpty) {
+      final live = MotherService.calculateProgressFromLmp(lmp.toString());
+      if (live.isNotEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(MotherService.userLmpKey, lmp.toString());
+          await prefs.setString('cached_gestational_week', jsonEncode(live));
+          MotherService.pregnancyProgress.value = live;
+        } catch (_) {}
+      }
     }
     return AuthResult(
       token: token,

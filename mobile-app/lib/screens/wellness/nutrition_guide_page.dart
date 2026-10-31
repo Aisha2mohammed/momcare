@@ -335,19 +335,7 @@ class _NutritionContentState extends State<_NutritionContent> {
     }
   }
 
-  static String _defaultNutritionWhy(String lang) {
-    if (lang == 'am') return 'በብረት እና ፕሮቲን የበለፀገ የተመጣጠነ ምግብ መመገብ ለልጅዎ ጤናማ እድገት መሰረት ነው።';
-    if (lang == 'om' || lang == 'or') return 'Nyaata sirnaa, sibiila fi pirootiinii qabu nyaachuun daa’ima kee guddina fayyaa qabaachuuf bu’uura dha.';
-    if (lang == 'so') return 'Cunida cunto dheellis ah oo qani ah ayaa ku siisa ilmagaguaga koritaanka caafimaadka.';
-    return 'Eating a balanced, iron- and protein-rich diet now gives your baby the building blocks for healthy growth.';
-  }
 
-  static String _defaultHydration(String lang) {
-    if (lang == 'am') return 'በየቀኑ ከ8 እስከ 10 ብርጭቆ ውሃ ይጠጡ። የሰውነት ፈሳሽ መጠንን እና የምግብ መፈጨትን ይረዳል::';
-    if (lang == 'om' || lang == 'or') return 'Guyyaatti bishaan galaana 8–10 dhugaa. Bishaan dhuguun dhiiga fi bishaan daa’imaa ni deeggara.';
-    if (lang == 'so') return 'Cab 8-10 koob oo biyo ah maalin kasta. Fuuq-celintu waxay caawisaa dheefshiidka iyo caafimaadka.';
-    return 'Drink 8–10 glasses of water daily. Staying hydrated supports blood volume, amniotic fluid and digestion.';
-  }
 
   Future<void> _load() async {
     setState(() {
@@ -524,13 +512,6 @@ class _NutritionContentState extends State<_NutritionContent> {
       }
     }
 
-    if (whyImportant.isEmpty) {
-      whyImportant = _defaultNutritionWhy(widget.userLang);
-    }
-    if (hydration.isEmpty) {
-      hydration = _defaultHydration(widget.userLang);
-    }
-
     // Collect and filter nutrient items for active tab (eat vs avoid)
     final List<Map<String, dynamic>> allItems = [];
     for (final g in _guides) {
@@ -593,8 +574,10 @@ class _NutritionContentState extends State<_NutritionContent> {
                         ),
                       ),
                     ),
-                    WellnessInfoCard.whyImportant(context: context, content: whyImportant),
-                    WellnessInfoCard.hydration(context: context, content: hydration),
+                    if (whyImportant.trim().isNotEmpty)
+                      WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                    if (hydration.trim().isNotEmpty)
+                      WellnessInfoCard.hydration(context: context, content: hydration),
                   ],
                 )
               : ListView.builder(
@@ -603,12 +586,17 @@ class _NutritionContentState extends State<_NutritionContent> {
                   itemBuilder: (context, i) {
                     // At the bottom of the list of nutrition items
                     if (i == allItems.length) {
+                      if (whyImportant.trim().isEmpty && hydration.trim().isEmpty) {
+                        return const SizedBox.shrink();
+                      }
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 8),
-                          WellnessInfoCard.whyImportant(context: context, content: whyImportant),
-                          WellnessInfoCard.hydration(context: context, content: hydration),
+                          if (whyImportant.trim().isNotEmpty)
+                            WellnessInfoCard.whyImportant(context: context, content: whyImportant),
+                          if (hydration.trim().isNotEmpty)
+                            WellnessInfoCard.hydration(context: context, content: hydration),
                         ],
                       );
                     }

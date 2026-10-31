@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/auth/login_page.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
@@ -26,19 +28,58 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _dueDate;
   String? _assignedHospital;
   String? _profilePhotoUrl;
+  String? _lmpDate;
   bool _isUploadingPhoto = false;
 
   @override
   void initState() {
     super.initState();
+    _loadCachedProfile();
     _loadProfile();
   }
 
+  Future<void> _loadCachedProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final directLmp = prefs.getString(MotherService.userLmpKey);
+      final cachedProgress = await MotherService.getCachedGestationalWeek();
+      final cachedProfile = await MotherService.getCachedProfile();
+      if (!mounted) return;
+      if (cachedProfile != null || cachedProgress != null || directLmp != null) {
+        final cUser = cachedProfile?['user'] as Map<String, dynamic>? ?? {};
+        final cProfile = cachedProfile?['profile'] as Map<String, dynamic>?;
+        final cLmp = directLmp ??
+            cachedProgress?['lmpDate']?.toString() ??
+            cProfile?['lmp_date']?.toString() ??
+            cProfile?['lmpDate']?.toString() ??
+            cUser['lmpDate']?.toString() ??
+            cUser['lmp_date']?.toString();
+        setState(() {
+          if (cUser['name'] != null && cUser['name'].toString().isNotEmpty) {
+            _name = cUser['name'].toString();
+          }
+          if (cUser['phone'] != null && cUser['phone'].toString().isNotEmpty) {
+            _phone = cUser['phone'].toString();
+          }
+          final w = (cachedProgress?['currentWeek'] as int?) ??
+              (cProfile?['gestational_week'] as int?) ?? 0;
+          if (w > 0) _gestationalWeek = w;
+          final d = (cachedProgress?['dueDate'] as String?) ??
+              (cProfile?['due_date'] as String?);
+          if (d != null && d.isNotEmpty) _dueDate = d;
+          if (cLmp != null && cLmp.isNotEmpty) _lmpDate = cLmp;
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadProfile() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (_name.isEmpty && _gestationalWeek == 0) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
     try {
       final data = await MotherService.getProfile();
       if (!mounted) return;
@@ -50,11 +91,19 @@ class _ProfilePageState extends State<ProfilePage> {
       // Week + due date must come from a LIVE calculation based on the LMP date.
       var week = profile?['gestational_week'] as int? ?? 0;
       var dueDate = profile?['due_date'] as String?;
+      String? lmpDate = profile?['lmp_date']?.toString() ??
+          profile?['lmpDate']?.toString() ??
+          user['lmpDate']?.toString() ??
+          user['lmp_date']?.toString();
+
       try {
         final progress = await MotherService.getGestationalWeek();
-        week = (progress['currentWeek'] as num?)?.toInt() ?? week;
+        final liveWeek = (progress['currentWeek'] as num?)?.toInt() ?? 0;
+        if (liveWeek > 0) week = liveWeek;
         final liveDueDate = progress['dueDate'] as String?;
         if (liveDueDate != null && liveDueDate.isNotEmpty) dueDate = liveDueDate;
+        final liveLmp = progress['lmpDate'] as String?;
+        if (liveLmp != null && liveLmp.isNotEmpty) lmpDate = liveLmp;
       } catch (_) {
         // Fall back to the stored profile values.
       }
@@ -68,6 +117,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _phone = (user['phone'] as String?) ?? '';
         _gestationalWeek = week;
         _dueDate = dueDate;
+        _lmpDate = lmpDate ?? _lmpDate;
         _assignedHospital = assignedHospital.isEmpty ? null : assignedHospital;
         if (photo != null && photo.isNotEmpty) {
           _profilePhotoUrl = photo;
@@ -75,10 +125,10 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.message);
+      if (_name.isEmpty) setState(() => _error = e.message);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Network error. Please try again.');
+      if (_name.isEmpty) setState(() => _error = 'Network error. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -292,6 +342,20 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${months[d.month - 1]} ${d.day}';
   }
 
+  String _formatLmpDate(String? iso) {
+    if (iso == null || iso.trim().isEmpty) {
+      return AppStrings.of(context, 'pregnancy_details_not_set');
+    }
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return iso;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final dateStr = '${months[d.month - 1]} ${d.day}, ${d.year}';
+    if (_gestationalWeek > 0) {
+      return '$dateStr (${AppStrings.of(context, 'weeks_pregnant', [_gestationalWeek])})';
+    }
+    return dateStr;
+  }
+
   Future<void> _editText(String title, String initial, String label, void Function(String) onSave) async {
     final controller = TextEditingController(text: initial);
     final result = await showDialog<String>(
@@ -354,11 +418,28 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _selectLMP() async {
     final now = DateTime.now();
+    DateTime initial = now;
+    if (_lmpDate != null && _lmpDate!.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(_lmpDate!);
+      if (parsed != null) {
+        initial = parsed.toLocal();
+      }
+    } else if (_gestationalWeek > 0) {
+      final estimatedDays = ((_gestationalWeek - 1) * 7).clamp(0, 280);
+      initial = now.subtract(Duration(days: estimatedDays));
+    }
+
+    final firstDate = DateTime(now.year - 1, now.month, now.day);
+    final lastDate = now;
+    if (initial.isBefore(firstDate)) initial = firstDate;
+    if (initial.isAfter(lastDate)) initial = lastDate;
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: now.subtract(const Duration(days: 7 * 12)),
-      firstDate: DateTime(now.year - 1),
-      lastDate: now,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: AppStrings.of(context, 'pregnancy_details'),
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
@@ -370,9 +451,28 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (picked != null) {
       final iso = picked.toIso8601String().split('T').first;
+      final live = MotherService.calculateProgressFromLmp(iso);
+      setState(() {
+        _lmpDate = iso;
+        if (live.isNotEmpty) {
+          _gestationalWeek = (live['currentWeek'] as int?) ?? _gestationalWeek;
+          _dueDate = (live['dueDate'] as String?) ?? _dueDate;
+        }
+      });
+
+      // Instantly persist locally so the mobile app has the calendar date saved
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(MotherService.userLmpKey, iso);
+        if (live.isNotEmpty) {
+          await prefs.setString('cached_gestational_week', jsonEncode(live));
+          MotherService.pregnancyProgress.value = live;
+        }
+      } catch (_) {}
+
       await _updateProfile(
         {'lmpDate': iso},
-        'Pregnancy details updated',
+        AppStrings.of(context, 'pregnancy_details_updated'),
       );
     }
   }
@@ -496,7 +596,7 @@ class _ProfilePageState extends State<ProfilePage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
+                  color: AppColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Row(
@@ -529,6 +629,7 @@ class _ProfilePageState extends State<ProfilePage> {
               _buildSettingsTile(
                 Icons.calendar_month_rounded,
                 AppStrings.of(context, 'pregnancy_details'),
+                subtitle: _formatLmpDate(_lmpDate),
                 onTap: _selectLMP,
               ),
             ]),
@@ -590,7 +691,7 @@ class _ProfilePageState extends State<ProfilePage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
             ],
           ),
           child: Column(children: children),
