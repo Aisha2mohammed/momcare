@@ -1,18 +1,30 @@
 import { useState, useCallback, useEffect } from 'react';
-import { mockDoctors } from '../mockData';
 import type { ApprovalStatus, Doctor } from '../types';
+import { adminDoctorsApi } from '../../services/api';
 
-let doctorsStore: Doctor[] = [...mockDoctors];
+let doctorsStore: Doctor[] = [];
 
-export function useDoctors(filterStatus?: ApprovalStatus) {
-    const [doctors, setDoctors] = useState<Doctor[]>(
-        filterStatus ? doctorsStore.filter(d => d.approvalStatus === filterStatus) : doctorsStore
-    );
-    const [isLoading] = useState(false);
-    const [error] = useState<string | null>(null);
+export function useDoctors(filterStatus?: ApprovalStatus | 'All') {
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const refresh = useCallback((status?: ApprovalStatus) => {
-        setDoctors(status ? doctorsStore.filter(d => d.approvalStatus === status) : [...doctorsStore]);
+    const refresh = useCallback(async (status?: ApprovalStatus | 'All') => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const list = await adminDoctorsApi.adminListDoctors({
+                approvalStatus: status && status !== 'All' ? status : undefined,
+            });
+            doctorsStore = list;
+            setDoctors(status && status !== 'All' ? list.filter(d => d.approvalStatus === status) : list);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to load doctors');
+            // If API fails, keep existing store
+            setDoctors(status && status !== 'All' ? doctorsStore.filter(d => d.approvalStatus === status) : doctorsStore);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     useEffect(() => {
@@ -20,22 +32,33 @@ export function useDoctors(filterStatus?: ApprovalStatus) {
     }, [filterStatus, refresh]);
 
     const approveDoctor = useCallback(async (id: string) => {
-        await new Promise(r => setTimeout(r, 600));
-        doctorsStore = doctorsStore.map(d =>
-            d.id === id ? { ...d, approvalStatus: 'Approved' as ApprovalStatus, status: 'Active' } : d
-        );
-        // Stub: email notification would fire here
-        console.log(`[EMAIL STUB] Approval email sent to doctor ${id}`);
-        refresh(filterStatus);
+        setIsLoading(true);
+        try {
+            const updated = await adminDoctorsApi.adminApproveDoctor(id);
+            doctorsStore = doctorsStore.map(d => (d.id === id ? updated : d));
+            await refresh(filterStatus);
+            return updated;
+        } catch (err: any) {
+            setError(err?.message || 'Failed to approve doctor');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
     }, [filterStatus, refresh]);
 
     const rejectDoctor = useCallback(async (id: string, reason: string) => {
-        await new Promise(r => setTimeout(r, 600));
-        doctorsStore = doctorsStore.map(d =>
-            d.id === id ? { ...d, approvalStatus: 'Rejected' as ApprovalStatus, rejectionReason: reason } : d
-        );
-        console.log(`[EMAIL STUB] Rejection email sent to doctor ${id}. Reason: ${reason}`);
-        refresh(filterStatus);
+        setIsLoading(true);
+        try {
+            const updated = await adminDoctorsApi.adminRejectDoctor(id, reason);
+            doctorsStore = doctorsStore.map(d => (d.id === id ? updated : d));
+            await refresh(filterStatus);
+            return updated;
+        } catch (err: any) {
+            setError(err?.message || 'Failed to reject doctor');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
     }, [filterStatus, refresh]);
 
     const getDoctorById = useCallback((id: string) => {

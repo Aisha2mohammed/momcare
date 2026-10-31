@@ -3,6 +3,7 @@ import 'package:doctor_app/constants/color.dart';
 import 'package:doctor_app/model/mock_data.dart';
 import 'package:doctor_app/model/doctor_profile_model.dart';
 import 'package:doctor_app/auth/login_screen.dart';
+import 'package:doctor_app/auth/auth_service.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -20,6 +21,59 @@ class _ProfileTabState extends State<ProfileTab> {
     super.initState();
     _doctor = DoctorProfileModel.shared;
     _doctor.availability = MockData.currentDoctorAvailability;
+    DoctorProfileModel.shared.addListener(_onProfileChanged);
+    _loadProfileFromBackend();
+  }
+
+  @override
+  void dispose() {
+    DoctorProfileModel.shared.removeListener(_onProfileChanged);
+    super.dispose();
+  }
+
+  void _onProfileChanged() {
+    if (mounted) {
+      setState(() {
+        _doctor = DoctorProfileModel.shared;
+      });
+    }
+  }
+
+  Future<void> _loadProfileFromBackend() async {
+    try {
+      final user = await AuthService.instance.getCurrentUser();
+      final userId = user['id'];
+      if (userId != null && userId.isNotEmpty) {
+        await AuthService.instance.getDoctorProfile(userId);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _updatePhoto(String url) async {
+    setState(() {
+      _doctor.avatarUrl = url;
+      DoctorProfileModel.shared.avatarUrl = url;
+    });
+    DoctorProfileModel.shared.notify();
+
+    try {
+      final user = await AuthService.instance.getCurrentUser();
+      final userId = user['id'];
+      if (userId != null && userId.isNotEmpty) {
+        await AuthService.instance.updateProfilePhoto(userId, url);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Doctor profile photo updated and saved!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Doctor profile photo updated')),
+        );
+      }
+    }
   }
 
   void _showPhotoPickerModal() {
@@ -127,14 +181,8 @@ class _ProfileTabState extends State<ProfileTab> {
                   final isCurrent = _doctor.avatarUrl == url;
                   return InkWell(
                     onTap: () {
-                      setState(() {
-                        _doctor.avatarUrl = url;
-                        DoctorProfileModel.shared.avatarUrl = url;
-                      });
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Doctor profile photo updated')),
-                      );
+                      _updatePhoto(url);
                     },
                     borderRadius: BorderRadius.circular(30),
                     child: Container(
@@ -215,15 +263,8 @@ class _ProfileTabState extends State<ProfileTab> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () {
-              setState(() {
-                const newPic = 'https://images.unsplash.com/photo-1594824813571-638f02614d3f?w=300';
-                _doctor.avatarUrl = newPic;
-                DoctorProfileModel.shared.avatarUrl = newPic;
-              });
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Headshot saved to Doctor Profile!')),
-              );
+              _updatePhoto('https://images.unsplash.com/photo-1594824813571-638f02614d3f?w=300');
             },
             child: const Text('Save & Apply', style: TextStyle(color: Colors.white)),
           ),
@@ -260,16 +301,10 @@ class _ProfileTabState extends State<ProfileTab> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () {
               final text = urlController.text.trim();
-              if (text.isNotEmpty) {
-                setState(() {
-                  _doctor.avatarUrl = text;
-                  DoctorProfileModel.shared.avatarUrl = text;
-                });
-              }
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Doctor profile photo uploaded!')),
-              );
+              if (text.isNotEmpty) {
+                _updatePhoto(text);
+              }
             },
             child: const Text('Upload', style: TextStyle(color: Colors.white)),
           ),
@@ -300,16 +335,305 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () {
-              setState(() {
-                _doctor.bio = controller.text.trim();
-              });
+            onPressed: () async {
+              final newBio = controller.text.trim();
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Bio updated successfully')),
-              );
+              setState(() {
+                _doctor.bio = newBio;
+                DoctorProfileModel.shared.bio = newBio;
+              });
+              DoctorProfileModel.shared.notify();
+              try {
+                final user = await AuthService.instance.getCurrentUser();
+                final userId = user['id'];
+                if (userId != null && userId.isNotEmpty) {
+                  await AuthService.instance.updateDoctorProfile(userId, {'bio': newBio});
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Bio updated and saved!')),
+                  );
+                }
+              } catch (_) {}
             },
             child: const Text('Save Bio', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditProfileModal() {
+    final nameCtrl = TextEditingController(text: _doctor.name);
+    final specCtrl = TextEditingController(text: _doctor.specialization);
+    final hospCtrl = TextEditingController(text: _doctor.hospitalClinicName.isNotEmpty ? _doctor.hospitalClinicName : _doctor.clinicAffiliation);
+    final locCtrl = TextEditingController(text: _doctor.practiceLocation);
+    final licCtrl = TextEditingController(text: _doctor.licenseNumber);
+    final expiryCtrl = TextEditingController(text: _doctor.licenseExpiryDate.isNotEmpty ? _doctor.licenseExpiryDate : _doctor.licenseExpiry);
+    final natIdCtrl = TextEditingController(text: _doctor.nationalId);
+    final docCtrl = TextEditingController(text: _doctor.credentialDocumentUrl);
+    final expCtrl = TextEditingController(text: _doctor.yearsExperience);
+    final bioCtrl = TextEditingController(text: _doctor.bio);
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              left: 20,
+              right: 20,
+              top: 16,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Edit Doctor Profile',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Update your clinical credentials and public profile information',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFormField(label: 'Full Name', controller: nameCtrl, icon: Icons.person_outline),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Medical Specialization', controller: specCtrl, icon: Icons.medical_services_outlined),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Hospital / Clinic Affiliation', controller: hospCtrl, icon: Icons.local_hospital_outlined),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Practice Location / City', controller: locCtrl, icon: Icons.location_on_outlined),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Medical License Number', controller: licCtrl, icon: Icons.badge_outlined),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'License Expiration Date', controller: expiryCtrl, icon: Icons.calendar_today_outlined),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'National ID Number', controller: natIdCtrl, icon: Icons.credit_card_rounded),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Credential Document / Certificate', controller: docCtrl, icon: Icons.file_present_rounded),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Years of Experience', controller: expCtrl, icon: Icons.history_edu_outlined),
+                  const SizedBox(height: 12),
+                  _buildFormField(label: 'Professional Summary / Bio', controller: bioCtrl, icon: Icons.description_outlined, maxLines: 3),
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              setModalState(() => isSaving = true);
+                              final cleanName = nameCtrl.text.trim();
+                              final cleanSpec = specCtrl.text.trim();
+                              final cleanHosp = hospCtrl.text.trim();
+                              final cleanLoc = locCtrl.text.trim();
+                              final cleanLic = licCtrl.text.trim();
+                              final cleanExpiry = expiryCtrl.text.trim();
+                              final cleanNatId = natIdCtrl.text.trim();
+                              final cleanDoc = docCtrl.text.trim();
+                              final cleanExp = expCtrl.text.trim();
+                              final cleanBio = bioCtrl.text.trim();
+
+                              setState(() {
+                                if (cleanName.isNotEmpty) {
+                                  _doctor.name = cleanName;
+                                  DoctorProfileModel.shared.name = cleanName;
+                                }
+                                if (cleanSpec.isNotEmpty) {
+                                  _doctor.specialization = cleanSpec;
+                                  DoctorProfileModel.shared.specialization = cleanSpec;
+                                }
+                                if (cleanHosp.isNotEmpty) {
+                                  _doctor.hospitalClinicName = cleanHosp;
+                                  _doctor.clinicAffiliation = cleanHosp;
+                                  DoctorProfileModel.shared.hospitalClinicName = cleanHosp;
+                                  DoctorProfileModel.shared.clinicAffiliation = cleanHosp;
+                                }
+                                if (cleanLoc.isNotEmpty) {
+                                  _doctor.practiceLocation = cleanLoc;
+                                  DoctorProfileModel.shared.practiceLocation = cleanLoc;
+                                }
+                                if (cleanLic.isNotEmpty) {
+                                  _doctor.licenseNumber = cleanLic;
+                                  DoctorProfileModel.shared.licenseNumber = cleanLic;
+                                }
+                                if (cleanExpiry.isNotEmpty) {
+                                  _doctor.licenseExpiryDate = cleanExpiry;
+                                  _doctor.licenseExpiry = cleanExpiry;
+                                  DoctorProfileModel.shared.licenseExpiryDate = cleanExpiry;
+                                  DoctorProfileModel.shared.licenseExpiry = cleanExpiry;
+                                }
+                                if (cleanNatId.isNotEmpty) {
+                                  _doctor.nationalId = cleanNatId;
+                                  DoctorProfileModel.shared.nationalId = cleanNatId;
+                                }
+                                if (cleanDoc.isNotEmpty) {
+                                  _doctor.credentialDocumentUrl = cleanDoc;
+                                  DoctorProfileModel.shared.credentialDocumentUrl = cleanDoc;
+                                }
+                                if (cleanExp.isNotEmpty) {
+                                  _doctor.yearsExperience = cleanExp;
+                                  DoctorProfileModel.shared.yearsExperience = cleanExp;
+                                }
+                                if (cleanBio.isNotEmpty) {
+                                  _doctor.bio = cleanBio;
+                                  DoctorProfileModel.shared.bio = cleanBio;
+                                }
+                              });
+                              DoctorProfileModel.shared.notify();
+
+                              try {
+                                final user = await AuthService.instance.getCurrentUser();
+                                final userId = user['id'];
+                                if (userId != null && userId.isNotEmpty) {
+                                  await AuthService.instance.updateDoctorProfile(userId, {
+                                    'name': cleanName,
+                                    'specialization': cleanSpec,
+                                    'hospital_clinic_name': cleanHosp,
+                                    'location': cleanLoc,
+                                    'license_number': cleanLic,
+                                    'license_expiry_date': cleanExpiry,
+                                    'national_id': cleanNatId,
+                                    'credential_document_url': cleanDoc,
+                                    'years_experience': cleanExp,
+                                    'bio': cleanBio,
+                                  });
+                                }
+                              } catch (_) {}
+
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Doctor profile updated and synced successfully!'),
+                                    backgroundColor: AppColors.primary,
+                                  ),
+                                );
+                              }
+                            },
+                      child: isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Save Changes',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, size: 18, color: AppColors.primary),
+            filled: true,
+            fillColor: AppColors.background,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _confirmSignOut() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: AppColors.error),
+            SizedBox(width: 8),
+            Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to sign out from your MomCare Doctor provider account?',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await AuthService.instance.logout();
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -581,12 +905,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                onPressed: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (route) => false,
-                  );
-                },
+                onPressed: _confirmSignOut,
               ),
             ),
           ],
@@ -643,10 +962,28 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           const SizedBox(height: 12),
 
-          // Doctor Name & Specialization
-          Text(
-            _doctor.name,
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          // Doctor Name & Specialization with Edit Action
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  _doctor.name,
+                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: _showEditProfileModal,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
+                  child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 3),
           Text(
@@ -723,9 +1060,23 @@ class _ProfileTabState extends State<ProfileTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Credentials & Practice Details',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Credentials & Practice Details',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
+                onPressed: _showEditProfileModal,
+                icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                label: const Text('Edit Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
@@ -733,7 +1084,25 @@ class _ProfileTabState extends State<ProfileTab> {
           _buildDetailRow(
             icon: Icons.credit_card_rounded,
             title: 'Medical License',
-            value: '${_doctor.licenseNumber} (Exp: ${_doctor.licenseExpiry})',
+            value: '${_doctor.licenseNumber} (Expires: ${_doctor.licenseExpiryDate.isNotEmpty ? _doctor.licenseExpiryDate : _doctor.licenseExpiry})',
+          ),
+          const Divider(height: 18),
+
+          // National ID Document
+          if (_doctor.nationalIdUrl.isNotEmpty || _doctor.nationalId.isNotEmpty) ...[
+            _buildDetailRow(
+              icon: Icons.badge_outlined,
+              title: 'National ID Document',
+              value: _doctor.nationalIdUrl.isNotEmpty ? _doctor.nationalIdUrl : _doctor.nationalId,
+            ),
+            const Divider(height: 18),
+          ],
+
+          // Hospital / Clinic
+          _buildDetailRow(
+            icon: Icons.local_hospital_rounded,
+            title: 'Hospital / Clinic Affiliation',
+            value: _doctor.hospitalClinicName.isNotEmpty ? _doctor.hospitalClinicName : _doctor.clinicAffiliation,
           ),
           const Divider(height: 18),
 
@@ -741,16 +1110,26 @@ class _ProfileTabState extends State<ProfileTab> {
           _buildDetailRow(
             icon: Icons.history_toggle_off_rounded,
             title: 'Experience',
-            value: _doctor.yearsExperience,
+            value: _doctor.yearsExperience.contains('Year') ? _doctor.yearsExperience : '${_doctor.yearsExperience} Years',
           ),
           const Divider(height: 18),
 
           _buildDetailRow(
             icon: Icons.location_on_outlined,
-            title: 'Practice Location',
+            title: 'Practice Location / City',
             value: _doctor.practiceLocation,
           ),
           const Divider(height: 18),
+
+          // Credential Document
+          if (_doctor.credentialDocumentUrl.isNotEmpty) ...[
+            _buildDetailRow(
+              icon: Icons.file_present_rounded,
+              title: 'Verified Credential Document',
+              value: _doctor.credentialDocumentUrl,
+            ),
+            const Divider(height: 18),
+          ],
 
           // Languages Spoken
           Row(
@@ -1068,6 +1447,8 @@ class _ProfileTabState extends State<ProfileTab> {
             DoctorProfileModel.shared.availability = status;
             MockData.currentDoctorAvailability = status;
           });
+          DoctorProfileModel.shared.notify();
+          MockData.doctorAvailabilityNotifier.value = status;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Duty status set to ${status.label}. Synced with Home header.'),

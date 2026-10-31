@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Drawer } from '../components/ui/Modal';
 import { useMothers, useApprovedDoctors } from '../api/hooks/useUsers';
+import { adminDoctorsApi } from '../services/api';
 import type { Mother, Doctor, Status } from '../api/types';
 
 type UserTab = 'Mothers' | 'Doctors';
@@ -38,12 +39,13 @@ export default function UsersManager() {
         reactivateMother,
         loadAllUsers,
     } = useMothers();
-    const { doctors, updateDoctorStatus } = useApprovedDoctors();
+    const { doctors, refresh: refreshDoctors } = useApprovedDoctors();
 
-    // Load every real mother (all statuses) into the table.
+    // Load every real mother and doctor into the table.
     useEffect(() => {
         loadAllUsers();
-    }, [loadAllUsers]);
+        refreshDoctors();
+    }, [loadAllUsers, refreshDoctors]);
 
     // ─── Filter logic ───────────────────────────────────────────────────
     const filteredMothers = mothers.filter(m => {
@@ -73,8 +75,16 @@ export default function UsersManager() {
         setActionLoading(true);
         try {
             if (tab === 'Doctors') {
-                const newStatus: Status = confirm.action === 'Suspend' ? 'Suspended' : 'Active';
-                await updateDoctorStatus(confirm.targetId, newStatus, confirm.reason);
+                if (confirm.action === 'Approve') {
+                    await adminDoctorsApi.adminApproveDoctor(confirm.targetId);
+                } else if (confirm.action === 'Reject') {
+                    await adminDoctorsApi.adminRejectDoctor(confirm.targetId, confirm.reason);
+                } else if (confirm.action === 'Suspend') {
+                    await adminDoctorsApi.adminSuspendDoctor(confirm.targetId);
+                } else if (confirm.action === 'Reactivate') {
+                    await adminDoctorsApi.adminReactivateDoctor(confirm.targetId);
+                }
+                await refreshDoctors();
             } else if (confirm.action === 'Approve') {
                 await approveMother(confirm.targetId);
             } else if (confirm.action === 'Reject') {
@@ -267,17 +277,26 @@ export default function UsersManager() {
                                         </td>
                                         <td className="py-3 pr-4 text-gray-500 text-xs">{d.email}</td>
                                         <td className="py-3 pr-4 text-gray-600 text-xs">{d.specialization}</td>
-                                        <td className="py-3 pr-4 text-gray-600 text-xs">{d.providerName}</td>
+                                        <td className="py-3 pr-4 text-gray-600 text-xs">{d.hospitalClinicName || d.providerName}</td>
                                         <td className="py-3 pr-4 text-gray-600 text-xs">{d.yearsExperience} yrs</td>
                                         <td className="py-3 pr-4">
-                                            <Badge variant={d.status === 'Active' ? 'green' : d.status === 'Suspended' ? 'red' : 'gray'}>{d.status}</Badge>
+                                            <Badge variant={d.status === 'Active' ? 'green' : d.status === 'Pending' ? 'yellow' : d.status === 'Suspended' ? 'red' : 'gray'}>{d.status}</Badge>
                                         </td>
                                         <td className="py-3">
                                             <div className="flex gap-1.5">
                                                 <button onClick={() => setSelectedDoctor(d)} className="p-1.5 rounded-lg hover:bg-[#fdf2f8] text-[#61183e] transition-colors" title="View">
                                                     <Eye className="w-4 h-4" />
                                                 </button>
-                                                {d.status === 'Active' ? (
+                                                {d.status === 'Pending' ? (
+                                                    <>
+                                                        <button onClick={() => openConfirm(d.id, d.name, 'Approve')} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Approve">
+                                                            <Check className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => openConfirm(d.id, d.name, 'Reject')} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Reject">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                ) : d.status === 'Active' ? (
                                                     <button onClick={() => openConfirm(d.id, d.name, 'Suspend')} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Suspend">
                                                         <UserX className="w-4 h-4" />
                                                     </button>
@@ -342,10 +361,13 @@ export default function UsersManager() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             {[
-                                { label: 'Email', value: selectedDoctor.email },
+                                { label: 'Email', value: selectedDoctor.email || 'N/A' },
                                 { label: 'Phone', value: selectedDoctor.phone },
-                                { label: 'License', value: selectedDoctor.licenseNumber },
-                                { label: 'Provider', value: selectedDoctor.providerName },
+                                { label: 'Medical License', value: selectedDoctor.licenseNumber },
+                                { label: 'License Expiry', value: selectedDoctor.licenseExpiryDate || 'N/A' },
+                                { label: 'National ID', value: selectedDoctor.nationalId || 'N/A' },
+                                { label: 'Hospital / Clinic', value: selectedDoctor.hospitalClinicName || selectedDoctor.providerName || 'N/A' },
+                                { label: 'Practice Location', value: selectedDoctor.location || 'N/A' },
                                 { label: 'Experience', value: `${selectedDoctor.yearsExperience} years` },
                             ].map(item => (
                                 <div key={item.label} className="bg-gray-50 rounded-xl p-3">
@@ -358,6 +380,30 @@ export default function UsersManager() {
                             <p className="text-xs text-gray-500 mb-1">Bio</p>
                             <p className="text-sm text-gray-700 leading-relaxed">{selectedDoctor.bio}</p>
                         </div>
+                        {(selectedDoctor.nationalIdUrl || selectedDoctor.credentialDocumentUrl) && (
+                            <div className="flex gap-2 pt-1">
+                                {selectedDoctor.nationalIdUrl && (
+                                    <a
+                                        href={selectedDoctor.nationalIdUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex-1 text-center py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-semibold transition-colors"
+                                    >
+                                        View National ID ↗
+                                    </a>
+                                )}
+                                {selectedDoctor.credentialDocumentUrl && (
+                                    <a
+                                        href={selectedDoctor.credentialDocumentUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex-1 text-center py-2 px-3 bg-[#61183e] hover:bg-[#4a122f] text-white rounded-xl text-xs font-semibold transition-colors"
+                                    >
+                                        View Certificate ↗
+                                    </a>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </Drawer>

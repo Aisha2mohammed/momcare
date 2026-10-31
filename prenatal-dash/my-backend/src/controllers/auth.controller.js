@@ -104,9 +104,8 @@ exports.register = async (req, res, next) => {
 
     await client.query('BEGIN');
 
-    // New mothers need admin approval before they are active; doctors keep
-    // users.status = 'active' and are gated by doctor_profiles.approval_status.
-    const signupStatus = role === 'doctor' ? 'active' : 'pending';
+    // Both new mothers and doctors need admin approval before they are active
+    const signupStatus = 'pending';
 
     const userResult = await client.query(
       `INSERT INTO users (role, name, phone, email, password_hash, language, status)
@@ -130,13 +129,49 @@ exports.register = async (req, res, next) => {
       );
     }
 
-    // If role is doctor, create doctor profile placeholder
+    // If role is doctor, create doctor profile with submitted credentials
+    let doctorProfile = null;
     if (role === 'doctor') {
-      await client.query(
-        `INSERT INTO doctor_profiles (user_id, approval_status)
-         VALUES ($1, 'pending')`,
-        [user.id]
+      const specialization = req.body.specialization || req.body.specialty || 'General Practitioner';
+      const licenseNumber = req.body.licenseNumber || req.body.license_number || null;
+      const hospitalClinicName = req.body.hospitalClinicName || req.body.hospital_clinic_name || req.body.clinicName || null;
+      const location = req.body.location || req.body.clinicAffiliation || null;
+      const yearsExperience = parseInt(req.body.yearsExperience || req.body.years_experience, 10) || 5;
+      const bio = req.body.bio || null;
+      const licenseExpiryDate = req.body.licenseExpiryDate || req.body.license_expiry_date || req.body.licenseExpiry || null;
+      const nationalIdUrl = req.body.nationalIdUrl || req.body.national_id_url || req.body.nationalIdFile || (req.body.nationalId && String(req.body.nationalId).startsWith('/uploads') ? req.body.nationalId : null);
+      const nationalId = req.body.nationalId || req.body.national_id || nationalIdUrl || null;
+      const credentialDocumentUrl = req.body.credentialDocument || req.body.credentialDocumentUrl || req.body.credential_document_url || req.body.credentialFile || null;
+      const healthProviderId = req.body.healthProviderId || null;
+
+      const docRes = await client.query(
+        `INSERT INTO doctor_profiles (
+           user_id, specialization, license_number, hospital_clinic_name, location,
+           years_experience, bio, license_expiry_date, national_id, national_id_url, credential_document_url,
+           health_provider_id, approval_status
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending')
+         ON CONFLICT (user_id) DO UPDATE SET
+           specialization = COALESCE(EXCLUDED.specialization, doctor_profiles.specialization),
+           license_number = COALESCE(EXCLUDED.license_number, doctor_profiles.license_number),
+           hospital_clinic_name = COALESCE(EXCLUDED.hospital_clinic_name, doctor_profiles.hospital_clinic_name),
+           location = COALESCE(EXCLUDED.location, doctor_profiles.location),
+           years_experience = COALESCE(EXCLUDED.years_experience, doctor_profiles.years_experience),
+           bio = COALESCE(EXCLUDED.bio, doctor_profiles.bio),
+           license_expiry_date = COALESCE(EXCLUDED.license_expiry_date, doctor_profiles.license_expiry_date),
+           national_id = COALESCE(EXCLUDED.national_id, doctor_profiles.national_id),
+           national_id_url = COALESCE(EXCLUDED.national_id_url, doctor_profiles.national_id_url),
+           credential_document_url = COALESCE(EXCLUDED.credential_document_url, doctor_profiles.credential_document_url),
+           health_provider_id = COALESCE(EXCLUDED.health_provider_id, doctor_profiles.health_provider_id),
+           approval_status = 'pending'
+         RETURNING *`,
+        [
+          user.id, specialization, licenseNumber, hospitalClinicName, location,
+          yearsExperience, bio, licenseExpiryDate, nationalId, nationalIdUrl, credentialDocumentUrl,
+          healthProviderId
+        ]
       );
+      doctorProfile = docRes.rows[0];
     }
 
     await client.query('COMMIT');
@@ -145,7 +180,7 @@ exports.register = async (req, res, next) => {
 
     return sendSuccess(res, 201, 'Registration successful', {
       token,
-      user: { ...user, role },
+      user: { ...user, role, doctorProfile },
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -155,10 +190,29 @@ exports.register = async (req, res, next) => {
   }
 };
 
+// ── POST /api/v1/auth/upload ──────────────────────────────────────────
+exports.uploadFile = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 400, 'No file was uploaded.');
+    }
+    const relativeUrl = `/uploads/${req.file.filename}`;
+    return sendSuccess(res, 200, 'File uploaded successfully', {
+      url: relativeUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── POST /api/v1/auth/login ────────────────────────────────────────────
 exports.login = async (req, res, next) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, password, name } = req.body;
     const variants = getPhoneVariants(phone);
 
     const result = await query(
@@ -172,7 +226,16 @@ exports.login = async (req, res, next) => {
 
     const user = result.rows[0];
 
-    // 'active' and 'pending' may sign in (a pending mother is let in so the app
+    // If name is provided (e.g. from doctor login), verify it matches user.name
+    if (name && user.name) {
+      const cleanInput = String(name).trim().toLowerCase().replace(/^dr\.?\s*/i, '');
+      const cleanUser = String(user.name).trim().toLowerCase().replace(/^dr\.?\s*/i, '');
+      if (cleanInput.length > 2 && !cleanUser.includes(cleanInput) && !cleanInput.includes(cleanUser)) {
+        return sendError(res, 401, 'The doctor name does not match the phone number.');
+      }
+    }
+
+    // 'active' and 'pending' may sign in (a pending mother/doctor is let in so the app
     // can render its "waiting for approval" screen); suspended/rejected cannot.
     if (user.status === 'suspended') {
       return sendError(res, 403, 'Your account has been suspended.');
@@ -181,12 +244,14 @@ exports.login = async (req, res, next) => {
       return sendError(res, 403, 'Your account was not approved.');
     }
 
-    // If password is set, verify it
-    if (user.password_hash && password) {
+    // Password verification:
+    // If password is provided and account has a password_hash, verify it.
+    // If no password is provided, allow passwordless sign-in (doctor signs in with Name + Phone).
+    if (password && user.password_hash) {
       const isMatch = await bcrypt.compare(password, user.password_hash);
       if (!isMatch) return sendError(res, 401, 'Invalid credentials.');
-    } else if (!user.password_hash && !password) {
-      // Allow phone-only login for OTP-style flow
+    } else if (!password) {
+      // Passwordless sign-in (Name + Phone or Phone-only)
     } else {
       return sendError(res, 401, 'Invalid credentials.');
     }
@@ -196,11 +261,26 @@ exports.login = async (req, res, next) => {
     // Get pregnancy progress if mother (lmpDate present only when LMP is set)
     const progress = await getMotherProgress(user.id, user.role);
 
+    // If role is doctor, retrieve doctor profile
+    let doctorProfile = null;
+    if (user.role === 'doctor') {
+      const docRes = await query(
+        `SELECT dp.*, hp.name as hospital_name
+         FROM doctor_profiles dp
+         LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+         WHERE dp.user_id = $1`,
+        [user.id]
+      );
+      if (docRes.rows.length > 0) {
+        doctorProfile = docRes.rows[0];
+      }
+    }
+
     const { password_hash, ...safeUser } = user;
 
     return sendSuccess(res, 200, 'Login successful', {
       token,
-      user: { ...safeUser, ...progress },
+      user: { ...safeUser, ...progress, doctorProfile },
     });
   } catch (err) {
     next(err);
@@ -334,9 +414,24 @@ exports.verifyOtp = async (req, res, next) => {
       // Same contract as /auth/login: include pregnancy progress so clients
       // can tell whether the mother has completed her core profile.
       const progress = await getMotherProgress(user.id, user.role);
+
+      let doctorProfile = null;
+      if (user.role === 'doctor') {
+        const docRes = await query(
+          `SELECT dp.*, hp.name as hospital_name
+           FROM doctor_profiles dp
+           LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+           WHERE dp.user_id = $1`,
+          [user.id]
+        );
+        if (docRes.rows.length > 0) {
+          doctorProfile = docRes.rows[0];
+        }
+      }
+
       return sendSuccess(res, 200, 'OTP verified. Login successful.', {
         token,
-        user: { ...user, ...progress },
+        user: { ...user, ...progress, doctorProfile },
         isNewUser: false,
       });
     } else {
@@ -521,13 +616,41 @@ exports.getStatus = async (req, res, next) => {
     }
     const user = userResult.rows[0];
     const progress = await getMotherProgress(user.id, user.role);
+
+    let doctorProfile = null;
+    if (user.role === 'doctor') {
+      const docRes = await query(
+        `SELECT dp.*, hp.name as hospital_name
+         FROM doctor_profiles dp
+         LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+         WHERE dp.user_id = $1`,
+        [user.id]
+      );
+      if (docRes.rows.length > 0) {
+        doctorProfile = docRes.rows[0];
+      }
+    }
+
+    const isDoctor = user.role === 'doctor';
+    const isApproved = isDoctor
+      ? (user.status === 'active' && doctorProfile?.approval_status === 'approved')
+      : (user.status === 'active');
+    const isPending = isDoctor
+      ? (user.status === 'pending' || doctorProfile?.approval_status === 'pending')
+      : (user.status === 'pending');
+    const isRejected = isDoctor
+      ? (user.status === 'rejected' || doctorProfile?.approval_status === 'rejected')
+      : (user.status === 'rejected');
+    const isSuspended = user.status === 'suspended';
+
     return sendSuccess(res, 200, 'Account status retrieved', {
-      user: { ...user, ...progress },
-      status: user.status,
-      isApproved: user.status === 'active',
-      isPending: user.status === 'pending',
-      isRejected: user.status === 'rejected',
-      isSuspended: user.status === 'suspended',
+      user: { ...user, ...progress, doctorProfile },
+      status: isApproved ? 'active' : isRejected ? 'rejected' : isSuspended ? 'suspended' : 'pending',
+      approvalStatus: doctorProfile?.approval_status || (user.status === 'active' ? 'approved' : user.status),
+      isApproved,
+      isPending,
+      isRejected,
+      isSuspended,
       needsProfileSetup: user.role === 'mother' && (!progress.lmpDate || progress.lmpDate.toString().trim() === ''),
     });
   } catch (err) {

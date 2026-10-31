@@ -55,6 +55,14 @@ class DoctorHeaderWidget extends StatelessWidget {
           // Greeting & Doctor Profile Info Row
           Row(
             children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: AppColors.primaryLight,
+                backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                onBackgroundImageError: (_, __) {},
+                child: avatarUrl.isEmpty ? const Icon(Icons.person, color: AppColors.primary) : null,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

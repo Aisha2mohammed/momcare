@@ -1,10 +1,9 @@
 import { useState, useCallback } from 'react';
-import { mockDoctors } from '../mockData';
 import type { Mother, Doctor, Status } from '../types';
-import { adminUsersApi } from '../../services/api';
+import { adminUsersApi, adminDoctorsApi } from '../../services/api';
 
 let mothersStore: Mother[] = [];
-let doctorsApprovedStore: Doctor[] = mockDoctors.filter(d => d.approvalStatus === 'Approved');
+let doctorsApprovedStore: Doctor[] = [];
 
 /**
  * Insert or update a mother by id. Pending mothers come from the real API, so
@@ -158,19 +157,40 @@ export function useMothers() {
 
 export function useApprovedDoctors() {
     const [doctors, setDoctors] = useState<Doctor[]>([...doctorsApprovedStore]);
-    const [isLoading] = useState(false);
-    const [error] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const refresh = useCallback(() => {
-        doctorsApprovedStore = mockDoctors.filter(d => d.approvalStatus === 'Approved');
-        setDoctors([...doctorsApprovedStore]);
+    const refresh = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const list = await adminDoctorsApi.adminListDoctors();
+            doctorsApprovedStore = list;
+            setDoctors(list);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to load doctors');
+            setDoctors([...doctorsApprovedStore]);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     const updateDoctorStatus = useCallback(async (id: string, status: Status, _reason?: string) => {
-        await new Promise(r => setTimeout(r, 500));
-        doctorsApprovedStore = doctorsApprovedStore.map(d => d.id === id ? { ...d, status } : d);
-        console.log(`[AUDIT STUB] Doctor ${id} status changed to ${status}. Reason: ${_reason ?? 'N/A'}`);
-        refresh();
+        setIsLoading(true);
+        try {
+            if (status === 'Suspended') {
+                await adminDoctorsApi.adminSuspendDoctor(id);
+            } else if (status === 'Active') {
+                await adminDoctorsApi.adminReactivateDoctor(id);
+            }
+            await refresh();
+        } catch (err: any) {
+            console.error(`Failed to update doctor ${id} status:`, err);
+            doctorsApprovedStore = doctorsApprovedStore.map(d => (d.id === id ? { ...d, status } : d));
+            setDoctors([...doctorsApprovedStore]);
+        } finally {
+            setIsLoading(false);
+        }
     }, [refresh]);
 
     return { doctors, isLoading, error, updateDoctorStatus, refresh };

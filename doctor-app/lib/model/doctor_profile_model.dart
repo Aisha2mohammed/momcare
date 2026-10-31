@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:doctor_app/model/mock_data.dart';
 
 class AvailabilitySlotModel {
@@ -42,14 +43,19 @@ class VerificationDocModel {
   });
 }
 
-class DoctorProfileModel {
+class DoctorProfileModel extends ChangeNotifier {
   String name;
   String specialization;
   String clinicAffiliation;
+  String hospitalClinicName;
   String avatarUrl;
   bool isVerified;
   String licenseNumber;
   String licenseExpiry;
+  String licenseExpiryDate;
+  String nationalId;
+  String nationalIdUrl;
+  String credentialDocumentUrl;
   String yearsExperience;
   String practiceLocation;
   List<String> languages;
@@ -58,14 +64,23 @@ class DoctorProfileModel {
   List<VerificationDocModel> documents;
   List<DayScheduleModel> weeklySchedule;
 
+  void notify() {
+    notifyListeners();
+  }
+
   DoctorProfileModel({
     required this.name,
     required this.specialization,
     required this.clinicAffiliation,
+    String? hospitalClinicName,
     required this.avatarUrl,
     this.isVerified = true,
     required this.licenseNumber,
     required this.licenseExpiry,
+    String? licenseExpiryDate,
+    this.nationalId = '',
+    this.nationalIdUrl = '',
+    this.credentialDocumentUrl = '',
     required this.yearsExperience,
     required this.practiceLocation,
     required this.languages,
@@ -73,7 +88,8 @@ class DoctorProfileModel {
     this.availability = DoctorAvailability.online,
     required this.documents,
     required this.weeklySchedule,
-  });
+  })  : hospitalClinicName = hospitalClinicName ?? clinicAffiliation,
+        licenseExpiryDate = licenseExpiryDate ?? licenseExpiry;
 
   static final DoctorProfileModel shared = sampleDoctor();
 

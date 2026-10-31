@@ -51,6 +51,14 @@ const initDbSchema = async () => {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITH TIME ZONE;
 
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS years_experience INTEGER DEFAULT 5;
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS hospital_clinic_name VARCHAR(255);
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS license_expiry_date VARCHAR(100);
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS national_id VARCHAR(255);
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS national_id_url TEXT;
+      ALTER TABLE doctor_profiles ADD COLUMN IF NOT EXISTS credential_document_url TEXT;
+
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS trimester INTEGER;
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS week INTEGER;
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS month INTEGER;

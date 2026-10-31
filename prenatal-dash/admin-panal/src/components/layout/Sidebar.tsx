@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,6 +29,7 @@ import {
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
+import { adminDoctorsApi } from '../../services/api';
 
 interface SubItem {
     label: string;
@@ -46,7 +47,7 @@ const navSections = [
     {
         label: 'Management',
         items: [
-            { icon: UserCheck, label: 'Doctor Approvals', key: 'doctorApprovals', path: '/doctor-approvals', badge: 3 },
+            { icon: UserCheck, label: 'Doctor Approvals', key: 'doctorApprovals', path: '/doctor-approvals', badge: 0 },
             { icon: Users, label: 'Users', key: 'users', path: '/users', badge: 0 },
             { icon: Building2, label: 'Health Providers', key: 'healthProviders', path: '/health-providers', badge: 0 },
         ],
@@ -97,7 +98,16 @@ export function Sidebar() {
 
     // Active flyout state for collapsed desktop view
     const [activeFlyout, setActiveFlyout] = useState<string | null>(null);
+    const [pendingDoctorsCount, setPendingDoctorsCount] = useState(0);
     const flyoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        adminDoctorsApi.getPendingDoctorsCount().then(cnt => {
+            if (isMounted) setPendingDoctorsCount(cnt);
+        }).catch(() => {});
+        return () => { isMounted = false; };
+    }, [location.pathname]);
 
     const handleFlyoutEnter = (key: string) => {
         if (!isCollapsed) return;
@@ -399,6 +409,8 @@ export function Sidebar() {
                                             const active = isActive(item.path);
                                             const itemLabel = item.key ? t(`nav.${item.key}`, { defaultValue: item.label }) : item.label;
 
+                                            const badgeValue = item.key === 'doctorApprovals' ? pendingDoctorsCount : item.badge;
+
                                             return (
                                                 <Link
                                                     key={item.path}
@@ -428,7 +440,7 @@ export function Sidebar() {
                                                     </span>
 
                                                     {/* Badge */}
-                                                    {item.badge > 0 && (
+                                                    {badgeValue > 0 && (
                                                         <>
                                                             {/* Normal pill badge in expanded mode */}
                                                             <span className={clsx(
@@ -436,7 +448,7 @@ export function Sidebar() {
                                                                 isCollapsed && 'lg:hidden',
                                                                 active ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600'
                                                             )}>
-                                                                {item.badge}
+                                                                {badgeValue}
                                                             </span>
 
                                                             {/* Compact dot badge in contracted mini mode */}

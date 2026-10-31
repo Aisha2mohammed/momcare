@@ -3,7 +3,7 @@
  * Fully integrated with my-backend REST endpoints under /api/v1
  */
 
-import type { Language, Mother, Status, Post } from '../api/types';
+import type { Language, Mother, Doctor, ApprovalStatus, Status, Post } from '../api/types';
 
 // Base URL resolution from environment variable
 const getBaseUrl = (): string => {
@@ -410,6 +410,108 @@ export const adminUsersApi = {
   async adminReactivateMother(id: string): Promise<Mother> {
     const res = await apiRequest<any>(`/admin/users/${id}/reactivate`, { method: 'PUT' });
     return mapAdminMother(res.data);
+  },
+};
+
+function mapAdminDoctor(row: any): Doctor {
+  const approvalRaw = String(row?.approval_status ?? 'pending').toLowerCase();
+  const userStatusRaw = String(row?.user_status ?? row?.status ?? 'active').toLowerCase();
+
+  const approvalStatus: ApprovalStatus =
+    approvalRaw === 'approved' ? 'Approved' :
+    approvalRaw === 'rejected' ? 'Rejected' : 'Pending';
+
+  const status: Status =
+    userStatusRaw === 'suspended' ? 'Suspended' :
+    approvalStatus === 'Approved' ? 'Active' :
+    approvalStatus === 'Rejected' ? 'Rejected' : 'Pending';
+
+  const experience = Number(row?.years_experience ?? 5);
+
+  return {
+    id: String(row?.id ?? ''),
+    name: row?.name ? (row.name.startsWith('Dr.') ? row.name : `Dr. ${row.name}`) : 'Dr. Doctor',
+    email: row?.email ?? '',
+    phone: row?.phone ?? '',
+    specialization: row?.specialization ?? 'General OB/GYN',
+    licenseNumber: row?.license_number ?? 'Pending Verification',
+    providerId: String(row?.health_provider_id ?? ''),
+    providerName: row?.health_provider_name ?? 'MomCare Maternal Center',
+    yearsExperience: isNaN(experience) ? 5 : experience,
+    submittedDate: row?.created_at ? String(row.created_at).slice(0, 10) : 'Recent',
+    approvalStatus,
+    status,
+    bio: row?.bio ?? '',
+    rejectionReason: row?.rejection_reason,
+    credentialImageUrl: resolveMediaUrl(row?.photo_url) || undefined,
+    hospitalClinicName: row?.hospital_clinic_name || row?.health_provider_name || 'MomCare Maternal Center',
+    location: row?.location ?? '',
+    licenseExpiryDate: row?.license_expiry_date ?? '',
+    nationalId: row?.national_id ?? '',
+    nationalIdUrl: resolveMediaUrl(row?.national_id_url || (row?.national_id && String(row.national_id).startsWith('/uploads') ? row.national_id : undefined)) || undefined,
+    credentialDocumentUrl: resolveMediaUrl(row?.credential_document_url) || undefined,
+  };
+}
+
+export const adminDoctorsApi = {
+  /** GET /admin/doctors?approvalStatus=...&status=...&search=... */
+  async adminListDoctors(params: { approvalStatus?: string; status?: string; search?: string } = {}): Promise<Doctor[]> {
+    const q = new URLSearchParams();
+    if (params.approvalStatus && params.approvalStatus !== 'All') q.set('approvalStatus', params.approvalStatus);
+    if (params.status && params.status !== 'All') q.set('status', params.status);
+    if (params.search) q.set('search', params.search);
+    q.set('limit', '100');
+    const res = await apiRequest<any[]>(`/admin/doctors?${q.toString()}`, { method: 'GET' });
+    return (res.data ?? []).map(mapAdminDoctor);
+  },
+
+  /** GET /admin/doctors/pending */
+  async adminListPendingDoctors(): Promise<Doctor[]> {
+    const res = await apiRequest<any[]>('/admin/doctors/pending', { method: 'GET' });
+    return (res.data ?? []).map(mapAdminDoctor);
+  },
+
+  /** GET /admin/doctors/:id */
+  async adminGetDoctor(id: string): Promise<Doctor | null> {
+    const res = await apiRequest<any>(`/admin/doctors/${id}`, { method: 'GET' });
+    return res.data ? mapAdminDoctor(res.data) : null;
+  },
+
+  /** PUT /admin/doctors/:id/approve */
+  async adminApproveDoctor(id: string): Promise<Doctor> {
+    const res = await apiRequest<any>(`/admin/doctors/${id}/approve`, { method: 'PUT' });
+    return mapAdminDoctor(res.data);
+  },
+
+  /** PUT /admin/doctors/:id/reject */
+  async adminRejectDoctor(id: string, reason?: string): Promise<Doctor> {
+    const res = await apiRequest<any>(`/admin/doctors/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    });
+    return mapAdminDoctor(res.data);
+  },
+
+  /** PUT /admin/doctors/:id/suspend */
+  async adminSuspendDoctor(id: string): Promise<Doctor> {
+    const res = await apiRequest<any>(`/admin/doctors/${id}/suspend`, { method: 'PUT' });
+    return mapAdminDoctor(res.data);
+  },
+
+  /** PUT /admin/doctors/:id/reactivate */
+  async adminReactivateDoctor(id: string): Promise<Doctor> {
+    const res = await apiRequest<any>(`/admin/doctors/${id}/reactivate`, { method: 'PUT' });
+    return mapAdminDoctor(res.data);
+  },
+
+  /** GET /admin/doctors?approvalStatus=pending&limit=1 */
+  async getPendingDoctorsCount(): Promise<number> {
+    try {
+      const res = await apiRequest<any>('/admin/doctors/pending', { method: 'GET' });
+      return (res.data ?? []).length;
+    } catch {
+      return 0;
+    }
   },
 };
 
