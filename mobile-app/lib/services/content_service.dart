@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'mother_service.dart';
@@ -42,18 +43,45 @@ class ContentService {
   static Future<Map<String, dynamic>> getFetalByWeek(int week, {String? lang}) async {
     final l = await _language(lang);
     final w = week < 1 ? 1 : (week > 42 ? 42 : week);
-    final response = await ApiService.get(ApiEndpoints.fetalByWeek(w, l));
-    return response['data'] as Map<String, dynamic>;
+    final cacheKey = 'cached_fetal_${w}_$l';
+    try {
+      final response = await ApiService.get(ApiEndpoints.fetalByWeek(w, l));
+      final data = response['data'] as Map<String, dynamic>;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(cacheKey, jsonEncode(data));
+      } catch (_) {}
+      return data;
+    } catch (e) {
+      // Offline fallback: check cached fetal data from prior fetch
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString(cacheKey);
+        if (cached != null && cached.isNotEmpty) {
+          return jsonDecode(cached) as Map<String, dynamic>;
+        }
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   // ── Mothers' current trimester ────────────────────────────────────────
   static Future<int> currentTrimester() async {
     try {
       final progress = await MotherService.getGestationalWeek();
-      final week = (progress['currentWeek'] as num?)?.toInt() ?? 12;
-      return _trimesterForWeek(week);
+      final week = (progress['currentWeek'] as num?)?.toInt() ?? 0;
+      if (week > 0) return _trimesterForWeek(week);
+      final cached = await MotherService.getCachedGestationalWeek();
+      final cachedWeek = (cached?['currentWeek'] as num?)?.toInt() ?? 1;
+      return _trimesterForWeek(cachedWeek);
     } catch (_) {
-      return 1;
+      try {
+        final cached = await MotherService.getCachedGestationalWeek();
+        final cachedWeek = (cached?['currentWeek'] as num?)?.toInt() ?? 1;
+        return _trimesterForWeek(cachedWeek);
+      } catch (_) {
+        return 1;
+      }
     }
   }
 

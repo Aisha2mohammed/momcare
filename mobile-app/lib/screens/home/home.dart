@@ -21,16 +21,59 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentWeek = 12;
-  int _daysRemaining = 196;
-  double _progress = 0.3;
+  int _currentWeek = 0;
+  int _daysRemaining = 0;
+  double _progress = 0.0;
   String _motherName = '';
 
   @override
   void initState() {
     super.initState();
+    MotherService.pregnancyProgress.addListener(_onProgressChanged);
+    _loadCachedData();
     _loadData();
     _setupPushNotifications();
+  }
+
+  @override
+  void dispose() {
+    MotherService.pregnancyProgress.removeListener(_onProgressChanged);
+    super.dispose();
+  }
+
+  void _onProgressChanged() {
+    final progress = MotherService.pregnancyProgress.value;
+    if (progress != null && mounted) {
+      setState(() {
+        final w = (progress['currentWeek'] as int?) ?? 0;
+        if (w > 0) _currentWeek = w;
+        final dr = (progress['daysRemaining'] as int?) ?? 0;
+        if (dr > 0) _daysRemaining = dr;
+        final pct = (progress['percentageComplete'] as num?)?.toDouble() ?? 0.0;
+        _progress = (pct / 100).clamp(0.0, 1.0);
+      });
+    }
+  }
+
+  Future<void> _loadCachedData() async {
+    try {
+      final cachedProgress = await MotherService.getCachedGestationalWeek();
+      final cachedProfile = await MotherService.getCachedProfile();
+      if (!mounted) return;
+      setState(() {
+        if (cachedProgress != null && (cachedProgress['currentWeek'] as int? ?? 0) > 0) {
+          _currentWeek = cachedProgress['currentWeek'] as int;
+          _daysRemaining = (cachedProgress['daysRemaining'] as int?) ?? _daysRemaining;
+          final pct = (cachedProgress['percentageComplete'] as num?)?.toDouble() ?? 0.0;
+          _progress = (pct / 100).clamp(0.0, 1.0);
+        }
+        if (cachedProfile != null) {
+          final user = cachedProfile['user'] as Map<String, dynamic>? ?? {};
+          final name = (user['name'] as String?) ?? '';
+          if (name.isNotEmpty) _motherName = name;
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _setupPushNotifications() async {
@@ -91,6 +134,7 @@ class _HomePageState extends State<HomePage> {
       debugPrint('[Home] Push setup error: $e');
     }
   }
+
   Future<void> _loadData() async {
     try {
       final results = await Future.wait([
@@ -103,11 +147,14 @@ class _HomePageState extends State<HomePage> {
       final user = profile['user'] as Map<String, dynamic>? ?? {};
 
       setState(() {
-        _currentWeek = (progress['currentWeek'] as int?) ?? _currentWeek;
-        _daysRemaining = (progress['daysRemaining'] as int?) ?? _daysRemaining;
+        final w = (progress['currentWeek'] as int?) ?? 0;
+        if (w > 0) _currentWeek = w;
+        final dr = (progress['daysRemaining'] as int?) ?? 0;
+        if (dr > 0) _daysRemaining = dr;
         final pct = (progress['percentageComplete'] as num?)?.toDouble() ?? 0.0;
         _progress = (pct / 100).clamp(0.0, 1.0);
-        _motherName = (user['name'] as String?) ?? _motherName;
+        final name = (user['name'] as String?) ?? '';
+        if (name.isNotEmpty) _motherName = name;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -116,7 +163,7 @@ class _HomePageState extends State<HomePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      // Silently keep defaults on network failure
+      // Silently keep cached data on network failure
     }
   }
 
@@ -243,18 +290,20 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 18),
 
-                      // Week label + days
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "${AppStrings.of(context, 'week')} $_currentWeek",
+                            _currentWeek > 0
+                                ? "${AppStrings.of(context, 'week')} $_currentWeek"
+                                : AppStrings.of(context, 'pregnancy'),
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
-                          Text(
-                            "$_daysRemaining ${AppStrings.of(context, 'days_left')}",
-                            style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13),
-                          ),
+                          if (_daysRemaining > 0)
+                            Text(
+                              "$_daysRemaining ${AppStrings.of(context, 'days_left')}",
+                              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 10),
