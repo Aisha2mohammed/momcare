@@ -1,39 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, FileText, User, Stethoscope, Building2, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, FileText, User, Stethoscope, Building2, Phone, Mail, Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useDoctors } from '../api/hooks/useDoctors';
+import { adminDoctorsApi } from '../services/api';
+import type { Doctor } from '../api/types';
 
 export default function DoctorReviewDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { getDoctorById, approveDoctor, rejectDoctor } = useDoctors();
-    const doctor = getDoctorById(id ?? '');
+    const [doctor, setDoctor] = useState<Doctor | null>(() => getDoctorById(id ?? ''));
+    const [isLoading, setIsLoading] = useState(!doctor);
 
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
     const [actionDone, setActionDone] = useState<'approved' | 'rejected' | null>(null);
 
+    useEffect(() => {
+        if (!doctor && id) {
+            setIsLoading(true);
+            adminDoctorsApi.adminGetDoctor(id)
+                .then(d => setDoctor(d))
+                .catch(() => setDoctor(null))
+                .finally(() => setIsLoading(false));
+        }
+    }, [id, doctor]);
+
     const handleApprove = async () => {
         if (!doctor) return;
         setActionLoading('approve');
-        await approveDoctor(doctor.id);
-        setActionLoading(null);
-        setActionDone('approved');
-        setTimeout(() => navigate('/doctor-approvals'), 1500);
+        try {
+            await approveDoctor(doctor.id);
+            setActionDone('approved');
+            setTimeout(() => navigate('/doctor-approvals'), 1500);
+        } catch (err: any) {
+            alert(err?.message || 'Failed to approve');
+        } finally {
+            setActionLoading(null);
+        }
     };
 
     const handleReject = async () => {
         if (!doctor || !rejectReason.trim()) return;
         setActionLoading('reject');
-        await rejectDoctor(doctor.id, rejectReason);
-        setActionLoading(null);
-        setActionDone('rejected');
-        setTimeout(() => navigate('/doctor-approvals'), 1500);
+        try {
+            await rejectDoctor(doctor.id, rejectReason);
+            setActionDone('rejected');
+            setTimeout(() => navigate('/doctor-approvals'), 1500);
+        } catch (err: any) {
+            alert(err?.message || 'Failed to reject');
+        } finally {
+            setActionLoading(null);
+        }
     };
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-gray-400 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-[#61183e]" />
+                <p className="text-sm font-medium">Loading doctor details...</p>
+            </div>
+        );
+    }
 
     if (!doctor) {
         return (
@@ -92,12 +124,16 @@ export default function DoctorReviewDetail() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             {[
-                                { icon: Mail, label: 'Email', value: doctor.email },
-                                { icon: Phone, label: 'Phone', value: doctor.phone },
-                                { icon: Building2, label: 'Health Provider', value: doctor.providerName },
+                                { icon: Mail, label: 'Email', value: doctor.email || 'N/A' },
+                                { icon: Phone, label: 'Phone Number', value: doctor.phone },
+                                { icon: Building2, label: 'Hospital / Clinic Name', value: doctor.hospitalClinicName || doctor.providerName || 'N/A' },
+                                { icon: FileText, label: 'Practice Location', value: doctor.location || 'N/A' },
                                 { icon: Stethoscope, label: 'Specialization', value: doctor.specialization },
-                                { icon: User, label: 'Experience', value: `${doctor.yearsExperience} years` },
-                                { icon: FileText, label: 'Submitted', value: doctor.submittedDate },
+                                { icon: User, label: 'Years of Experience', value: `${doctor.yearsExperience} years` },
+                                { icon: FileText, label: 'Medical License Number', value: doctor.licenseNumber },
+                                { icon: FileText, label: 'License Expiration Date', value: doctor.licenseExpiryDate || 'N/A' },
+                                { icon: User, label: 'National ID', value: doctor.nationalId || 'N/A' },
+                                { icon: FileText, label: 'Submitted Date', value: doctor.submittedDate },
                             ].map(field => (
                                 <div key={field.label} className="bg-gray-50 rounded-xl p-4">
                                     <div className="flex items-center gap-2 mb-1">
@@ -111,7 +147,7 @@ export default function DoctorReviewDetail() {
 
                         <div className="mt-4 bg-gray-50 rounded-xl p-4">
                             <p className="text-xs text-gray-500 mb-1">Professional Bio</p>
-                            <p className="text-sm text-gray-700 leading-relaxed">{doctor.bio}</p>
+                            <p className="text-sm text-gray-700 leading-relaxed">{doctor.bio || 'No professional bio provided.'}</p>
                         </div>
 
                         {doctor.rejectionReason && (
@@ -125,19 +161,73 @@ export default function DoctorReviewDetail() {
 
                 {/* Right column: document viewer + actions */}
                 <div className="space-y-5">
+                    {/* National ID Document Viewer */}
+                    <Card>
+                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <User className="w-4 h-4 text-[#61183e]" />
+                            National ID Uploaded Document
+                        </h4>
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-pink-50 rounded-lg text-[#61183e]">
+                                    <FileText className="w-6 h-6" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-gray-800 truncate">
+                                        {doctor.nationalIdUrl ? doctor.nationalIdUrl.split('/').pop() : (doctor.nationalId || 'National_ID_Doc.pdf')}
+                                    </p>
+                                    <p className="text-xs text-gray-500">Official National Identification Document</p>
+                                </div>
+                            </div>
+                            {doctor.nationalIdUrl || (doctor.nationalId && doctor.nationalId.startsWith('http')) ? (
+                                <a
+                                    href={doctor.nationalIdUrl || doctor.nationalId}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-3 block text-center py-2 px-3 bg-[#61183e] text-white rounded-lg text-xs font-medium hover:bg-[#4a122f] transition-colors"
+                                >
+                                    Open / View National ID ↗
+                                </a>
+                            ) : (
+                                <div className="mt-3 text-xs text-center text-gray-400 py-1 bg-gray-100 rounded">
+                                    {doctor.nationalId || 'Uploaded with application'}
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+
                     {/* Credential Document Viewer */}
                     <Card>
                         <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                             <FileText className="w-4 h-4 text-[#61183e]" />
-                            Submitted Credentials
+                            Credential Document / Medical Certificate
                         </h4>
-                        <div className="bg-gray-100 rounded-xl h-52 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200">
-                            <FileText className="w-10 h-10 mb-2" />
-                            <p className="text-sm font-medium">License Document</p>
-                            <p className="text-xs mt-1">{doctor.licenseNumber}.pdf</p>
-                            <button className="mt-3 text-xs text-[#61183e] font-medium hover:underline flex items-center gap-1">
-                                View Full Document ↗
-                            </button>
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-pink-50 rounded-lg text-[#61183e]">
+                                    <FileText className="w-6 h-6" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-gray-800 truncate">
+                                        {doctor.credentialDocumentUrl ? doctor.credentialDocumentUrl.split('/').pop() : `${doctor.licenseNumber}_credential.pdf`}
+                                    </p>
+                                    <p className="text-xs text-gray-500">Official verification document</p>
+                                </div>
+                            </div>
+                            {doctor.credentialDocumentUrl ? (
+                                <a
+                                    href={doctor.credentialDocumentUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-3 block text-center py-2 px-3 bg-[#61183e] text-white rounded-lg text-xs font-medium hover:bg-[#4a122f] transition-colors"
+                                >
+                                    Open / Download Certificate ↗
+                                </a>
+                            ) : (
+                                <div className="mt-3 text-xs text-center text-gray-400 py-1 bg-gray-100 rounded">
+                                    Uploaded with application
+                                </div>
+                            )}
                         </div>
                     </Card>
 

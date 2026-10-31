@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:doctor_app/constants/color.dart';
+import 'package:doctor_app/auth/auth_service.dart';
+import 'package:doctor_app/auth/login_screen.dart';
 import 'package:doctor_app/auth/register_screen.dart';
+import 'package:doctor_app/auth/pending_approval_screen.dart';
+import 'package:doctor_app/home/main_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -68,12 +72,30 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
 
+    final hasSession = await AuthService.instance.isLoggedIn();
+    Widget targetScreen = const LoginScreen();
+
+    if (hasSession) {
+      try {
+        final cur = await AuthService.instance.getCurrentUser();
+        final status = (cur['status'] ?? 'active').toLowerCase();
+        if (status == 'pending') {
+          targetScreen = PendingApprovalScreen(phone: cur['phone'], name: cur['name']);
+        } else {
+          targetScreen = const MainScreen();
+        }
+      } catch (_) {
+        targetScreen = const LoginScreen();
+      }
+    }
+
+    if (!mounted) return;
+
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const RegisterScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

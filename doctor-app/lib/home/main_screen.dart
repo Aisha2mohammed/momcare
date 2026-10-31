@@ -5,6 +5,8 @@ import 'package:doctor_app/chat/chat_list_tab.dart';
 import 'package:doctor_app/appointment/appointment_tab.dart';
 import 'package:doctor_app/profile/profile_tab.dart';
 import 'package:doctor_app/model/mock_data.dart';
+import 'package:doctor_app/model/doctor_profile_model.dart';
+import 'package:doctor_app/auth/auth_service.dart';
 import 'package:doctor_app/notification/notification_screen.dart';
 import 'package:doctor_app/notification/notification_model.dart';
 
@@ -17,6 +19,33 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    DoctorProfileModel.shared.addListener(_onProfileUpdated);
+    _loadDoctorProfile();
+  }
+
+  @override
+  void dispose() {
+    DoctorProfileModel.shared.removeListener(_onProfileUpdated);
+    super.dispose();
+  }
+
+  void _onProfileUpdated() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadDoctorProfile() async {
+    try {
+      final user = await AuthService.instance.getCurrentUser();
+      final userId = user['id'];
+      if (userId != null && userId.isNotEmpty) {
+        await AuthService.instance.getDoctorProfile(userId);
+      }
+    } catch (_) {}
+  }
 
   int get _unreadChatCount {
     return MockData.acceptedPatients.where((p) => !p.isRead || p.unreadCount > 0).length;
@@ -31,6 +60,7 @@ class _MainScreenState extends State<MainScreen> {
     final unreadChats = _unreadChatCount;
     final incomingQueue = _incomingQueueCount;
     final unreadNotifs = NotificationRepository.unreadCount;
+    final doc = DoctorProfileModel.shared;
 
     final List<Widget> tabs = [
       const HomeTab(),
@@ -44,14 +74,54 @@ class _MainScreenState extends State<MainScreen> {
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         elevation: 0.5,
-        title: Row(
-          children: [
-            const CircleAvatar(
-              backgroundImage: NetworkImage('https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150'),
-              radius: 18,
+        title: InkWell(
+          onTap: () => setState(() => _currentIndex = 3),
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundImage: doc.avatarUrl.isNotEmpty ? NetworkImage(doc.avatarUrl) : null,
+                  onBackgroundImageError: (_, __) {},
+                  backgroundColor: AppColors.primaryLight,
+                  radius: 19,
+                  child: doc.avatarUrl.isEmpty
+                      ? const Icon(Icons.person, color: AppColors.primary, size: 20)
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        doc.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        doc.specialization,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-          ],
+          ),
         ),
         actions: [
           IconButton(

@@ -33,6 +33,12 @@ export interface Doctor {
     rejectionReason?: string;
     credentialImageUrl?: string;
     bio: string;
+    hospitalClinicName?: string;
+    location?: string;
+    licenseExpiryDate?: string;
+    nationalId?: string;
+    nationalIdUrl?: string;
+    credentialDocumentUrl?: string;
 }
 
 // ─── Health Provider ──────────────────────────────────────────────────

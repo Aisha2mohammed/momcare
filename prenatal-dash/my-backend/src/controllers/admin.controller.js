@@ -221,25 +221,180 @@ exports.rejectUser = async (req, res, next) => {
 
 exports.getPendingDoctors = async (req, res, next) => {
   try {
-    const result = await query(`SELECT u.id, u.name, u.phone, u.email, u.created_at, dp.specialization, dp.license_number, dp.credential_docs_json, dp.location, dp.bio, hp.name as health_provider_name FROM doctor_profiles dp JOIN users u ON dp.user_id = u.id LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id WHERE dp.approval_status = 'pending' ORDER BY u.created_at DESC`);
+    const result = await query(
+      `SELECT u.id, u.name, u.phone, u.email, u.status as user_status, u.created_at,
+              dp.specialization, dp.license_number, dp.credential_docs_json, dp.location, dp.bio,
+              dp.approval_status, dp.photo_url, dp.years_experience,
+              dp.hospital_clinic_name, dp.license_expiry_date, dp.national_id, dp.national_id_url, dp.credential_document_url,
+              COALESCE(dp.hospital_clinic_name, hp.name, 'MomCare Maternal Center') as health_provider_name
+       FROM doctor_profiles dp
+       JOIN users u ON dp.user_id = u.id
+       LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+       WHERE dp.approval_status = 'pending' OR u.status = 'pending'
+       ORDER BY u.created_at DESC`
+    );
     return sendSuccess(res, 200, 'Pending doctors retrieved', result.rows);
+  } catch (err) { next(err); }
+};
+
+exports.getDoctors = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 50, search, approvalStatus, status } = req.query;
+    let whereClause = "WHERE u.role = 'doctor'";
+    const params = [];
+    let idx = 1;
+
+    if (search) {
+      whereClause += ` AND (u.name ILIKE $${idx} OR u.phone ILIKE $${idx} OR u.email ILIKE $${idx} OR dp.specialization ILIKE $${idx} OR dp.license_number ILIKE $${idx} OR dp.hospital_clinic_name ILIKE $${idx} OR hp.name ILIKE $${idx} OR dp.national_id ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    if (approvalStatus && approvalStatus !== 'All') {
+      whereClause += ` AND dp.approval_status = $${idx++}`;
+      params.push(approvalStatus.toLowerCase());
+    }
+
+    if (status && status !== 'All') {
+      whereClause += ` AND u.status = $${idx++}`;
+      params.push(status.toLowerCase());
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) FROM users u
+       LEFT JOIN doctor_profiles dp ON dp.user_id = u.id
+       LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+       ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+    const offset = (Number(page) - 1) * Number(limit);
+    params.push(Number(limit), offset);
+
+    const result = await query(
+      `SELECT u.id, u.name, u.phone, u.email, u.status as user_status, u.created_at, u.language,
+              dp.specialization, dp.license_number, dp.location, dp.bio, dp.photo_url,
+              dp.approval_status, dp.approved_at, dp.health_provider_id, dp.years_experience,
+              dp.hospital_clinic_name, dp.license_expiry_date, dp.national_id, dp.national_id_url, dp.credential_document_url,
+              COALESCE(dp.hospital_clinic_name, hp.name, 'MomCare Maternal Center') as health_provider_name
+       FROM users u
+       LEFT JOIN doctor_profiles dp ON dp.user_id = u.id
+       LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+       ${whereClause}
+       ORDER BY u.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      params
+    );
+
+    return sendPaginated(res, result.rows, page, limit, total);
+  } catch (err) { next(err); }
+};
+
+exports.getDoctorById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT u.id, u.name, u.phone, u.email, u.status as user_status, u.created_at, u.language,
+              dp.specialization, dp.license_number, dp.location, dp.bio, dp.photo_url,
+              dp.approval_status, dp.approved_at, dp.health_provider_id, dp.credential_docs_json,
+              dp.working_hours_json, dp.years_experience, dp.rejection_reason,
+              dp.hospital_clinic_name, dp.license_expiry_date, dp.national_id, dp.national_id_url, dp.credential_document_url,
+              COALESCE(dp.hospital_clinic_name, hp.name, 'MomCare Maternal Center') as health_provider_name,
+              hp.location as health_provider_location
+       FROM users u
+       LEFT JOIN doctor_profiles dp ON dp.user_id = u.id
+       LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+       WHERE u.id = $1 AND u.role = 'doctor'`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return sendError(res, 404, 'Doctor not found.');
+    }
+
+    return sendSuccess(res, 200, 'Doctor retrieved', result.rows[0]);
   } catch (err) { next(err); }
 };
 
 exports.approveDoctor = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await query(`UPDATE doctor_profiles SET approval_status = 'approved', approved_by = $1, approved_at = NOW() WHERE user_id = $2 RETURNING *`, [req.user.id, id]);
+    const result = await query(
+      `UPDATE doctor_profiles
+       SET approval_status = 'approved', approved_by = $1, approved_at = NOW()
+       WHERE user_id = $2 RETURNING *`,
+      [req.user.id, id]
+    );
     if (result.rows.length === 0) return sendError(res, 404, 'Doctor profile not found.');
+
+    // Also update users table status to active
+    await query(
+      `UPDATE users
+       SET status = 'active', approved_by = $1, approved_at = NOW()
+       WHERE id = $2`,
+      [req.user.id, id]
+    );
+
     await logAdminAction(req.user.id, 'APPROVE', 'doctor_profiles', id, { approval_status: 'approved' });
-    const doctorUser = await query('SELECT name, email FROM users WHERE id = $1', [id]);
-    if (doctorUser.rows.length > 0 && doctorUser.rows[0].email) {
+
+    const doctorUser = await query('SELECT id, name, phone, email FROM users WHERE id = $1', [id]);
+    const doctor = doctorUser.rows[0];
+
+    // Send in-app and push notification to the approved doctor
+    try {
+      const notifRes = await query(
+        `INSERT INTO notifications (
+          title_en, title_am, title_or, title_so,
+          body_en, body_am, body_or, body_so,
+          type, target_group, target_user_id, sent_by, sent_at, data
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13::jsonb)
+        RETURNING *`,
+        [
+          'Doctor Account Approved 🎉',
+          'የዶክተር መለያዎ ፀድቋል 🎉',
+          'Herregni hakiimaa keessan mirkanaa\'eera 🎉',
+          'Koontadaada dhaqtarka waa la ansixiyay 🎉',
+          'Congratulations Dr. ' + (doctor?.name || '') + '! Your doctor account has been approved by admin. You can now verify OTP to start accepting maternal patients.',
+          'እንኳን ደስ አለዎት ዶ/ር ' + (doctor?.name || '') + '! የዶክተር መለያዎ በአስተዳዳሪው ፀድቋል።',
+          'Baga gammaddan Dr. ' + (doctor?.name || '') + '! Herregni hakiimaa keessan mirkanaa\'eera.',
+          'Hambalyo Dr. ' + (doctor?.name || '') + '! Koontadaada waa la ansixiyay.',
+          'System',
+          'doctor',
+          id,
+          'admin',
+          JSON.stringify({ screen: 'home', action: 'account_approved', status: 'active', approval_status: 'approved' })
+        ]
+      );
+
+      if (notifRes.rows.length > 0) {
+        await dispatchNotification(notifRes.rows[0]);
+      }
+    } catch (notifErr) {
+      console.error('Failed to dispatch doctor approval notification:', notifErr.message);
+    }
+
+    // Direct socket event to notify live waiting screen in doctor-app
+    try {
+      const io = getIO();
+      if (io) {
+        io.to(`user:${id}`).emit('user:status_changed', { id, status: 'active', approval_status: 'approved' });
+        io.to(`user:${id}`).emit('user:approved', { id, status: 'active', approval_status: 'approved' });
+      }
+    } catch (sErr) {
+      console.error('Socket emission error:', sErr.message);
+    }
+
+    if (doctor?.email) {
       try {
-        await sendEmail({ to: doctorUser.rows[0].email, subject: 'MaternaLink - Doctor Registration Approved',
-          html: `<h2>Congratulations ${doctorUser.rows[0].name}!</h2><p>Your doctor registration has been approved. You can now start accepting patients on MaternaLink.</p><p>Log in to your account to set your availability and start connecting with mothers.</p>` });
+        await sendEmail({
+          to: doctor.email,
+          subject: 'MomCare - Doctor Registration Approved',
+          html: `<h2>Congratulations Dr. ${doctor.name || ''}!</h2><p>Your doctor registration has been approved. You can now log in to MomCare.</p>`
+        });
       } catch (e) { console.warn('⚠️ Approval email could not be sent:', e.message); }
     }
-    return sendSuccess(res, 200, 'Doctor approved', result.rows[0]);
+
+    return sendSuccess(res, 200, 'Doctor approved', { ...result.rows[0], user: doctor });
   } catch (err) { next(err); }
 };
 
@@ -247,17 +402,73 @@ exports.rejectDoctor = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
-    const result = await query(`UPDATE doctor_profiles SET approval_status = 'rejected', approved_by = $1, approved_at = NOW() WHERE user_id = $2 RETURNING *`, [req.user.id, id]);
+    const result = await query(
+      `UPDATE doctor_profiles
+       SET approval_status = 'rejected', approved_by = $1, approved_at = NOW(), rejection_reason = $2
+       WHERE user_id = $3 RETURNING *`,
+      [req.user.id, reason || null, id]
+    );
     if (result.rows.length === 0) return sendError(res, 404, 'Doctor profile not found.');
+
+    await query(
+      `UPDATE users
+       SET status = 'rejected', rejected_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
     await logAdminAction(req.user.id, 'REJECT', 'doctor_profiles', id, { reason: reason || 'No reason provided' });
+
+    try {
+      const io = getIO();
+      if (io) {
+        io.to(`user:${id}`).emit('user:status_changed', { id, status: 'rejected', approval_status: 'rejected' });
+        io.to(`user:${id}`).emit('user:rejected', { id, status: 'rejected', approval_status: 'rejected' });
+      }
+    } catch (sErr) {}
+
     const doctorUser = await query('SELECT name, email FROM users WHERE id = $1', [id]);
     if (doctorUser.rows.length > 0 && doctorUser.rows[0].email) {
       try {
-        await sendEmail({ to: doctorUser.rows[0].email, subject: 'MaternaLink - Doctor Registration Status',
-          html: `<h2>Dear ${doctorUser.rows[0].name}</h2><p>Your doctor registration could not be approved at this time.</p><p>Reason: ${reason || 'Please contact support for more information.'}</p><p>You may update your credentials and re-submit for approval.</p>` });
+        await sendEmail({
+          to: doctorUser.rows[0].email,
+          subject: 'MomCare - Doctor Registration Status',
+          html: `<h2>Dear Dr. ${doctorUser.rows[0].name}</h2><p>Your doctor registration could not be approved at this time.</p><p>Reason: ${reason || 'Please contact support for more information.'}</p>`
+        });
       } catch (e) { console.warn('⚠️ Rejection email could not be sent:', e.message); }
     }
+
     return sendSuccess(res, 200, 'Doctor rejected', result.rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.suspendDoctor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      "UPDATE users SET status = 'suspended' WHERE id = $1 AND role = 'doctor' RETURNING id, name, role, status",
+      [id]
+    );
+    if (result.rows.length === 0) return sendError(res, 404, 'Doctor not found.');
+    await logAdminAction(req.user.id, 'SUSPEND', 'doctor_profiles', id, { status: 'suspended' });
+    return sendSuccess(res, 200, 'Doctor suspended', result.rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.reactivateDoctor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      "UPDATE users SET status = 'active' WHERE id = $1 AND role = 'doctor' RETURNING id, name, role, status",
+      [id]
+    );
+    if (result.rows.length === 0) return sendError(res, 404, 'Doctor not found.');
+    await query(
+      "UPDATE doctor_profiles SET approval_status = 'approved' WHERE user_id = $1",
+      [id]
+    );
+    await logAdminAction(req.user.id, 'REACTIVATE', 'doctor_profiles', id, { status: 'active' });
+    return sendSuccess(res, 200, 'Doctor reactivated', result.rows[0]);
   } catch (err) { next(err); }
 };
 

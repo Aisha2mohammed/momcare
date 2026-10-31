@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:doctor_app/constants/color.dart';
 import 'package:doctor_app/model/mock_data.dart';
+import 'package:doctor_app/model/doctor_profile_model.dart';
 import 'package:doctor_app/widget/doctor_header_widget.dart';
 import 'package:doctor_app/widget/today_appointments_widget.dart';
 import 'package:doctor_app/widget/patient_risk_card_widget.dart';
@@ -48,8 +49,9 @@ class _HomeTabState extends State<HomeTab> {
       });
     });
 
-    // Listen to real-time availability changes from Profile Tab
+    // Listen to real-time profile and availability changes
     MockData.doctorAvailabilityNotifier.addListener(_onAvailabilityChanged);
+    DoctorProfileModel.shared.addListener(_onAvailabilityChanged);
   }
 
   void _onAvailabilityChanged() {
@@ -59,6 +61,7 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void dispose() {
     MockData.doctorAvailabilityNotifier.removeListener(_onAvailabilityChanged);
+    DoctorProfileModel.shared.removeListener(_onAvailabilityChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -317,7 +320,6 @@ class _HomeTabState extends State<HomeTab> {
     final totalPatientsCount = _allPatients.length;
     final pendingApptsCount = _todayAppointments.where((a) => a.isPending).length;
     final highRiskCount = _countForTab(HomeFilterTab.highRisk);
-    final activeAvailability = MockData.currentDoctorAvailability;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -327,9 +329,10 @@ class _HomeTabState extends State<HomeTab> {
           // 1. Doctor Header Section Widget (with Search Bar placed ABOVE the 3 Cards)
           SliverToBoxAdapter(
             child: DoctorHeaderWidget(
-              doctorName: 'Dr. Sarah Jenkins, MD',
-              specialty: 'Maternal-Fetal Medicine & High-Risk OB',
-              availability: activeAvailability,
+              doctorName: DoctorProfileModel.shared.name,
+              specialty: DoctorProfileModel.shared.specialization,
+              avatarUrl: DoctorProfileModel.shared.avatarUrl,
+              availability: DoctorProfileModel.shared.availability,
               onAvailabilityTapped: _redirectToProfileAvailability,
               searchBar: _buildSearchBarWidget(),
               totalPatients: totalPatientsCount,

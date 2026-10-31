@@ -22,7 +22,7 @@ const statusVariantMap: Record<ApprovalStatus, 'yellow' | 'green' | 'red'> = {
 export default function DoctorApprovals() {
     const [activeTab, setActiveTab] = useState<ApprovalStatus>('Pending');
     const [search, setSearch] = useState('');
-    const { doctors } = useDoctors(activeTab);
+    const { doctors, isLoading } = useDoctors(activeTab);
     const navigate = useNavigate();
 
     const filtered = doctors.filter(d =>
@@ -82,7 +82,16 @@ export default function DoctorApprovals() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {filtered.length === 0 ? (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={7} className="text-center text-gray-400 py-12">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="w-7 h-7 border-2 border-[#61183e] border-t-transparent rounded-full animate-spin" />
+                                            <p className="text-xs">Loading doctors from server...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filtered.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="text-center text-gray-400 py-12">
                                         <div className="flex flex-col items-center gap-2">
@@ -100,10 +109,10 @@ export default function DoctorApprovals() {
                                     </td>
                                     <td className="py-3 pr-4">
                                         <p className="font-medium text-gray-900">{doctor.name}</p>
-                                        <p className="text-xs text-gray-400">{doctor.licenseNumber}</p>
+                                        <p className="text-xs text-gray-400">Lic: {doctor.licenseNumber}{doctor.nationalId ? ` • ID: ${doctor.nationalId}` : ''}</p>
                                     </td>
                                     <td className="py-3 pr-4 text-gray-600">{doctor.specialization}</td>
-                                    <td className="py-3 pr-4 text-gray-600">{doctor.providerName}</td>
+                                    <td className="py-3 pr-4 text-gray-600">{doctor.hospitalClinicName || doctor.providerName}</td>
                                     <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{doctor.submittedDate}</td>
                                     <td className="py-3 pr-4">
                                         <Badge variant={statusVariantMap[doctor.approvalStatus]}>{doctor.approvalStatus}</Badge>

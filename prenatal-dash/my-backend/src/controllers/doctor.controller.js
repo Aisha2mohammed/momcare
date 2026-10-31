@@ -127,7 +127,28 @@ exports.getDoctorProfile = async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return sendError(res, 404, 'Doctor profile not found.');
+      // Check if user exists
+      const userRes = await query('SELECT id, name, phone, email, language FROM users WHERE id = $1 AND role = $2', [id, 'doctor']);
+      if (userRes.rows.length === 0) {
+        return sendError(res, 404, 'Doctor profile not found.');
+      }
+      // Create empty profile placeholder
+      await query(
+        `INSERT INTO doctor_profiles (user_id, approval_status, specialization)
+         VALUES ($1, 'pending', 'Obstetrics & Gynecology')
+         ON CONFLICT (user_id) DO NOTHING`,
+        [id]
+      );
+      const newRes = await query(
+        `SELECT u.id, u.name, u.phone, u.email, u.language,
+                dp.*, hp.name as hospital_name
+         FROM doctor_profiles dp
+         JOIN users u ON dp.user_id = u.id
+         LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+         WHERE dp.user_id = $1`,
+        [id]
+      );
+      return sendSuccess(res, 200, 'Doctor profile retrieved', newRes.rows[0] || userRes.rows[0]);
     }
 
     return sendSuccess(res, 200, 'Doctor profile retrieved', result.rows[0]);
@@ -140,11 +161,26 @@ exports.getDoctorProfile = async (req, res, next) => {
 exports.updateDoctorProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // 1. Update users table if name, phone, email or language are provided
+    const userUpdates = [];
+    const userValues = [];
+    let uIdx = 1;
+    if (req.body.name !== undefined) { userUpdates.push(`name = $${uIdx++}`); userValues.push(req.body.name); }
+    if (req.body.email !== undefined) { userUpdates.push(`email = $${uIdx++}`); userValues.push(req.body.email); }
+    if (req.body.phone !== undefined) { userUpdates.push(`phone = $${uIdx++}`); userValues.push(req.body.phone); }
+    if (req.body.language !== undefined) { userUpdates.push(`language = $${uIdx++}`); userValues.push(req.body.language); }
+
+    if (userUpdates.length > 0) {
+      userValues.push(id);
+      await query(`UPDATE users SET ${userUpdates.join(', ')} WHERE id = $${uIdx}`, userValues);
+    }
+
+    // 2. Update doctor_profiles table
     const updates = [];
     const values = [];
     let index = 1;
 
-    const allowedFields = ['healthProviderId', 'licenseNumber', 'specialization', 'location', 'photoUrl', 'bio'];
     const fieldMap = {
       healthProviderId: 'health_provider_id',
       licenseNumber: 'license_number',
@@ -152,6 +188,11 @@ exports.updateDoctorProfile = async (req, res, next) => {
       location: 'location',
       photoUrl: 'photo_url',
       bio: 'bio',
+      yearsExperience: 'years_experience',
+      hospitalClinicName: 'hospital_clinic_name',
+      licenseExpiryDate: 'license_expiry_date',
+      nationalId: 'national_id',
+      credentialDocumentUrl: 'credential_document_url',
     };
 
     for (const [key, dbField] of Object.entries(fieldMap)) {
@@ -166,21 +207,32 @@ exports.updateDoctorProfile = async (req, res, next) => {
       values.push(JSON.stringify(req.body.workingHoursJson));
     }
 
-    if (updates.length === 0) {
-      return sendError(res, 400, 'No fields to update.');
+    if (updates.length > 0) {
+      values.push(id);
+      await query(
+        `INSERT INTO doctor_profiles (user_id, specialization)
+         VALUES ($${index}, 'Obstetrics & Gynecology')
+         ON CONFLICT (user_id) DO NOTHING`,
+        [id]
+      );
+      await query(
+        `UPDATE doctor_profiles SET ${updates.join(', ')}, updated_at = NOW() WHERE user_id = $${index}`,
+        values
+      );
     }
 
-    values.push(id);
-    const result = await query(
-      `UPDATE doctor_profiles SET ${updates.join(', ')} WHERE user_id = $${index} RETURNING *`,
-      values
+    // Return the fresh joined profile
+    const freshResult = await query(
+      `SELECT u.id, u.name, u.phone, u.email, u.language,
+              dp.*, hp.name as hospital_name
+       FROM doctor_profiles dp
+       JOIN users u ON dp.user_id = u.id
+       LEFT JOIN health_providers hp ON dp.health_provider_id = hp.id
+       WHERE dp.user_id = $1`,
+      [id]
     );
 
-    if (result.rows.length === 0) {
-      return sendError(res, 404, 'Doctor profile not found.');
-    }
-
-    return sendSuccess(res, 200, 'Doctor profile updated', result.rows[0]);
+    return sendSuccess(res, 200, 'Doctor profile updated', freshResult.rows[0]);
   } catch (err) {
     next(err);
   }

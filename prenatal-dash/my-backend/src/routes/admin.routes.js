@@ -36,10 +36,14 @@ router.post('/cms/upload', upload.single('file'), (req, res) => {
   });
 });
 
-// Doctor Approval
+// Doctor Management & Approvals
+router.get('/doctors', paginationRules, validate, adminController.getDoctors);
 router.get('/doctors/pending', adminController.getPendingDoctors);
+router.get('/doctors/:id', adminController.getDoctorById);
 router.put('/doctors/:id/approve', adminController.approveDoctor);
 router.put('/doctors/:id/reject', adminController.rejectDoctor);
+router.put('/doctors/:id/suspend', adminController.suspendDoctor);
+router.put('/doctors/:id/reactivate', adminController.reactivateDoctor);
 
 // Mother health logs (read-only mirror of /mothers/:id/health-logs)
 router.get('/mothers/:id/health-logs', paginationRules, validate, adminController.getMotherHealthLogs);

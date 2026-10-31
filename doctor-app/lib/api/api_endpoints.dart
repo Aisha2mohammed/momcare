@@ -1,9 +1,11 @@
 class ApiEndpoints {
-  static const String baseUrl = 'http://localhost:5000/api/v1';
+  static const String baseUrl = 'http://192.168.1.4:5000/api/v1';
 
   // Auth
   static const String login = '/auth/login';
   static const String register = '/auth/register';
+  static const String upload = '/auth/upload';
+  static const String authStatus = '/auth/status';
   static const String otpSend = '/auth/otp/send';
   static const String otpVerify = '/auth/otp/verify';
   static const String forgotPassword = '/auth/forgot-password';
@@ -13,6 +15,7 @@ class ApiEndpoints {
   // Doctor
   static const String doctorRegister = '/doctors/register';
   static const String doctorProfile = '/doctors/:id/profile';
+  static const String doctorProfilePhoto = '/doctors/:id/profile-photo';
   static const String doctorAvailabilitySlots = '/doctors/:id/availability-slots';
   static const String doctorAppointments = '/doctors/:id/appointments';
   static const String doctorPatients = '/doctors/:id/patients';
