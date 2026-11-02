@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:doctor_app/constants/color.dart';
 import 'package:doctor_app/auth/auth_service.dart';
 import 'package:doctor_app/auth/login_screen.dart';
-import 'package:doctor_app/auth/register_screen.dart';
 import 'package:doctor_app/auth/pending_approval_screen.dart';
 import 'package:doctor_app/home/main_screen.dart';
 
@@ -72,21 +71,42 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
 
-    final hasSession = await AuthService.instance.isLoggedIn();
     Widget targetScreen = const LoginScreen();
 
-    if (hasSession) {
-      try {
+    try {
+      final hasSession = await AuthService.instance.isLoggedIn();
+
+      if (hasSession) {
         final cur = await AuthService.instance.getCurrentUser();
+        AuthService.instance.restoreProfileFromCurrentUser(cur);
         final status = (cur['status'] ?? 'active').toLowerCase();
+
         if (status == 'pending') {
-          targetScreen = PendingApprovalScreen(phone: cur['phone'], name: cur['name']);
+          // If locally pending, check live backend status in case admin approved while app was closed
+          try {
+            final check = await AuthService.instance.checkStatus();
+            if (check['isApproved'] == true) {
+              await AuthService.instance.storage.saveStatus('active');
+              targetScreen = const MainScreen();
+            } else if (check['isRejected'] == true) {
+              targetScreen = PendingApprovalScreen(phone: cur['phone'], name: cur['name']);
+            } else {
+              targetScreen = PendingApprovalScreen(phone: cur['phone'], name: cur['name']);
+            }
+          } catch (_) {
+            // Network failure or server unreachable: stay on pending approval screen
+            targetScreen = PendingApprovalScreen(phone: cur['phone'], name: cur['name']);
+          }
         } else {
+          // Active / approved session -> go directly to Home Page (MainScreen)
           targetScreen = const MainScreen();
         }
-      } catch (_) {
+      } else {
         targetScreen = const LoginScreen();
       }
+    } catch (e) {
+      debugPrint('[SplashScreen] Auth check failed: $e');
+      targetScreen = const LoginScreen();
     }
 
     if (!mounted) return;

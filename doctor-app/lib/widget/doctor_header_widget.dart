@@ -6,6 +6,7 @@ class DoctorHeaderWidget extends StatelessWidget {
   final String doctorName;
   final String specialty;
   final String avatarUrl;
+  final bool isVerified;
   final DoctorAvailability availability;
   final ValueChanged<DoctorAvailability>? onAvailabilityChanged;
   final VoidCallback? onAvailabilityTapped;
@@ -22,6 +23,7 @@ class DoctorHeaderWidget extends StatelessWidget {
     this.doctorName = 'Dr. Sarah Jenkins, MD',
     this.specialty = 'Maternal-Fetal Medicine & OB/GYN',
     this.avatarUrl = 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150',
+    this.isVerified = true,
     required this.availability,
     this.onAvailabilityChanged,
     this.onAvailabilityTapped,
@@ -55,26 +57,61 @@ class DoctorHeaderWidget extends StatelessWidget {
           // Greeting & Doctor Profile Info Row
           Row(
             children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppColors.primaryLight,
-                backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                onBackgroundImageError: (_, __) {},
-                child: avatarUrl.isEmpty ? const Icon(Icons.person, color: AppColors.primary) : null,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    onBackgroundImageError: (_, __) {},
+                    child: avatarUrl.isEmpty ? const Icon(Icons.person, color: AppColors.primary) : null,
+                  ),
+                  Positioned(
+                    bottom: -1,
+                    right: -1,
+                    child: Container(
+                      padding: const EdgeInsets.all(1.5),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isVerified ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                        size: 11,
+                        color: isVerified ? AppColors.success : Colors.amber.shade800,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      doctorName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.2,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            doctorName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                              letterSpacing: -0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
+                          size: 16,
+                          color: isVerified ? AppColors.primary : Colors.amber.shade800,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(

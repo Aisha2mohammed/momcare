@@ -54,8 +54,33 @@ export default function Dashboard() {
     const [stats, setStats] = useState<Stats | null>(null);
     const [pendingMothers, setPendingMothers] = useState(0);
     const [recentUsers, setRecentUsers] = useState<Mother[]>([]);
+    const [userGrowth, setUserGrowth] = useState<{ month: string; mothers: number; doctors: number; full_date?: string }[]>(userGrowthData['30d']);
+    const [appointments, setAppointments] = useState<{ status: string; count: number }[]>(appointmentData['30d']);
+    const [growthLoading, setGrowthLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
+
+    const loadGrowth = useCallback(async (range: DateRange) => {
+        setGrowthLoading(true);
+        try {
+            const data = await adminStatsApi.getUserGrowth(range);
+            if (data.userGrowth && data.userGrowth.length > 0) {
+                setUserGrowth(data.userGrowth);
+            } else {
+                setUserGrowth(userGrowthData[range]);
+            }
+            if (data.appointments && data.appointments.length > 0) {
+                setAppointments(data.appointments);
+            } else {
+                setAppointments(appointmentData[range]);
+            }
+        } catch {
+            setUserGrowth(userGrowthData[range]);
+            setAppointments(appointmentData[range]);
+        } finally {
+            setGrowthLoading(false);
+        }
+    }, []);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -80,8 +105,9 @@ export default function Dashboard() {
         load();
     }, [load]);
 
-    const userGrowth = userGrowthData[dateRange];
-    const appointments = appointmentData[dateRange];
+    useEffect(() => {
+        loadGrowth(dateRange);
+    }, [dateRange, loadGrowth]);
 
     const contentTotal = stats
         ? stats.content.nutrition + stats.content.fetal + stats.content.exercises +
@@ -161,12 +187,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Line Chart */}
                 <Card>
-                    <h3 className="font-semibold text-gray-800 mb-4">User Growth</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-gray-800">User Growth</h3>
+                        {growthLoading && <span className="text-xs text-gray-400 animate-pulse font-normal">Updating…</span>}
+                    </div>
                     <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={userGrowth}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                             <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                             <Tooltip />
                             <Legend />
                             <Line type="monotone" dataKey="mothers" name="Mothers" stroke="#61183e" strokeWidth={2.5} dot={{ fill: '#61183e', r: 3 }} />

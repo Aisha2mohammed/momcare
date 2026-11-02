@@ -332,6 +332,7 @@ class _HomeTabState extends State<HomeTab> {
               doctorName: DoctorProfileModel.shared.name,
               specialty: DoctorProfileModel.shared.specialization,
               avatarUrl: DoctorProfileModel.shared.avatarUrl,
+              isVerified: DoctorProfileModel.shared.isVerified,
               availability: DoctorProfileModel.shared.availability,
               onAvailabilityTapped: _redirectToProfileAvailability,
               searchBar: _buildSearchBarWidget(),

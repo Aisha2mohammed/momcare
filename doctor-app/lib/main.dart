@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:doctor_app/splash/splash_screen.dart';
 import 'package:doctor_app/constants/color.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const DoctorApp());
 }
 

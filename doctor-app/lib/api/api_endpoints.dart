@@ -1,5 +1,19 @@
 class ApiEndpoints {
-  static const String baseUrl = 'http://192.168.1.4:5000/api/v1';
+  static const String baseUrl = 'http://192.168.10.188:5000/api/v1';
+  static String get baseServerUrl => baseUrl.replaceAll('/api/v1', '');
+
+  /// Resolves relative or localhost media/avatar URLs to the real server host
+  static String resolveUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      final uri = Uri.parse(baseUrl);
+      return path
+          .replaceAll('http://localhost:5000', '${uri.scheme}://${uri.host}:${uri.port}')
+          .replaceAll('http://127.0.0.1:5000', '${uri.scheme}://${uri.host}:${uri.port}');
+    }
+    final cleanPath = path.startsWith('/') ? path : '/$path';
+    return '$baseServerUrl$cleanPath';
+  }
 
   // Auth
   static const String login = '/auth/login';

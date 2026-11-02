@@ -559,6 +559,18 @@ export const adminStatsApi = {
     const res = await apiRequest<any[]>(`/admin/users?limit=${limit}`, { method: 'GET' });
     return (res.data ?? []).map(mapAdminMother);
   },
+
+  async getUserGrowth(range: '7d' | '30d' = '7d'): Promise<{
+    userGrowth: { month: string; mothers: number; doctors: number; full_date?: string }[];
+    appointments: { status: string; count: number }[];
+  }> {
+    const res = await apiRequest<any>(`/admin/user-growth?range=${range}`, { method: 'GET' });
+    const d = res.data ?? {};
+    return {
+      userGrowth: Array.isArray(d.userGrowth) ? d.userGrowth : [],
+      appointments: Array.isArray(d.appointments) ? d.appointments : [],
+    };
+  },
 };
 
 // ─── Admin Notifications API ──────────────────────────────────────────────

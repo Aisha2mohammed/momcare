@@ -4,6 +4,8 @@ import 'package:doctor_app/model/mock_data.dart';
 import 'package:doctor_app/model/doctor_profile_model.dart';
 import 'package:doctor_app/auth/login_screen.dart';
 import 'package:doctor_app/auth/auth_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:doctor_app/api/api_endpoints.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -42,25 +44,31 @@ class _ProfileTabState extends State<ProfileTab> {
   Future<void> _loadProfileFromBackend() async {
     try {
       final user = await AuthService.instance.getCurrentUser();
-      final userId = user['id'];
+      final userId = user['id'] ?? user['userId'];
       if (userId != null && userId.isNotEmpty) {
         await AuthService.instance.getDoctorProfile(userId);
       }
+      if (user['status'] != null) {
+        final status = user['status']!.toLowerCase();
+        _doctor.isVerified = status == 'approved' || status == 'active';
+      }
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
   Future<void> _updatePhoto(String url) async {
+    final cleanUrl = ApiEndpoints.resolveUrl(url);
     setState(() {
-      _doctor.avatarUrl = url;
-      DoctorProfileModel.shared.avatarUrl = url;
+      _doctor.avatarUrl = cleanUrl;
+      DoctorProfileModel.shared.avatarUrl = cleanUrl;
     });
     DoctorProfileModel.shared.notify();
 
     try {
       final user = await AuthService.instance.getCurrentUser();
-      final userId = user['id'];
+      final userId = user['id'] ?? user['userId'];
       if (userId != null && userId.isNotEmpty) {
-        await AuthService.instance.updateProfilePhoto(userId, url);
+        await AuthService.instance.updateProfilePhoto(userId, cleanUrl);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -71,6 +79,76 @@ class _ProfileTabState extends State<ProfileTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Doctor profile photo updated')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadPhoto(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Text('Uploading profile photo...'),
+              ],
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+
+      final user = await AuthService.instance.getCurrentUser();
+      final userId = user['id'] ?? user['userId'] ?? '';
+
+      String finalUrl = '';
+      if (userId.isNotEmpty) {
+        finalUrl = await AuthService.instance.uploadAndSetProfilePhoto(
+          userId: userId,
+          filePath: picked.path,
+          fileName: picked.name,
+        );
+      } else {
+        final uploadedPath = await AuthService.instance.uploadFile(filePath: picked.path, fileName: picked.name);
+        finalUrl = ApiEndpoints.resolveUrl(uploadedPath);
+        DoctorProfileModel.shared.avatarUrl = finalUrl;
+        DoctorProfileModel.shared.notify();
+      }
+
+      if (mounted) {
+        setState(() {
+          _doctor.avatarUrl = finalUrl;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile photo uploaded and synced successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload photo: $e'),
+            backgroundColor: AppColors.riskHigh,
+          ),
         );
       }
     }
@@ -138,7 +216,7 @@ class _ProfileTabState extends State<ProfileTab> {
               subtitle: const Text('Capture new headshot using device camera', style: TextStyle(fontSize: 12)),
               onTap: () {
                 Navigator.pop(ctx);
-                _simulateCameraCapture();
+                _pickAndUploadPhoto(ImageSource.camera);
               },
             ),
             const Divider(height: 12),
@@ -155,10 +233,10 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: const Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB), size: 22),
               ),
               title: const Text('Upload Photo from Gallery', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              subtitle: const Text('Choose a verified high-resolution image', style: TextStyle(fontSize: 12)),
+              subtitle: const Text('Choose a high-resolution image from your device', style: TextStyle(fontSize: 12)),
               onTap: () {
                 Navigator.pop(ctx);
-                _showUploadUrlDialog();
+                _pickAndUploadPhoto(ImageSource.gallery);
               },
             ),
             const SizedBox(height: 16),
@@ -209,109 +287,6 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  void _simulateCameraCapture() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Colors.black,
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      'https://images.unsplash.com/photo-1594824813571-638f02614d3f?w=300',
-                      fit: BoxFit.cover,
-                      width: 180,
-                      height: 180,
-                    ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text('LIVE REC', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const Icon(Icons.camera_enhance_rounded, color: Colors.white70, size: 36),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Camera Photo Captured', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            const Text('Use this photo for your MomCare Provider profile?', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Retake')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _updatePhoto('https://images.unsplash.com/photo-1594824813571-638f02614d3f?w=300');
-            },
-            child: const Text('Save & Apply', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUploadUrlDialog() {
-    final urlController = TextEditingController(text: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=300');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Upload Image', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Select or enter an image file URL for your doctor profile:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: urlController,
-              decoration: InputDecoration(
-                hintText: 'https://...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.link_rounded),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () {
-              final text = urlController.text.trim();
-              Navigator.pop(ctx);
-              if (text.isNotEmpty) {
-                _updatePhoto(text);
-              }
-            },
-            child: const Text('Upload', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _editBioDialog() {
     final controller = TextEditingController(text: _doctor.bio);
@@ -345,7 +320,7 @@ class _ProfileTabState extends State<ProfileTab> {
               DoctorProfileModel.shared.notify();
               try {
                 final user = await AuthService.instance.getCurrentUser();
-                final userId = user['id'];
+                final userId = user['id'] ?? user['userId'];
                 if (userId != null && userId.isNotEmpty) {
                   await AuthService.instance.updateDoctorProfile(userId, {'bio': newBio});
                 }
@@ -522,7 +497,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
                               try {
                                 final user = await AuthService.instance.getCurrentUser();
-                                final userId = user['id'];
+                                final userId = user['id'] ?? user['userId'];
                                 if (userId != null && userId.isNotEmpty) {
                                   await AuthService.instance.updateDoctorProfile(userId, {
                                     'name': cleanName,
@@ -1024,18 +999,32 @@ class _ProfileTabState extends State<ProfileTab> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: AppColors.successBg,
+              color: _doctor.isVerified ? AppColors.successBg : const Color(0xFFFEF3C7),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+              border: Border.all(
+                color: _doctor.isVerified
+                    ? AppColors.success.withValues(alpha: 0.35)
+                    : const Color(0xFFD97706).withValues(alpha: 0.35),
+              ),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.verified_rounded, size: 14, color: AppColors.success),
-                SizedBox(width: 6),
+                Icon(
+                  _doctor.isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
+                  size: 14,
+                  color: _doctor.isVerified ? AppColors.success : const Color(0xFFD97706),
+                ),
+                const SizedBox(width: 6),
                 Text(
-                  'Verified & Approved by Admin',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success),
+                  _doctor.isVerified
+                      ? 'Verified & Approved by Admin'
+                      : 'Pending Admin Verification & Credential Review',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: _doctor.isVerified ? AppColors.success : const Color(0xFFD97706),
+                  ),
                 ),
               ],
             ),

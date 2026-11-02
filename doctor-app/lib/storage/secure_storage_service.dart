@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SecureStorageService {
   static const _keyToken = 'auth_token';
@@ -13,6 +14,7 @@ class SecureStorageService {
   static const _keyAvatarUrl = 'doctor_avatar';
   static const _keyLocation = 'doctor_location';
   static const _keyBio = 'doctor_bio';
+  static const _keyIsLoggedIn = 'is_logged_in';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
@@ -31,82 +33,315 @@ class SecureStorageService {
     String? location,
     String? bio,
   }) async {
-    await Future.wait([
-      _storage.write(key: _keyToken, value: token),
-      _storage.write(key: _keyUserId, value: userId),
-      _storage.write(key: _keyRole, value: role),
-      _storage.write(key: _keyName, value: name),
-      if (phone != null) _storage.write(key: _keyPhone, value: phone),
-      if (email != null) _storage.write(key: _keyEmail, value: email),
-      if (status != null) _storage.write(key: _keyStatus, value: status),
-      if (specialization != null) _storage.write(key: _keySpecialization, value: specialization),
-      if (licenseNumber != null) _storage.write(key: _keyLicense, value: licenseNumber),
-      if (avatarUrl != null) _storage.write(key: _keyAvatarUrl, value: avatarUrl),
-      if (location != null) _storage.write(key: _keyLocation, value: location),
-      if (bio != null) _storage.write(key: _keyBio, value: bio),
-    ]);
+    // 1. Primary: Save to SharedPreferences (rock-solid, persists across app restarts)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyToken, token);
+      await prefs.setString(_keyUserId, userId);
+      await prefs.setString(_keyRole, role);
+      await prefs.setString(_keyName, name);
+      await prefs.setBool(_keyIsLoggedIn, true);
+
+      if (phone != null) await prefs.setString(_keyPhone, phone);
+      if (email != null) await prefs.setString(_keyEmail, email);
+      if (status != null) await prefs.setString(_keyStatus, status);
+      if (specialization != null) await prefs.setString(_keySpecialization, specialization);
+      if (licenseNumber != null) await prefs.setString(_keyLicense, licenseNumber);
+      if (avatarUrl != null) await prefs.setString(_keyAvatarUrl, avatarUrl);
+      if (location != null) await prefs.setString(_keyLocation, location);
+      if (bio != null) await prefs.setString(_keyBio, bio);
+    } catch (_) {}
+
+    // 2. Secondary: Mirror to FlutterSecureStorage sequentially
+    try {
+      await _storage.write(key: _keyToken, value: token);
+      await _storage.write(key: _keyUserId, value: userId);
+      await _storage.write(key: _keyRole, value: role);
+      await _storage.write(key: _keyName, value: name);
+      if (phone != null) await _storage.write(key: _keyPhone, value: phone);
+      if (email != null) await _storage.write(key: _keyEmail, value: email);
+      if (status != null) await _storage.write(key: _keyStatus, value: status);
+      if (specialization != null) await _storage.write(key: _keySpecialization, value: specialization);
+      if (licenseNumber != null) await _storage.write(key: _keyLicense, value: licenseNumber);
+      if (avatarUrl != null) await _storage.write(key: _keyAvatarUrl, value: avatarUrl);
+      if (location != null) await _storage.write(key: _keyLocation, value: location);
+      if (bio != null) await _storage.write(key: _keyBio, value: bio);
+    } catch (_) {}
   }
 
-  // Getters
-  Future<String?> getToken() async => _storage.read(key: _keyToken);
-  Future<String?> getUserId() async => _storage.read(key: _keyUserId);
-  Future<String?> getRole() async => _storage.read(key: _keyRole);
-  Future<String?> getName() async => _storage.read(key: _keyName);
-  Future<String?> getPhone() async => _storage.read(key: _keyPhone);
-  Future<String?> getEmail() async => _storage.read(key: _keyEmail);
-  Future<String?> getStatus() async => _storage.read(key: _keyStatus);
-  Future<String?> getSpecialization() async => _storage.read(key: _keySpecialization);
-  Future<String?> getLicenseNumber() async => _storage.read(key: _keyLicense);
-  Future<String?> getAvatarUrl() async => _storage.read(key: _keyAvatarUrl);
-  Future<String?> getLocation() async => _storage.read(key: _keyLocation);
-  Future<String?> getBio() async => _storage.read(key: _keyBio);
+  // Getters with SharedPreferences priority and SecureStorage fallback
+  Future<String?> getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyToken);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyToken);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyUserId);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyUserId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getRole() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyRole);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyRole);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyName);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyName);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getPhone() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyPhone);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyPhone);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getEmail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyEmail);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyEmail);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyStatus);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyStatus);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getSpecialization() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keySpecialization);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keySpecialization);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getLicenseNumber() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyLicense);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyLicense);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getAvatarUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyAvatarUrl);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyAvatarUrl);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyLocation);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyLocation);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getBio() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final val = prefs.getString(_keyBio);
+      if (val != null && val.isNotEmpty) return val;
+    } catch (_) {}
+    try {
+      return await _storage.read(key: _keyBio);
+    } catch (_) {
+      return null;
+    }
+  }
 
   // Setters for individual fields
-  Future<void> saveName(String name) => _storage.write(key: _keyName, value: name);
-  Future<void> savePhone(String phone) => _storage.write(key: _keyPhone, value: phone);
-  Future<void> saveStatus(String status) => _storage.write(key: _keyStatus, value: status);
-  Future<void> saveSpecialization(String spec) => _storage.write(key: _keySpecialization, value: spec);
-  Future<void> saveAvatarUrl(String url) => _storage.write(key: _keyAvatarUrl, value: url);
+  Future<void> saveName(String name) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyName, name);
+    } catch (_) {}
+    try {
+      await _storage.write(key: _keyName, value: name);
+    } catch (_) {}
+  }
 
-  // Check if session exists
+  Future<void> savePhone(String phone) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyPhone, phone);
+    } catch (_) {}
+    try {
+      await _storage.write(key: _keyPhone, value: phone);
+    } catch (_) {}
+  }
+
+  Future<void> saveStatus(String status) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyStatus, status);
+    } catch (_) {}
+    try {
+      await _storage.write(key: _keyStatus, value: status);
+    } catch (_) {}
+  }
+
+  Future<void> saveSpecialization(String spec) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keySpecialization, spec);
+    } catch (_) {}
+    try {
+      await _storage.write(key: _keySpecialization, value: spec);
+    } catch (_) {}
+  }
+
+  Future<void> saveAvatarUrl(String url) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyAvatarUrl, url);
+    } catch (_) {}
+    try {
+      await _storage.write(key: _keyAvatarUrl, value: url);
+    } catch (_) {}
+  }
+
+  // Check if session exists (checks both SharedPreferences and SecureStorage)
   Future<bool> hasSession() async {
-    final token = await getToken();
-    return token != null && token.isNotEmpty;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_keyToken);
+      final isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
+      if (token != null && token.isNotEmpty) return true;
+      if (isLoggedIn) return true;
+    } catch (_) {}
+    try {
+      final token = await _storage.read(key: _keyToken);
+      return token != null && token.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Get current user info as a map
   Future<Map<String, String?>> getCurrentUser() async {
-    return {
-      'token': await getToken(),
-      'userId': await getUserId(),
-      'role': await getRole(),
-      'name': await getName(),
-      'phone': await getPhone(),
-      'email': await getEmail(),
-      'status': await getStatus(),
-      'specialization': await getSpecialization(),
-      'licenseNumber': await getLicenseNumber(),
-      'avatarUrl': await getAvatarUrl(),
-      'location': await getLocation(),
-      'bio': await getBio(),
-    };
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final uid = prefs.getString(_keyUserId) ?? await _storage.read(key: _keyUserId);
+      return {
+        'id': uid,
+        'token': prefs.getString(_keyToken) ?? await _storage.read(key: _keyToken),
+        'userId': uid,
+        'role': prefs.getString(_keyRole) ?? await _storage.read(key: _keyRole),
+        'name': prefs.getString(_keyName) ?? await _storage.read(key: _keyName),
+        'phone': prefs.getString(_keyPhone) ?? await _storage.read(key: _keyPhone),
+        'email': prefs.getString(_keyEmail) ?? await _storage.read(key: _keyEmail),
+        'status': prefs.getString(_keyStatus) ?? await _storage.read(key: _keyStatus),
+        'specialization': prefs.getString(_keySpecialization) ?? await _storage.read(key: _keySpecialization),
+        'licenseNumber': prefs.getString(_keyLicense) ?? await _storage.read(key: _keyLicense),
+        'avatarUrl': prefs.getString(_keyAvatarUrl) ?? await _storage.read(key: _keyAvatarUrl),
+        'location': prefs.getString(_keyLocation) ?? await _storage.read(key: _keyLocation),
+        'bio': prefs.getString(_keyBio) ?? await _storage.read(key: _keyBio),
+      };
+    } catch (_) {
+      final uid = await _storage.read(key: _keyUserId);
+      return {
+        'id': uid,
+        'token': await _storage.read(key: _keyToken),
+        'userId': uid,
+        'role': await _storage.read(key: _keyRole),
+        'name': await _storage.read(key: _keyName),
+        'phone': await _storage.read(key: _keyPhone),
+        'email': await _storage.read(key: _keyEmail),
+        'status': await _storage.read(key: _keyStatus),
+        'specialization': await _storage.read(key: _keySpecialization),
+        'licenseNumber': await _storage.read(key: _keyLicense),
+        'avatarUrl': await _storage.read(key: _keyAvatarUrl),
+        'location': await _storage.read(key: _keyLocation),
+        'bio': await _storage.read(key: _keyBio),
+      };
+    }
   }
 
   // Clear session (logout)
   Future<void> clearSession() async {
-    await Future.wait([
-      _storage.delete(key: _keyToken),
-      _storage.delete(key: _keyUserId),
-      _storage.delete(key: _keyRole),
-      _storage.delete(key: _keyName),
-      _storage.delete(key: _keyPhone),
-      _storage.delete(key: _keyEmail),
-      _storage.delete(key: _keyStatus),
-      _storage.delete(key: _keySpecialization),
-      _storage.delete(key: _keyLicense),
-      _storage.delete(key: _keyAvatarUrl),
-      _storage.delete(key: _keyLocation),
-      _storage.delete(key: _keyBio),
-    ]);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (_) {}
+    try {
+      await _storage.deleteAll();
+    } catch (_) {}
   }
 }
