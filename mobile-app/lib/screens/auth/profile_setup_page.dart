@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
+import 'package:pregnancy_appp/provider/onboarding_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/services/mother_service.dart';
 import 'package:pregnancy_appp/widget/status_modal.dart';
@@ -125,6 +126,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         city: _cityController.text.trim(),
       );
       if (!mounted) return;
+
+      await OnboardingService.markOnboardingComplete();
 
       AppStatusModal.showSuccess(
         context: context,

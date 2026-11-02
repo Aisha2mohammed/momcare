@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/auth/login_page.dart';
-import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
+import 'package:pregnancy_appp/screens/auth/otp_verification_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/widget/status_modal.dart';
@@ -66,19 +66,30 @@ class _SignupPageState extends State<SignupPage> {
             : null,
       );
       if (!mounted) return;
-      // New mothers are created with status='pending', so send them to the
-      // approval screen instead of bypassing the gate via profile setup.
+
+      // Flow: signup -> otp verified -> login in -> home page
+      try {
+        await AuthService.sendOtp(phone: phone);
+      } catch (_) {
+        // Continue even if SMS service has delay so user can enter OTP on verification page
+      }
+      if (!mounted) return;
+
       AppStatusModal.showSuccess(
         context: context,
-        title: 'Registration Submitted!',
-        message: 'Your account has been created successfully and is awaiting Admin approval.',
-        buttonText: 'View Status',
+        title: 'Account Created! 🎉',
+        message: 'A 6-digit verification code has been sent to $phone. Please verify your phone number.',
+        buttonText: 'Verify Code',
         onDismiss: () {
           if (!mounted) return;
-          Navigator.pushAndRemoveUntil(
+          Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => PendingApprovalPage(phone: phone)),
-            (route) => false,
+            MaterialPageRoute(
+              builder: (context) => OtpVerificationPage(
+                isLogin: false,
+                phone: phone,
+              ),
+            ),
           );
         },
       );

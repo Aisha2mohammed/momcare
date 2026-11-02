@@ -104,8 +104,8 @@ exports.register = async (req, res, next) => {
 
     await client.query('BEGIN');
 
-    // Both new mothers and doctors need admin approval before they are active
-    const signupStatus = 'pending';
+    // Mothers are standard users and are immediately active; doctors require admin approval
+    const signupStatus = role === 'doctor' ? 'pending' : 'active';
 
     const userResult = await client.query(
       `INSERT INTO users (role, name, phone, email, password_hash, language, status)
@@ -235,7 +235,13 @@ exports.login = async (req, res, next) => {
       }
     }
 
-    // 'active' and 'pending' may sign in (a pending mother/doctor is let in so the app
+    // Auto-activate mothers (mothers do not require admin approval; only doctors require approval)
+    if (user.role === 'mother' && user.status === 'pending') {
+      await query("UPDATE users SET status = 'active' WHERE id = $1", [user.id]);
+      user.status = 'active';
+    }
+
+    // 'active' and 'pending' may sign in (a pending doctor is let in so the app
     // can render its "waiting for approval" screen); suspended/rejected cannot.
     if (user.status === 'suspended') {
       return sendError(res, 403, 'Your account has been suspended.');
@@ -401,6 +407,12 @@ exports.verifyOtp = async (req, res, next) => {
     let token;
     if (userResult.rows.length > 0) {
       const user = userResult.rows[0];
+      // Auto-activate mothers (mothers do not require admin approval)
+      if (user.role === 'mother' && user.status === 'pending') {
+        await query("UPDATE users SET status = 'active' WHERE id = $1", [user.id]);
+        user.status = 'active';
+      }
+
       // Mirror /auth/login: suspended/rejected are blocked, while 'active' and
       // 'pending' proceed. `status` is part of the returned user so both flows
       // let the client show the pending-approval screen consistently.
@@ -615,6 +627,13 @@ exports.getStatus = async (req, res, next) => {
       return sendError(res, 404, 'User not found.');
     }
     const user = userResult.rows[0];
+
+    // Auto-activate mothers (mothers do not require admin approval)
+    if (user.role === 'mother' && user.status === 'pending') {
+      await query("UPDATE users SET status = 'active' WHERE id = $1", [user.id]);
+      user.status = 'active';
+    }
+
     const progress = await getMotherProgress(user.id, user.role);
 
     let doctorProfile = null;
