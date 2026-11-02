@@ -9,6 +9,7 @@ import 'package:doctor_app/model/doctor_profile_model.dart';
 import 'package:doctor_app/auth/auth_service.dart';
 import 'package:doctor_app/notification/notification_screen.dart';
 import 'package:doctor_app/notification/notification_model.dart';
+import 'package:doctor_app/l10n/l10n.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -24,12 +25,14 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     DoctorProfileModel.shared.addListener(_onProfileUpdated);
+    LocaleNotifier.shared.addListener(_onProfileUpdated);
     _loadDoctorProfile();
   }
 
   @override
   void dispose() {
     DoctorProfileModel.shared.removeListener(_onProfileUpdated);
+    LocaleNotifier.shared.removeListener(_onProfileUpdated);
     super.dispose();
   }
 
@@ -79,101 +82,39 @@ class _MainScreenState extends State<MainScreen> {
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         elevation: 0.5,
+        titleSpacing: 16,
         title: InkWell(
           onTap: () => setState(() => _currentIndex = 3),
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-            child: Row(
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleAvatar(
-                      backgroundImage: doc.avatarUrl.isNotEmpty ? NetworkImage(doc.avatarUrl) : null,
-                      onBackgroundImageError: (_, __) {},
-                      backgroundColor: AppColors.primaryLight,
-                      radius: 19,
-                      child: doc.avatarUrl.isEmpty
-                          ? const Icon(Icons.person, color: AppColors.primary, size: 20)
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: -1,
-                      right: -1,
-                      child: Container(
-                        padding: const EdgeInsets.all(1.5),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          doc.isVerified ? Icons.check_circle_rounded : Icons.schedule_rounded,
-                          size: 11,
-                          color: doc.isVerified ? AppColors.success : Colors.amber.shade800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              doc.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            doc.isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
-                            size: 14,
-                            color: doc.isVerified ? AppColors.primary : Colors.amber.shade800,
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              doc.specialization,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            doc.isVerified ? '• Verified' : '• Under Review',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: doc.isVerified ? AppColors.success : Colors.amber.shade800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                backgroundImage: doc.avatarUrl.isNotEmpty ? NetworkImage(doc.avatarUrl) : null,
+                onBackgroundImageError: (_, __) {},
+                backgroundColor: AppColors.primaryLight,
+                radius: 20,
+                child: doc.avatarUrl.isEmpty
+                    ? const Icon(Icons.person, color: AppColors.primary, size: 22)
+                    : null,
+              ),
+              Positioned(
+                bottom: -1,
+                right: -1,
+                child: Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    doc.isVerified ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                    size: 11,
+                    color: doc.isVerified ? AppColors.success : Colors.amber.shade800,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -253,7 +194,7 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
             activeIcon: const Icon(Icons.home),
-            label: 'Home',
+            label: LocaleNotifier.shared.t('home'),
           ),
           BottomNavigationBarItem(
             icon: Stack(
@@ -283,17 +224,17 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
             activeIcon: const Icon(Icons.chat),
-            label: 'Chat',
+            label: LocaleNotifier.shared.t('consultations'),
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today_outlined),
-            activeIcon: Icon(Icons.calendar_today),
-            label: 'Appointment',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.calendar_today_outlined),
+            activeIcon: const Icon(Icons.calendar_today),
+            label: LocaleNotifier.shared.t('appointments'),
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.person_outline),
+            activeIcon: const Icon(Icons.person),
+            label: LocaleNotifier.shared.t('profile'),
           ),
         ],
       ),

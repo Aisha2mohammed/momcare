@@ -7,8 +7,8 @@ import 'package:doctor_app/widget/today_appointments_widget.dart';
 import 'package:doctor_app/widget/patient_risk_card_widget.dart';
 import 'package:doctor_app/widget/broadcast_notification_dialog.dart';
 import 'package:doctor_app/widget/status_modal.dart';
-import 'package:doctor_app/chat/chat_detail_screen.dart';
 import 'package:doctor_app/profile/profile_tab.dart';
+import 'package:doctor_app/l10n/l10n.dart';
 
 enum HomeFilterTab {
   all,
@@ -49,9 +49,10 @@ class _HomeTabState extends State<HomeTab> {
       });
     });
 
-    // Listen to real-time profile and availability changes
+    // Listen to real-time profile, language and availability changes
     MockData.doctorAvailabilityNotifier.addListener(_onAvailabilityChanged);
     DoctorProfileModel.shared.addListener(_onAvailabilityChanged);
+    LocaleNotifier.shared.addListener(_onAvailabilityChanged);
   }
 
   void _onAvailabilityChanged() {
@@ -62,6 +63,7 @@ class _HomeTabState extends State<HomeTab> {
   void dispose() {
     MockData.doctorAvailabilityNotifier.removeListener(_onAvailabilityChanged);
     DoctorProfileModel.shared.removeListener(_onAvailabilityChanged);
+    LocaleNotifier.shared.removeListener(_onAvailabilityChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -176,58 +178,7 @@ class _HomeTabState extends State<HomeTab> {
     });
   }
 
-  void _acceptPatient(PatientModel patient) {
-    setState(() {
-      patient.isAccepted = true;
-      patient.isRejected = false;
-      if (!MockData.acceptedPatients.any((p) => p.id == patient.id)) {
-        MockData.acceptedPatients.insert(0, patient);
-      }
-      MockData.rejectedPatients.removeWhere((p) => p.id == patient.id);
-    });
 
-    AppModals.showSuccess(
-      context,
-      title: 'Patient Accepted!',
-      message: '${patient.name} has been enrolled in your care team. Chat channel is now active.',
-      primaryButtonText: 'Open Chat',
-      secondaryButtonText: 'Done',
-      onConfirm: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => ChatDetailScreen(patient: patient)),
-        );
-      },
-    );
-  }
-
-  void _rejectPatient(PatientModel patient) {
-    AppModals.showFail(
-      context,
-      title: 'Decline Patient Referral?',
-      message:
-          'Are you sure you want to decline intake for ${patient.name} (${patient.gestationalAge})? The mother will be notified to rebook or consult an affiliate.',
-      primaryButtonText: 'Decline Intake',
-      secondaryButtonText: 'Keep Pending',
-      onRetry: () {
-        setState(() {
-          patient.isAccepted = false;
-          patient.isRejected = true;
-          if (!MockData.rejectedPatients.any((p) => p.id == patient.id)) {
-            MockData.rejectedPatients.insert(0, patient);
-          }
-          MockData.acceptedPatients.removeWhere((p) => p.id == patient.id);
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${patient.name}\'s intake referral declined'),
-            backgroundColor: AppColors.riskHigh,
-          ),
-        );
-      },
-    );
-  }
 
   void _redirectToProfileAvailability() {
     showModalBottomSheet(
@@ -298,7 +249,7 @@ class _HomeTabState extends State<HomeTab> {
         controller: _searchController,
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
-          hintText: 'Search patient by name or phone...',
+          hintText: LocaleNotifier.shared.t('search_patient'),
           hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           prefixIcon: const Icon(Icons.search, color: AppColors.primary, size: 20),
           suffixIcon: _searchQuery.isNotEmpty
@@ -382,9 +333,9 @@ class _HomeTabState extends State<HomeTab> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        "Patient Risk Registry",
-                        style: TextStyle(
+                      Text(
+                        LocaleNotifier.shared.t('patient_registry'),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
@@ -395,7 +346,7 @@ class _HomeTabState extends State<HomeTab> {
                           const Icon(Icons.swap_vert_rounded, size: 14, color: AppColors.primary),
                           const SizedBox(width: 4),
                           Text(
-                            "Sorted by Risk",
+                            LocaleNotifier.shared.t('sorted_by_risk'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -416,7 +367,7 @@ class _HomeTabState extends State<HomeTab> {
                       children: [
                         _buildFilterTabChip(
                           tab: HomeFilterTab.all,
-                          label: 'All Patients',
+                          label: LocaleNotifier.shared.t('all_patients'),
                           count: _countForTab(HomeFilterTab.all),
                         ),
                         const SizedBox(width: 8),
@@ -429,21 +380,21 @@ class _HomeTabState extends State<HomeTab> {
                         const SizedBox(width: 8),
                         _buildFilterTabChip(
                           tab: HomeFilterTab.highRisk,
-                          label: 'High Risk',
+                          label: LocaleNotifier.shared.t('high_risk'),
                           count: _countForTab(HomeFilterTab.highRisk),
                           activeColor: AppColors.riskHigh,
                         ),
                         const SizedBox(width: 8),
                         _buildFilterTabChip(
                           tab: HomeFilterTab.moderateRisk,
-                          label: 'Moderate Risk',
+                          label: LocaleNotifier.shared.t('moderate_risk'),
                           count: _countForTab(HomeFilterTab.moderateRisk),
                           activeColor: AppColors.riskModerate,
                         ),
                         const SizedBox(width: 8),
                         _buildFilterTabChip(
                           tab: HomeFilterTab.stable,
-                          label: 'Stable',
+                          label: LocaleNotifier.shared.t('stable'),
                           count: _countForTab(HomeFilterTab.stable),
                           activeColor: AppColors.riskStable,
                         ),
@@ -530,8 +481,6 @@ class _HomeTabState extends State<HomeTab> {
                     return PatientRiskCardWidget(
                       key: ValueKey(patient.id),
                       patient: patient,
-                      onAccept: _acceptPatient,
-                      onDecline: _rejectPatient,
                     );
                   },
                   childCount: filteredList.length,

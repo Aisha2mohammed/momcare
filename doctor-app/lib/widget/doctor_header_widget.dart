@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:doctor_app/constants/color.dart';
 import 'package:doctor_app/model/mock_data.dart';
+import 'package:doctor_app/l10n/l10n.dart';
 
 class DoctorHeaderWidget extends StatelessWidget {
   final String doctorName;
@@ -36,6 +37,17 @@ class DoctorHeaderWidget extends StatelessWidget {
     this.onHighRiskTapped,
   });
 
+  String _getAvailabilityLabel(DoctorAvailability avail) {
+    switch (avail) {
+      case DoctorAvailability.online:
+        return LocaleNotifier.shared.t('duty_online');
+      case DoctorAvailability.away:
+        return LocaleNotifier.shared.t('duty_away');
+      case DoctorAvailability.offDuty:
+        return LocaleNotifier.shared.t('duty_off');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -54,38 +66,9 @@ class DoctorHeaderWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting & Doctor Profile Info Row
+          // Greeting & Doctor Profile Info Row (Avatar removed; only doctor name, specialty, availability badge)
           Row(
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.primaryLight,
-                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                    onBackgroundImageError: (_, __) {},
-                    child: avatarUrl.isEmpty ? const Icon(Icons.person, color: AppColors.primary) : null,
-                  ),
-                  Positioned(
-                    bottom: -1,
-                    right: -1,
-                    child: Container(
-                      padding: const EdgeInsets.all(1.5),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isVerified ? Icons.check_circle_rounded : Icons.schedule_rounded,
-                        size: 11,
-                        color: isVerified ? AppColors.success : Colors.amber.shade800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,7 +127,7 @@ class DoctorHeaderWidget extends StatelessWidget {
             children: [
               Expanded(
                 child: _buildStatCard(
-                  title: 'Active Patients',
+                  title: LocaleNotifier.shared.t('total_patients'),
                   count: totalPatients.toString(),
                   icon: Icons.people_outline_rounded,
                   accentColor: AppColors.primary,
@@ -155,7 +138,7 @@ class DoctorHeaderWidget extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildStatCard(
-                  title: 'Pending Appts',
+                  title: LocaleNotifier.shared.t('pending_appts'),
                   count: pendingAppointments.toString(),
                   icon: Icons.calendar_today_outlined,
                   accentColor: const Color(0xFF2563EB),
@@ -166,7 +149,7 @@ class DoctorHeaderWidget extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildStatCard(
-                  title: 'High-Risk Alerts',
+                  title: LocaleNotifier.shared.t('high_risk_alerts'),
                   count: highRiskAlerts.toString(),
                   icon: Icons.warning_amber_rounded,
                   accentColor: AppColors.riskHigh,
@@ -203,7 +186,7 @@ class DoctorHeaderWidget extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            availability.label,
+            _getAvailabilityLabel(availability),
             style: TextStyle(
               color: availability.color,
               fontSize: 12,

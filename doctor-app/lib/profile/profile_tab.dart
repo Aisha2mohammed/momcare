@@ -6,6 +6,7 @@ import 'package:doctor_app/auth/login_screen.dart';
 import 'package:doctor_app/auth/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:doctor_app/api/api_endpoints.dart';
+import 'package:doctor_app/l10n/l10n.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -16,7 +17,6 @@ class ProfileTab extends StatefulWidget {
 
 class _ProfileTabState extends State<ProfileTab> {
   late DoctorProfileModel _doctor;
-  String _selectedLanguage = 'English';
 
   @override
   void initState() {
@@ -24,13 +24,19 @@ class _ProfileTabState extends State<ProfileTab> {
     _doctor = DoctorProfileModel.shared;
     _doctor.availability = MockData.currentDoctorAvailability;
     DoctorProfileModel.shared.addListener(_onProfileChanged);
+    LocaleNotifier.shared.addListener(_onLocaleChanged);
     _loadProfileFromBackend();
   }
 
   @override
   void dispose() {
     DoctorProfileModel.shared.removeListener(_onProfileChanged);
+    LocaleNotifier.shared.removeListener(_onLocaleChanged);
     super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onProfileChanged() {
@@ -765,70 +771,938 @@ class _ProfileTabState extends State<ProfileTab> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setPrefState) {
+          final l10n = LocaleNotifier.shared;
           return Container(
-            padding: const EdgeInsets.all(22),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Text(l10n.t('notification_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(l10n.t('notification_subtitle'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppColors.riskHigh,
+                    title: Text(l10n.t('urgent_alerts'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    subtitle: Text(l10n.t('urgent_alerts_sub'), style: const TextStyle(fontSize: 11)),
+                    value: urgentRisk,
+                    onChanged: (val) => setPrefState(() => urgentRisk = val),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppColors.primary,
+                    title: Text(l10n.t('new_appt_requests'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    subtitle: Text(l10n.t('new_appt_sub'), style: const TextStyle(fontSize: 11)),
+                    value: newAppts,
+                    onChanged: (val) => setPrefState(() => newAppts = val),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: const Color(0xFF7C3AED),
+                    title: Text(l10n.t('lab_reports'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    subtitle: Text(l10n.t('lab_reports_sub'), style: const TextStyle(fontSize: 11)),
+                    value: labResults,
+                    onChanged: (val) => setPrefState(() => labResults = val),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: Colors.amber.shade800,
+                    title: Text(l10n.t('emergency_sound'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    subtitle: Text(l10n.t('emergency_sound_sub'), style: const TextStyle(fontSize: 11)),
+                    value: soundAlert,
+                    onChanged: (val) => setPrefState(() => soundAlert = val),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.t('preferences_saved'))),
+                        );
+                      },
+                      child: Text(l10n.t('save_preferences'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = LocaleNotifier.shared;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+
+            // 1. Centered Header: Avatar with Camera Badge, Name, Spec, Verified Badge
+            Center(
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _showPhotoPickerModal,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 56,
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                          backgroundImage: (_doctor.avatarUrl.isNotEmpty)
+                              ? NetworkImage(_doctor.avatarUrl)
+                              : null,
+                          onBackgroundImageError: (_, __) {},
+                          child: (_doctor.avatarUrl.isEmpty)
+                              ? const Icon(Icons.person_rounded, size: 70, color: AppColors.primary)
+                              : null,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _doctor.name,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: _showEditProfileModal,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  Text(
+                    _doctor.specialization,
+                    style: const TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Admin Verified Status Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _doctor.isVerified ? AppColors.successBg : const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _doctor.isVerified
+                            ? AppColors.success.withValues(alpha: 0.35)
+                            : const Color(0xFFD97706).withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _doctor.isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
+                          size: 14,
+                          color: _doctor.isVerified ? AppColors.success : const Color(0xFFD97706),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _doctor.isVerified
+                              ? l10n.t('verified_badge')
+                              : l10n.t('under_review_badge'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: _doctor.isVerified ? AppColors.success : const Color(0xFFD97706),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // 2. 3-Column Stats Row (Matching mobile-app profile structure)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatItem(
+                  'Patients',
+                  '${MockData.incomingPatients.length}',
+                ),
+                _buildStatItem(
+                  'Experience',
+                  _doctor.yearsExperience.contains('Year') ? _doctor.yearsExperience : '${_doctor.yearsExperience} Yrs',
+                ),
+                _buildStatItem(
+                  'Duty Status',
+                  _doctor.availability.label,
+                  onTap: _showAvailabilityModal,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 28),
+
+            // 3. Hospital Affiliation Banner Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.local_hospital_rounded, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _doctor.hospitalClinicName.isNotEmpty
+                              ? _doctor.hospitalClinicName
+                              : _doctor.clinicAffiliation,
+                          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _doctor.practiceLocation,
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 4. Grouped Settings Section: Account Settings
+            _buildSettingsSection(
+              'Account Settings',
+              [
+                _buildSettingsTile(
+                  Icons.person_outline_rounded,
+                  'Personal & Clinical Info',
+                  subtitle: _doctor.name,
+                  onTap: _showEditProfileModal,
+                ),
+                const Divider(height: 1, indent: 60),
+                _buildSettingsTile(
+                  Icons.badge_outlined,
+                  'Credentials & Documents',
+                  subtitle: 'License: ${_doctor.licenseNumber}',
+                  onTap: _showCredentialsModal,
+                ),
+                const Divider(height: 1, indent: 60),
+                _buildSettingsTile(
+                  Icons.access_time_rounded,
+                  'Availability & Schedule',
+                  subtitle: '${_doctor.availability.label} • Weekly hours',
+                  onTap: _showAvailabilityModal,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // 5. Grouped Settings Section: App Settings
+            _buildSettingsSection(
+              'App Settings',
+              [
+                _buildSettingsTile(
+                  Icons.notifications_none_rounded,
+                  l10n.t('notification_prefs'),
+                  onTap: _showNotificationPreferences,
+                ),
+                const Divider(height: 1, indent: 60),
+                _buildSettingsTile(
+                  Icons.language_rounded,
+                  l10n.t('app_language'),
+                  subtitle: l10n.currentDisplayName,
+                  onTap: _showLanguagePickerModal,
+                ),
+                const Divider(height: 1, indent: 60),
+                _buildSettingsTile(
+                  Icons.headset_mic_outlined,
+                  l10n.t('support_help'),
+                  subtitle: l10n.t('support_help_sub'),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Contacting MomCare Provider Support...')),
+                    );
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 32),
+
+            // 6. Sign Out Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.logout_rounded, color: AppColors.error),
+                label: Text(
+                  l10n.t('sign_out'),
+                  style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.error, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: _confirmSignOut,
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Stat Item Widget ──────────────────────────────────────────────
+  Widget _buildStatItem(String label, String value, {VoidCallback? onTap}) {
+    final content = Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+      ],
+    );
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: content,
+        ),
+      );
+    }
+    return content;
+  }
+
+  // ── Settings Section Container ────────────────────────────────────
+  Widget _buildSettingsSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 6, bottom: 10),
+          child: Text(
+            title,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+            ],
+          ),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+
+  // ── Settings Tile Widget ──────────────────────────────────────────
+  Widget _buildSettingsTile(IconData icon, String title, {String? subtitle, VoidCallback? onTap}) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: AppColors.primary, size: 20),
+      ),
+      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          : null,
+      trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+      onTap: onTap,
+    );
+  }
+
+  // ── Language Picker Modal (Matching mobile-app) ───────────────────
+  void _showLanguagePickerModal() {
+    final l10n = LocaleNotifier.shared;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.t('app_language'),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                for (final lang in LocaleNotifier.languages)
+                  ListTile(
+                    leading: Icon(
+                      l10n.currentCode == lang.code
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      '${lang.name} (${lang.nativeName})',
+                      style: TextStyle(
+                        fontWeight: l10n.currentCode == lang.code
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    onTap: () async {
+                      await l10n.setLanguage(lang.code);
+                      if (mounted) setState(() {});
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Language switched to ${lang.name} (${lang.nativeName})'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Credentials & Medical Documents Modal ─────────────────────────
+  void _showCredentialsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+              child: Column(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Credentials & Practice Details',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            ),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _showEditProfileModal();
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                            label: const Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close, color: Colors.grey),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                children: [
+                  _buildDetailRow(
+                    icon: Icons.credit_card_rounded,
+                    title: 'Medical License',
+                    value: '${_doctor.licenseNumber} (Expires: ${_doctor.licenseExpiryDate.isNotEmpty ? _doctor.licenseExpiryDate : _doctor.licenseExpiry})',
+                  ),
+                  const Divider(height: 20),
+                  if (_doctor.nationalIdUrl.isNotEmpty || _doctor.nationalId.isNotEmpty) ...[
+                    _buildDetailRow(
+                      icon: Icons.badge_outlined,
+                      title: 'National ID Document',
+                      value: _doctor.nationalIdUrl.isNotEmpty ? _doctor.nationalIdUrl : _doctor.nationalId,
+                    ),
+                    const Divider(height: 20),
+                  ],
+                  _buildDetailRow(
+                    icon: Icons.local_hospital_rounded,
+                    title: 'Hospital / Clinic Affiliation',
+                    value: _doctor.hospitalClinicName.isNotEmpty ? _doctor.hospitalClinicName : _doctor.clinicAffiliation,
+                  ),
+                  const Divider(height: 20),
+                  _buildDetailRow(
+                    icon: Icons.history_toggle_off_rounded,
+                    title: 'Clinical Experience',
+                    value: _doctor.yearsExperience.contains('Year') ? _doctor.yearsExperience : '${_doctor.yearsExperience} Years',
+                  ),
+                  const Divider(height: 20),
+                  _buildDetailRow(
+                    icon: Icons.location_on_outlined,
+                    title: 'Practice Location / City',
+                    value: _doctor.practiceLocation,
+                  ),
+                  const Divider(height: 20),
+                  if (_doctor.credentialDocumentUrl.isNotEmpty) ...[
+                    _buildDetailRow(
+                      icon: Icons.file_present_rounded,
+                      title: 'Verified Credential Document',
+                      value: _doctor.credentialDocumentUrl,
+                    ),
+                    const Divider(height: 20),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.language_rounded, size: 18, color: AppColors.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Languages Spoken', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _doctor.languages.map((lang) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    lang,
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Professional Summary / Bio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      InkWell(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _editBioDialog();
+                        },
+                        child: const Row(
+                          children: [
+                            Icon(Icons.edit_outlined, size: 13, color: AppColors.primary),
+                            SizedBox(width: 3),
+                            Text('Edit Bio', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(_doctor.bio, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Verification Documents', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Document re-upload portal opened')),
+                          );
+                        },
+                        icon: const Icon(Icons.upload_file_rounded, size: 14, color: AppColors.primary),
+                        label: const Text('Update / Re-upload', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ..._doctor.documents.map((doc) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.picture_as_pdf_rounded, color: AppColors.error, size: 22),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(doc.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                                Text('${doc.fileType} • ${doc.issueDate}', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: AppColors.successBg, borderRadius: BorderRadius.circular(4)),
+                            child: Text(doc.status, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.success)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Availability & Schedule Modal ─────────────────────────────────
+  void _showAvailabilityModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.88,
+            ),
             decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Notification Preferences', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                const Text('Customize your maternal health triage notifications', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  activeColor: AppColors.riskHigh,
-                  title: const Text('Urgent Patient Risk Alerts (High BP/Glucose)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Push alerts immediately when critical vitals are logged', style: TextStyle(fontSize: 11)),
-                  value: urgentRisk,
-                  onChanged: (val) => setPrefState(() => urgentRisk = val),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Availability & Working Hours',
+                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                              ),
+                              Text('Configure booking slots for mothers', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close, color: Colors.grey),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  activeColor: AppColors.primary,
-                  title: const Text('New Appointment & Consultation Requests', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Notify when mother requests a booking', style: TextStyle(fontSize: 11)),
-                  value: newAppts,
-                  onChanged: (val) => setPrefState(() => newAppts = val),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  activeColor: const Color(0xFF7C3AED),
-                  title: const Text('New Lab & Ultrasound Reports Uploaded', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Alert when diagnostics are completed', style: TextStyle(fontSize: 11)),
-                  value: labResults,
-                  onChanged: (val) => setPrefState(() => labResults = val),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  activeColor: Colors.amber.shade800,
-                  title: const Text('Audible Emergency Risk Alert Sound', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Play audible tone even in silent mode for critical maternal emergencies', style: TextStyle(fontSize: 11)),
-                  value: soundAlert,
-                  onChanged: (val) => setPrefState(() => soundAlert = val),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Notification settings updated')),
-                      );
-                    },
-                    child: const Text('Save Preferences', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    children: [
+                      // Duty Status selector
+                      const Text('Current Duty Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            _buildStatusOption(DoctorAvailability.online, 'Online', onSelect: () => setModalState(() {})),
+                            const SizedBox(width: 6),
+                            _buildStatusOption(DoctorAvailability.away, 'Away', onSelect: () => setModalState(() {})),
+                            const SizedBox(width: 6),
+                            _buildStatusOption(DoctorAvailability.offDuty, 'Off-Duty', onSelect: () => setModalState(() {})),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Weekly Schedule Builder Mon - Sun
+                      const Text('Weekly Schedule Builder', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      const SizedBox(height: 10),
+
+                      ..._doctor.weeklySchedule.map((day) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: day.isEnabled ? Colors.white : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: day.isEnabled ? Colors.grey.shade300 : Colors.grey.shade200),
+                          ),
+                          child: ExpansionTile(
+                            tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: day.isEnabled ? AppColors.primaryLight : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                day.shortDay,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: day.isEnabled ? AppColors.primary : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              day.dayName,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: day.isEnabled ? AppColors.textPrimary : Colors.grey,
+                              ),
+                            ),
+                            subtitle: Text(
+                              day.isEnabled ? '${day.slots.length} booking slots active' : 'Unavailable (Day Off)',
+                              style: TextStyle(fontSize: 11, color: day.isEnabled ? AppColors.textSecondary : Colors.grey),
+                            ),
+                            trailing: Switch(
+                              value: day.isEnabled,
+                              activeColor: AppColors.primary,
+                              onChanged: (val) {
+                                setModalState(() => day.isEnabled = val);
+                                setState(() {});
+                              },
+                            ),
+                            children: [
+                              if (day.slots.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: Text('No slots configured for this day.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                )
+                              else
+                                ...day.slots.map((slot) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.schedule_rounded, size: 14, color: AppColors.primary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '${slot.period}: ${slot.timeRange}',
+                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                                          child: Text(
+                                            'Max: ${slot.capacity} pts',
+                                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.red),
+                                          onPressed: () {
+                                            setModalState(() {
+                                              day.slots.removeWhere((s) => s.id == slot.id);
+                                            });
+                                            setState(() {});
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    side: const BorderSide(color: AppColors.primary),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  onPressed: () {
+                                    _showAddSlotModal(day);
+                                  },
+                                  icon: const Icon(Icons.add_rounded, size: 16, color: AppColors.primary),
+                                  label: const Text('Add Time Slot', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ),
               ],
@@ -839,594 +1713,8 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Header & Identity Section
-            _buildHeaderCard(),
-
-            const SizedBox(height: 16),
-
-            // 2. Credential & Professional Information Card
-            _buildCredentialsCard(),
-
-            const SizedBox(height: 16),
-
-            // 3. Interactive Availability Slot Management
-            _buildAvailabilityScheduleSection(),
-
-            const SizedBox(height: 16),
-
-            // 4. Settings & Account Actions
-            _buildSettingsSection(),
-
-            const SizedBox(height: 24),
-
-            // Log Out Button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.logout_rounded, color: AppColors.error),
-                label: const Text('Sign Out Provider Account', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.error),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                onPressed: _confirmSignOut,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 1. Header & Identity Card
-  Widget _buildHeaderCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Avatar + Edit Button
-          Stack(
-            children: [
-              GestureDetector(
-                onTap: _showPhotoPickerModal,
-                child: CircleAvatar(
-                  radius: 46,
-                  backgroundColor: AppColors.primaryLight,
-                  backgroundImage: NetworkImage(_doctor.avatarUrl),
-                  onBackgroundImageError: (_, __) {},
-                  child: const Icon(Icons.person, size: 40, color: AppColors.primary),
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: InkWell(
-                  onTap: _showPhotoPickerModal,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2.5),
-                    ),
-                    child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Doctor Name & Specialization with Edit Action
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  _doctor.name,
-                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: _showEditProfileModal,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
-                  child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            _doctor.specialization,
-            style: const TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-
-          // Clinic Affiliation Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.local_hospital_rounded, size: 14, color: AppColors.primary),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _doctor.clinicAffiliation,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // Admin Verified Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: _doctor.isVerified ? AppColors.successBg : const Color(0xFFFEF3C7),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _doctor.isVerified
-                    ? AppColors.success.withValues(alpha: 0.35)
-                    : const Color(0xFFD97706).withValues(alpha: 0.35),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _doctor.isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
-                  size: 14,
-                  color: _doctor.isVerified ? AppColors.success : const Color(0xFFD97706),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _doctor.isVerified
-                      ? 'Verified & Approved by Admin'
-                      : 'Pending Admin Verification & Credential Review',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: _doctor.isVerified ? AppColors.success : const Color(0xFFD97706),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 2. Credential & Professional Information Card
-  Widget _buildCredentialsCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Credentials & Practice Details',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-              ),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                ),
-                onPressed: _showEditProfileModal,
-                icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                label: const Text('Edit Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // License & Expiry
-          _buildDetailRow(
-            icon: Icons.credit_card_rounded,
-            title: 'Medical License',
-            value: '${_doctor.licenseNumber} (Expires: ${_doctor.licenseExpiryDate.isNotEmpty ? _doctor.licenseExpiryDate : _doctor.licenseExpiry})',
-          ),
-          const Divider(height: 18),
-
-          // National ID Document
-          if (_doctor.nationalIdUrl.isNotEmpty || _doctor.nationalId.isNotEmpty) ...[
-            _buildDetailRow(
-              icon: Icons.badge_outlined,
-              title: 'National ID Document',
-              value: _doctor.nationalIdUrl.isNotEmpty ? _doctor.nationalIdUrl : _doctor.nationalId,
-            ),
-            const Divider(height: 18),
-          ],
-
-          // Hospital / Clinic
-          _buildDetailRow(
-            icon: Icons.local_hospital_rounded,
-            title: 'Hospital / Clinic Affiliation',
-            value: _doctor.hospitalClinicName.isNotEmpty ? _doctor.hospitalClinicName : _doctor.clinicAffiliation,
-          ),
-          const Divider(height: 18),
-
-          // Experience & Practice Location
-          _buildDetailRow(
-            icon: Icons.history_toggle_off_rounded,
-            title: 'Experience',
-            value: _doctor.yearsExperience.contains('Year') ? _doctor.yearsExperience : '${_doctor.yearsExperience} Years',
-          ),
-          const Divider(height: 18),
-
-          _buildDetailRow(
-            icon: Icons.location_on_outlined,
-            title: 'Practice Location / City',
-            value: _doctor.practiceLocation,
-          ),
-          const Divider(height: 18),
-
-          // Credential Document
-          if (_doctor.credentialDocumentUrl.isNotEmpty) ...[
-            _buildDetailRow(
-              icon: Icons.file_present_rounded,
-              title: 'Verified Credential Document',
-              value: _doctor.credentialDocumentUrl,
-            ),
-            const Divider(height: 18),
-          ],
-
-          // Languages Spoken
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.language_rounded, size: 18, color: AppColors.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Languages Spoken', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _doctor.languages.map((lang) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            lang,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const Divider(height: 18),
-
-          // Short Bio with Edit Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Professional Summary / Bio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              InkWell(
-                onTap: _editBioDialog,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_outlined, size: 13, color: AppColors.primary),
-                      SizedBox(width: 3),
-                      Text('Edit Bio', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _doctor.bio,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
-          ),
-
-          const Divider(height: 22),
-
-          // Verification Documents View
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Verification Documents', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              TextButton.icon(
-                style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Document re-upload portal opened')),
-                  );
-                },
-                icon: const Icon(Icons.upload_file_rounded, size: 14, color: AppColors.primary),
-                label: const Text('Update / Re-upload', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ..._doctor.documents.map((doc) {
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.picture_as_pdf_rounded, color: AppColors.error, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(doc.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                        Text('${doc.fileType} • ${doc.issueDate}', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: AppColors.successBg, borderRadius: BorderRadius.circular(4)),
-                    child: Text(doc.status, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.success)),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  // 3. Interactive Availability Slot Management
-  Widget _buildAvailabilityScheduleSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Availability & Hours', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  Text('Configure booking slots for mothers', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                ],
-              ),
-              // Global Availability Status Toggle
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _doctor.availability.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _doctor.availability.color.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Container(width: 8, height: 8, decoration: BoxDecoration(color: _doctor.availability.color, shape: BoxShape.circle)),
-                    const SizedBox(width: 6),
-                    Text(_doctor.availability.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _doctor.availability.color)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Global Status Selector
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                _buildStatusOption(DoctorAvailability.online, 'Online'),
-                const SizedBox(width: 6),
-                _buildStatusOption(DoctorAvailability.away, 'Away'),
-                const SizedBox(width: 6),
-                _buildStatusOption(DoctorAvailability.offDuty, 'Off-Duty'),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          // Weekly Schedule Builder Mon - Sun
-          const Text('Weekly Schedule Builder', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const SizedBox(height: 10),
-
-          ..._doctor.weeklySchedule.map((day) {
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(
-                color: day.isEnabled ? Colors.white : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: day.isEnabled ? Colors.grey.shade300 : Colors.grey.shade200),
-              ),
-              child: ExpansionTile(
-                tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: day.isEnabled ? AppColors.primaryLight : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    day.shortDay,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: day.isEnabled ? AppColors.primary : Colors.grey,
-                    ),
-                  ),
-                ),
-                title: Text(
-                  day.dayName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: day.isEnabled ? AppColors.textPrimary : Colors.grey,
-                  ),
-                ),
-                subtitle: Text(
-                  day.isEnabled ? '${day.slots.length} booking slots active' : 'Unavailable (Day Off)',
-                  style: TextStyle(fontSize: 11, color: day.isEnabled ? AppColors.textSecondary : Colors.grey),
-                ),
-                trailing: Switch(
-                  value: day.isEnabled,
-                  activeColor: AppColors.primary,
-                  onChanged: (val) {
-                    setState(() {
-                      day.isEnabled = val;
-                    });
-                  },
-                ),
-                children: [
-                  if (day.slots.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('No slots configured for this day.', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                    )
-                  else
-                    ...day.slots.map((slot) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.schedule_rounded, size: 14, color: AppColors.primary),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${slot.period}: ${slot.timeRange}',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
-                              child: Text(
-                                'Max: ${slot.capacity} pts',
-                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.red),
-                              onPressed: () {
-                                setState(() {
-                                  day.slots.removeWhere((s) => s.id == slot.id);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        side: const BorderSide(color: AppColors.primary),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: () => _showAddSlotModal(day),
-                      icon: const Icon(Icons.add_rounded, size: 16, color: AppColors.primary),
-                      label: const Text('Add Time Slot', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusOption(DoctorAvailability status, String label) {
+  // ── Status Option Helper ──────────────────────────────────────────
+  Widget _buildStatusOption(DoctorAvailability status, String label, {VoidCallback? onSelect}) {
     final isSelected = _doctor.availability == status;
     return Expanded(
       child: InkWell(
@@ -1438,6 +1726,7 @@ class _ProfileTabState extends State<ProfileTab> {
           });
           DoctorProfileModel.shared.notify();
           MockData.doctorAvailabilityNotifier.value = status;
+          if (onSelect != null) onSelect();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Duty status set to ${status.label}. Synced with Home header.'),
@@ -1474,84 +1763,7 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 4. Settings & Account Actions
-  Widget _buildSettingsSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Account & Preferences', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
-
-          // Notification Preferences
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.notifications_active_outlined, color: AppColors.primary, size: 20),
-            ),
-            title: const Text('Notification Preferences', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: const Text('Triage alerts and appointment push settings', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: _showNotificationPreferences,
-          ),
-          const Divider(),
-
-          // App Language Selection
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.translate_rounded, color: Color(0xFF2563EB), size: 20),
-            ),
-            title: const Text('App Language', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: Text('Current: $_selectedLanguage', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            trailing: DropdownButton<String>(
-              value: _selectedLanguage,
-              underline: const SizedBox(),
-              items: ['English', 'Amharic (አማርኛ)', 'Afan Oromo', 'Somali'].map((lang) {
-                return DropdownMenuItem(value: lang, child: Text(lang, style: const TextStyle(fontSize: 12)));
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedLanguage = val);
-              },
-            ),
-          ),
-          const Divider(),
-
-          // Support & Help Desk
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: AppColors.successBg, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.headset_mic_outlined, color: AppColors.success, size: 20),
-            ),
-            title: const Text('Provider Support & Help Desk', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: const Text('Contact MomCare clinical coordinator team', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Contacting MomCare Provider Support...')),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ── Detail Row Helper ─────────────────────────────────────────────
   Widget _buildDetailRow({required IconData icon, required String title, required String value}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

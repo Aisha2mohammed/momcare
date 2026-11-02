@@ -1,5 +1,5 @@
 class ApiEndpoints {
-  static const String baseUrl = 'http://192.168.10.188:5000/api/v1';
+  static const String baseUrl = 'http://192.168.1.7:5000/api/v1';
   static String get baseServerUrl => baseUrl.replaceAll('/api/v1', '');
 
   /// Resolves relative or localhost media/avatar URLs to the real server host
