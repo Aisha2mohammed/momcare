@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pregnancy_appp/constants/color.dart';
 import 'package:pregnancy_appp/screens/home/mainscreen.dart';
 import 'package:pregnancy_appp/screens/auth/profile_setup_page.dart';
-import 'package:pregnancy_appp/screens/auth/pending_approval_page.dart';
+import 'package:pregnancy_appp/screens/auth/login_page.dart';
 import 'package:pregnancy_appp/services/auth_service.dart';
 import 'package:pregnancy_appp/services/api_service.dart';
 import 'package:pregnancy_appp/widget/status_modal.dart';
@@ -61,34 +61,47 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       );
       if (!mounted) return;
 
-      AppStatusModal.showSuccess(
-        context: context,
-        title: 'Verified Successfully!',
-        message: 'Your phone number has been verified.',
-        buttonText: 'Continue',
-        onDismiss: () {
-          if (!mounted) return;
-          if (result.status == 'pending') {
+      if (!widget.isLogin) {
+        // Flow: signup -> otp verified -> login in
+        AppStatusModal.showSuccess(
+          context: context,
+          title: 'Verified Successfully! 🎉',
+          message: 'Your phone number has been verified. Please sign in to your account.',
+          buttonText: 'Sign In',
+          onDismiss: () {
+            if (!mounted) return;
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => PendingApprovalPage(phone: widget.phone)),
+              MaterialPageRoute(builder: (context) => LoginPage(initialPhone: widget.phone)),
               (route) => false,
             );
-          } else if (result.isNewUser || result.needsProfileSetup) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
-              (route) => false,
-            );
-          } else {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const MainScreen(showWelcomeNotification: true)),
-              (route) => false,
-            );
-          }
-        },
-      );
+          },
+        );
+      } else {
+        // Direct OTP login flow
+        AppStatusModal.showSuccess(
+          context: context,
+          title: 'Welcome Back!',
+          message: 'Your phone number has been verified.',
+          buttonText: 'Continue',
+          onDismiss: () {
+            if (!mounted) return;
+            if (result.needsProfileSetup) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+                (route) => false,
+              );
+            } else {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const MainScreen(showWelcomeNotification: true)),
+                (route) => false,
+              );
+            }
+          },
+        );
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       AppStatusModal.showError(
