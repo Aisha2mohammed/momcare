@@ -44,6 +44,10 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  final TextEditingController _chatSearchController = TextEditingController();
+  String _chatSearchQuery = '';
+  final Set<String> _readDoctorChatIds = {};
+
   bool _loadingProviders = true;
   String? _providerError;
   List<HealthProvider> _providers = [];
@@ -68,6 +72,7 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _chatSearchController.dispose();
     super.dispose();
   }
 
@@ -291,21 +296,25 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
     }).toList();
 
     return DefaultTabController(
-      length: 2,
+      length: 4,
       child: Scaffold(
         backgroundColor: Colors.grey[50],
         appBar: AppBar(
-          title: const Text('Connect Doctor', style: TextStyle(color: Colors.black)),
+          title: const Text('Connect Doctor', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           backgroundColor: Colors.white,
           elevation: 1,
           iconTheme: const IconThemeData(color: Colors.black),
           bottom: const TabBar(
+            isScrollable: true,
             labelColor: AppColors.primary,
             unselectedLabelColor: Colors.black54,
             indicatorColor: AppColors.primary,
+            indicatorWeight: 3,
             tabs: [
               Tab(text: 'Find Doctor'),
               Tab(text: 'My Appointments'),
+              Tab(text: 'Chat with Doctors'),
+              Tab(text: 'Unread'),
             ],
           ),
         ),
@@ -343,6 +352,12 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
 
             // Tab 2: My Appointments
             _buildAppointmentsTab(context),
+
+            // Tab 3: Chat with Doctors
+            _buildChatWithDoctorsTab(context, filteredDoctors),
+
+            // Tab 4: Unread
+            _buildUnreadChatsTab(context),
           ],
         ),
       ),
@@ -608,6 +623,340 @@ class _ConnectClinicPageState extends State<ConnectClinicPage> {
           );
         },
       ),
+    );
+  }
+
+  // ── Tab 3: Chat with Doctors ──────────────────────────────────────────
+  Widget _buildChatWithDoctorsTab(BuildContext context, List<DoctorSummary> doctors) {
+    final filtered = doctors.where((d) {
+      final q = _chatSearchQuery;
+      if (q.isEmpty) return true;
+      return d.name.toLowerCase().contains(q) ||
+          (d.specialization?.toLowerCase().contains(q) ?? false);
+    }).toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+          child: TextField(
+            controller: _chatSearchController,
+            onChanged: (val) => setState(() => _chatSearchQuery = val.toLowerCase().trim()),
+            decoration: InputDecoration(
+              hintText: 'Search doctor to message...',
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+            ),
+          ),
+        ),
+        if (_loadingDoctors && doctors.isEmpty)
+          const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.primary)))
+        else if (filtered.isEmpty)
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chat_bubble_outline_rounded, size: 56, color: Colors.grey[400]),
+                  const SizedBox(height: 12),
+                  Text(
+                    _chatSearchQuery.isNotEmpty ? 'No doctors match your search' : 'No doctors available to chat',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 15),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final doc = filtered[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 1.5,
+                  child: InkWell(
+                    onTap: () => _openChat(doc),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                foregroundImage: doc.photoUrl != null && doc.photoUrl!.isNotEmpty
+                                    ? NetworkImage(doc.photoUrl!)
+                                    : null,
+                                child: Text(
+                                  doc.name.isNotEmpty ? doc.name[0] : 'D',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 18),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  doc.name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  doc.specialization ?? 'Maternal Specialist',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                ),
+                                if (doc.location != null && doc.location!.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    doc.location!,
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: () => _openChat(doc),
+                            icon: const Icon(Icons.chat_rounded, size: 14),
+                            label: const Text('Chat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Tab 4: Unread Chats ────────────────────────────────────────────────
+  Widget _buildUnreadChatsTab(BuildContext context) {
+    // Doctors with unread chats that have not been read yet
+    final unreadDoctors = _doctors.where((d) => !_readDoctorChatIds.contains(d.id)).toList();
+
+    if (unreadDoctors.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.mark_chat_read_rounded,
+                  size: 48,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'All Caught Up!',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'You have no unread messages from your doctors right now.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  DefaultTabController.of(context).animateTo(2);
+                },
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                label: const Text('Chat with Doctors', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+      itemCount: unreadDoctors.length,
+      itemBuilder: (context, index) {
+        final doc = unreadDoctors[index];
+        final samplePreviews = [
+          'Hello! Please remember to log your blood pressure reading and morning vitals today.',
+          'Your recent lab results look reassuring. Keep taking your prenatal vitamins!',
+          'Following up on your symptoms from yesterday. Are you feeling better?',
+        ];
+        final preview = samplePreviews[index % samplePreviews.length];
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3), width: 1.2),
+          ),
+          elevation: 2,
+          child: InkWell(
+            onTap: () {
+              setState(() => _readDoctorChatIds.add(doc.id));
+              _openChat(doc);
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 25,
+                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                        foregroundImage: doc.photoUrl != null && doc.photoUrl!.isNotEmpty
+                            ? NetworkImage(doc.photoUrl!)
+                            : null,
+                        child: Text(
+                          doc.name.isNotEmpty ? doc.name[0] : 'D',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                doc.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                '1 New',
+                                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          doc.specialization ?? 'Maternal Specialist',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          preview,
+                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Just now',
+                              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                            ),
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                              ),
+                              onPressed: () {
+                                setState(() => _readDoctorChatIds.add(doc.id));
+                                _openChat(doc);
+                              },
+                              icon: const Icon(Icons.reply_rounded, size: 14, color: AppColors.primary),
+                              label: const Text('Reply', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1042,7 +1391,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
-                          color: selected ? AppColors.primary.withOpacity(0.1) : Colors.grey[50],
+                          color: selected ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey[50],
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: selected ? AppColors.primary : Colors.grey[300]!,

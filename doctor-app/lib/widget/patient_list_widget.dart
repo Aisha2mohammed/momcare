@@ -7,8 +7,6 @@ import 'package:doctor_app/widget/patient_chart_dialog.dart';
 
 class PatientListWidget extends StatelessWidget {
   final List<PatientModel> patients;
-  final ValueChanged<PatientModel>? onAccept;
-  final ValueChanged<PatientModel>? onDecline;
   final ValueChanged<PatientModel>? onChat;
   final ValueChanged<PatientModel>? onViewChart;
   final String emptyTitle;
@@ -20,8 +18,6 @@ class PatientListWidget extends StatelessWidget {
   const PatientListWidget({
     super.key,
     required this.patients,
-    this.onAccept,
-    this.onDecline,
     this.onChat,
     this.onViewChart,
     this.emptyTitle = 'No Patients Found',
@@ -106,8 +102,6 @@ class PatientListWidget extends StatelessWidget {
               PatientChartDialog.show(context, patient);
             }
           },
-          onAccept: onAccept,
-          onDecline: onDecline,
         );
       },
     );

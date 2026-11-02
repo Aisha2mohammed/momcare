@@ -4,7 +4,7 @@ import 'package:doctor_app/constants/color.dart';
 import 'package:doctor_app/model/mock_data.dart';
 import 'package:doctor_app/chat/chat_detail_screen.dart';
 
-enum ChatFilterTab { all, accepted, rejected, unread }
+enum ChatFilterTab { all, unread }
 
 class ChatListTab extends StatefulWidget {
   const ChatListTab({super.key});
@@ -34,19 +34,9 @@ class _ChatListTabState extends State<ChatListTab> {
     super.dispose();
   }
 
-  List<Patient> get _allPatientsList {
-    final list = <Patient>[...MockData.acceptedPatients];
-    for (final r in MockData.rejectedPatients) {
-      if (!list.any((p) => p.id == r.id)) {
-        list.add(r);
-      }
-    }
-    return list;
-  }
+  List<Patient> get _allPatientsList => MockData.acceptedPatients;
 
   int get _allCount => _allPatientsList.length;
-  int get _acceptedCount => _allPatientsList.where((p) => p.isAccepted && !p.isRejected).length;
-  int get _rejectedCount => _allPatientsList.where((p) => p.isRejected).length;
   int get _unreadCount => _allPatientsList.where((p) => !p.isRead || p.unreadCount > 0).length;
 
   List<Patient> get _filteredChats {
@@ -56,12 +46,6 @@ class _ChatListTabState extends State<ChatListTab> {
       switch (_currentTab) {
         case ChatFilterTab.all:
           matchesTab = true;
-          break;
-        case ChatFilterTab.accepted:
-          matchesTab = patient.isAccepted && !patient.isRejected;
-          break;
-        case ChatFilterTab.rejected:
-          matchesTab = patient.isRejected;
           break;
         case ChatFilterTab.unread:
           matchesTab = !patient.isRead || patient.unreadCount > 0;
@@ -192,20 +176,6 @@ class _ChatListTabState extends State<ChatListTab> {
                         tab: ChatFilterTab.all,
                         title: 'All Chats',
                         count: _allCount,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildTabButton(
-                        tab: ChatFilterTab.accepted,
-                        title: 'Accepted',
-                        count: _acceptedCount,
-                        activeColor: AppColors.success,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildTabButton(
-                        tab: ChatFilterTab.rejected,
-                        title: 'Rejected',
-                        count: _rejectedCount,
-                        activeColor: Colors.red.shade700,
                       ),
                       const SizedBox(width: 8),
                       _buildTabButton(
@@ -515,22 +485,12 @@ class _ChatListTabState extends State<ChatListTab> {
         title = 'All Caught Up!';
         subtitle = 'There are no unread patient messages at the moment.';
         break;
-      case ChatFilterTab.accepted:
-        icon = Icons.verified_user_outlined;
-        title = 'No Accepted Patient Chats';
-        subtitle = 'Patients accepted into your care team will appear here with active channels.';
-        break;
-      case ChatFilterTab.rejected:
-        icon = Icons.cancel_outlined;
-        title = 'No Declined Requests';
-        subtitle = 'Referrals or consultation requests that were declined will appear here.';
-        break;
       case ChatFilterTab.all:
         icon = Icons.chat_outlined;
         title = _searchQuery.isNotEmpty ? 'No Matching Chats' : 'No Active Chats';
         subtitle = _searchQuery.isNotEmpty
             ? 'No patient messages match "$_searchQuery".'
-            : 'Accept incoming patients from the Home tab to start conversations.';
+            : 'Patient consultations and follow-up messages will appear here.';
         break;
     }
 

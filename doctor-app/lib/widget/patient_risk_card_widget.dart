@@ -3,21 +3,18 @@ import 'package:doctor_app/constants/color.dart';
 import 'package:doctor_app/model/mock_data.dart';
 import 'package:doctor_app/chat/chat_detail_screen.dart';
 import 'package:doctor_app/widget/patient_chart_dialog.dart';
+import 'package:doctor_app/l10n/l10n.dart';
 
 class PatientRiskCardWidget extends StatelessWidget {
   final PatientModel patient;
   final VoidCallback? onChatPressed;
   final VoidCallback? onViewChartPressed;
-  final ValueChanged<PatientModel>? onAccept;
-  final ValueChanged<PatientModel>? onDecline;
 
   const PatientRiskCardWidget({
     super.key,
     required this.patient,
     this.onChatPressed,
     this.onViewChartPressed,
-    this.onAccept,
-    this.onDecline,
   });
 
   Color _getRiskColor() {
@@ -291,57 +288,6 @@ class PatientRiskCardWidget extends StatelessWidget {
             const Divider(height: 1),
             const SizedBox(height: 12),
 
-            // If Accepted: Show Status Indicator
-            if (patient.isAccepted) ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.successBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(Icons.check_circle_rounded, size: 15, color: AppColors.success),
-                    SizedBox(width: 6),
-                    Text(
-                      'Accepted in Care Team • Active Chat Channel',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else if (patient.isRejected) ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.riskHighBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.riskHigh.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(Icons.cancel_outlined, size: 15, color: AppColors.riskHigh),
-                    SizedBox(width: 6),
-                    Text(
-                      'Intake Declined • Patient Notified',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.riskHigh,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
             // Primary Clinical Action Buttons: "Chat Now" and "View Chart"
             Row(
               children: [
@@ -365,9 +311,9 @@ class PatientRiskCardWidget extends StatelessWidget {
                           );
                         },
                     icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                    label: const Text(
-                      'Chat Now',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    label: Text(
+                      LocaleNotifier.shared.t('chat_now'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
                 ),
@@ -389,62 +335,14 @@ class PatientRiskCardWidget extends StatelessWidget {
                           PatientChartDialog.show(context, patient);
                         },
                     icon: const Icon(Icons.insert_chart_outlined_rounded, size: 16),
-                    label: const Text(
-                      'View Chart',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    label: Text(
+                      LocaleNotifier.shared.t('view_chart'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
                 ),
               ],
             ),
-
-            // Incoming Triage Decision: Dual Accept and Reject Buttons
-            if (!patient.isAccepted && (onAccept != null || onDecline != null)) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  // Reject Button
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.riskHigh,
-                        side: BorderSide(color: AppColors.riskHigh.withValues(alpha: 0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: onDecline != null ? () => onDecline!(patient) : null,
-                      icon: const Icon(Icons.close_rounded, size: 16),
-                      label: const Text(
-                        'Reject',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // Accept Button
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: onAccept != null ? () => onAccept!(patient) : null,
-                      icon: const Icon(Icons.check_circle_rounded, size: 16),
-                      label: const Text(
-                        'Accept',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
