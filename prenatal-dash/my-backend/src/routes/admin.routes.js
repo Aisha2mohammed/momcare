@@ -73,6 +73,7 @@ router.post('/notifications', notificationRules, validate, notificationControlle
 
 // Stats
 router.get('/stats', adminController.getStats);
+router.get('/user-growth', adminController.getUserGrowth);
 
 module.exports = router;
 

@@ -40,10 +40,15 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadDoctorProfile() async {
     try {
       final user = await AuthService.instance.getCurrentUser();
-      final userId = user['id'];
+      final userId = user['id'] ?? user['userId'];
       if (userId != null && userId.isNotEmpty) {
         await AuthService.instance.getDoctorProfile(userId);
       }
+      if (user['status'] != null) {
+        final status = user['status']!.toLowerCase();
+        DoctorProfileModel.shared.isVerified = status == 'approved' || status == 'active';
+      }
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -81,14 +86,35 @@ class _MainScreenState extends State<MainScreen> {
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
             child: Row(
               children: [
-                CircleAvatar(
-                  backgroundImage: doc.avatarUrl.isNotEmpty ? NetworkImage(doc.avatarUrl) : null,
-                  onBackgroundImageError: (_, __) {},
-                  backgroundColor: AppColors.primaryLight,
-                  radius: 19,
-                  child: doc.avatarUrl.isEmpty
-                      ? const Icon(Icons.person, color: AppColors.primary, size: 20)
-                      : null,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      backgroundImage: doc.avatarUrl.isNotEmpty ? NetworkImage(doc.avatarUrl) : null,
+                      onBackgroundImageError: (_, __) {},
+                      backgroundColor: AppColors.primaryLight,
+                      radius: 19,
+                      child: doc.avatarUrl.isEmpty
+                          ? const Icon(Icons.person, color: AppColors.primary, size: 20)
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: -1,
+                      right: -1,
+                      child: Container(
+                        padding: const EdgeInsets.all(1.5),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          doc.isVerified ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                          size: 11,
+                          color: doc.isVerified ? AppColors.success : Colors.amber.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -96,25 +122,52 @@ class _MainScreenState extends State<MainScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        doc.name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              doc.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            doc.isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
+                            size: 14,
+                            color: doc.isVerified ? AppColors.primary : Colors.amber.shade800,
+                          ),
+                        ],
                       ),
-                      Text(
-                        doc.specialization,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              doc.specialization,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            doc.isVerified ? '• Verified' : '• Under Review',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: doc.isVerified ? AppColors.success : Colors.amber.shade800,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

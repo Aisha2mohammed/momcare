@@ -159,6 +159,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
   void _onAccountApproved({String? targetPhone}) async {
     _pollTimer?.cancel();
     setState(() => _accountStatus = 'active');
+    await AuthService.instance.storage.saveStatus('active');
 
     final phone = targetPhone ?? _userPhone ?? '';
 

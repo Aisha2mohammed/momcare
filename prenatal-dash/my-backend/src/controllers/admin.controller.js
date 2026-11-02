@@ -581,3 +581,92 @@ exports.getMotherHealthLogs = async (req, res, next) => {
     return sendPaginated(res, logsResult.rows, page, limit, total);
   } catch (err) { next(err); }
 };
+
+// ── GET /admin/user-growth ────────────────────────────────────────────
+// Provides real-time user registrations and appointment distribution
+// for the admin dashboard by range ('7d' or '30d')
+exports.getUserGrowth = async (req, res, next) => {
+  try {
+    const { range = '7d' } = req.query;
+
+    let growthQuery;
+    let appointmentQuery;
+
+    if (range === '30d') {
+      growthQuery = `
+        WITH periods AS (
+          SELECT generate_series(
+            CURRENT_DATE - INTERVAL '25 days',
+            CURRENT_DATE,
+            '5 days'::interval
+          )::date AS start_day
+        )
+        SELECT 
+          TO_CHAR(p.start_day, 'Mon DD') as month,
+          COUNT(u.id) FILTER (WHERE u.role = 'mother')::int as mothers,
+          COUNT(u.id) FILTER (WHERE u.role = 'doctor')::int as doctors
+        FROM periods p
+        LEFT JOIN users u ON DATE(u.created_at) >= p.start_day AND DATE(u.created_at) < p.start_day + INTERVAL '5 days'
+        GROUP BY p.start_day
+        ORDER BY p.start_day ASC
+      `;
+      appointmentQuery = `
+        SELECT 
+          CASE 
+            WHEN status = 'confirmed' THEN 'Scheduled'
+            WHEN status = 'completed' THEN 'Completed'
+            WHEN status = 'cancelled' OR status = 'rejected' THEN 'Cancelled'
+            ELSE 'Scheduled'
+          END as status,
+          COUNT(*)::int as count
+        FROM appointments
+        WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY 1
+      `;
+    } else {
+      growthQuery = `
+        WITH days AS (
+          SELECT generate_series(
+            CURRENT_DATE - INTERVAL '6 days',
+            CURRENT_DATE,
+            '1 day'::interval
+          )::date AS day
+        )
+        SELECT 
+          TO_CHAR(d.day, 'Dy') as month,
+          TO_CHAR(d.day, 'Mon DD') as full_date,
+          COUNT(u.id) FILTER (WHERE u.role = 'mother')::int as mothers,
+          COUNT(u.id) FILTER (WHERE u.role = 'doctor')::int as doctors
+        FROM days d
+        LEFT JOIN users u ON DATE(u.created_at) = d.day
+        GROUP BY d.day
+        ORDER BY d.day ASC
+      `;
+      appointmentQuery = `
+        SELECT 
+          CASE 
+            WHEN status = 'confirmed' THEN 'Scheduled'
+            WHEN status = 'completed' THEN 'Completed'
+            WHEN status = 'cancelled' OR status = 'rejected' THEN 'Cancelled'
+            ELSE 'Scheduled'
+          END as status,
+          COUNT(*)::int as count
+        FROM appointments
+        WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
+        GROUP BY 1
+      `;
+    }
+
+    const [growthRes, apptRes] = await Promise.all([
+      query(growthQuery),
+      query(appointmentQuery),
+    ]);
+
+    return sendSuccess(res, 200, 'User growth retrieved', {
+      userGrowth: growthRes.rows,
+      appointments: apptRes.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

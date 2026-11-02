@@ -87,7 +87,7 @@ class AuthService {
         name: user['name'] as String? ?? (name ?? 'Dr. Unknown'),
         phone: user['phone'] as String? ?? phone,
         email: user['email'] as String?,
-        status: status,
+        status: isApproved ? 'active' : status,
         specialization: doctorProfile?['specialization'] as String?,
         licenseNumber: doctorProfile?['license_number'] as String?,
         avatarUrl: doctorProfile?['photo_url'] as String?,
@@ -310,6 +310,10 @@ class AuthService {
         final role = user['role'] as String? ?? 'doctor';
         final doctorProfile = user['doctorProfile'] as Map<String, dynamic>?;
 
+        final status = (user['status'] as String? ?? 'active').toLowerCase();
+        final approvalStatus = (doctorProfile?['approval_status'] as String? ?? (status == 'active' ? 'approved' : status)).toLowerCase();
+        final isApproved = status == 'active' && approvalStatus == 'approved';
+
         await _storage.saveSession(
           token: token,
           userId: userId,
@@ -317,7 +321,7 @@ class AuthService {
           name: user['name'] as String? ?? 'Dr. Unknown',
           phone: user['phone'] as String? ?? phone,
           email: user['email'] as String?,
-          status: user['status'] as String? ?? 'active',
+          status: isApproved ? 'active' : status,
           specialization: doctorProfile?['specialization'] as String?,
           licenseNumber: doctorProfile?['license_number'] as String?,
           avatarUrl: doctorProfile?['photo_url'] as String?,
@@ -381,10 +385,43 @@ class AuthService {
 
   // ─── UPDATE PROFILE PHOTO ──────────────────────────────────────────
   Future<String> updateProfilePhoto(String id, String photoUrl) async {
+    final resolved = ApiEndpoints.resolveUrl(photoUrl);
     await updateDoctorProfile(id, {'photoUrl': photoUrl});
-    await _storage.saveAvatarUrl(photoUrl);
-    DoctorProfileModel.shared.avatarUrl = photoUrl;
-    return photoUrl;
+    await _storage.saveAvatarUrl(resolved);
+    DoctorProfileModel.shared.avatarUrl = resolved;
+    DoctorProfileModel.shared.notify();
+    return resolved;
+  }
+
+  // ─── UPLOAD AND SET PROFILE PHOTO ──────────────────────────────────
+  Future<String> uploadAndSetProfilePhoto({
+    required String userId,
+    required String filePath,
+    String? fileName,
+  }) async {
+    // 1. Upload the file via backend upload endpoint
+    final uploadedUrl = await uploadFile(filePath: filePath, fileName: fileName);
+    final resolvedUrl = ApiEndpoints.resolveUrl(uploadedUrl);
+
+    // 2. Persist to doctor profile in backend
+    try {
+      await updateDoctorProfile(userId, {'photoUrl': uploadedUrl});
+    } catch (_) {
+      try {
+        final name = fileName ?? filePath.split(RegExp(r'[\\/]')).last;
+        final formData = FormData.fromMap({
+          'photo': await MultipartFile.fromFile(filePath, filename: name),
+        });
+        final endpoint = ApiEndpoints.doctorProfilePhoto.replaceAll(':id', userId);
+        await _apiClient.dio.post(endpoint, data: formData);
+      } catch (_) {}
+    }
+
+    // 3. Persist locally and notify listeners
+    await _storage.saveAvatarUrl(resolvedUrl);
+    DoctorProfileModel.shared.avatarUrl = resolvedUrl;
+    DoctorProfileModel.shared.notify();
+    return resolvedUrl;
   }
 
   // ─── LOGOUT ────────────────────────────────────────────────────────
@@ -405,6 +442,13 @@ class AuthService {
     final shared = DoctorProfileModel.shared;
     if (user['name'] != null && user['name'].toString().isNotEmpty) {
       shared.name = user['name'].toString().startsWith('Dr.') ? user['name'] : 'Dr. ${user['name']}';
+    }
+    if (docProfile?['approval_status'] != null) {
+      final status = docProfile!['approval_status'].toString().toLowerCase();
+      shared.isVerified = status == 'approved' || status == 'active';
+    } else if (user['status'] != null) {
+      final status = user['status'].toString().toLowerCase();
+      shared.isVerified = status == 'approved' || status == 'active';
     }
     if (docProfile?['specialization'] != null) {
       shared.specialization = docProfile!['specialization'].toString();
@@ -441,7 +485,36 @@ class AuthService {
     }
     if (docProfile?['photo_url'] != null && docProfile!['photo_url'].toString().isNotEmpty) {
       final photo = docProfile['photo_url'].toString();
-      shared.avatarUrl = photo.startsWith('http') ? photo : 'http://localhost:5000$photo';
+      shared.avatarUrl = ApiEndpoints.resolveUrl(photo);
+    }
+    shared.notify();
+  }
+
+  void restoreProfileFromCurrentUser(Map<String, String?> cur) {
+    final shared = DoctorProfileModel.shared;
+    if (cur['name'] != null && cur['name']!.isNotEmpty) {
+      shared.name = cur['name']!.startsWith('Dr.') ? cur['name']! : 'Dr. ${cur['name']}';
+    }
+    if (cur['status'] != null && cur['status']!.isNotEmpty) {
+      final status = cur['status']!.toLowerCase();
+      shared.isVerified = status == 'approved' || status == 'active';
+    }
+    if (cur['specialization'] != null && cur['specialization']!.isNotEmpty) {
+      shared.specialization = cur['specialization']!;
+    }
+    if (cur['licenseNumber'] != null && cur['licenseNumber']!.isNotEmpty) {
+      shared.licenseNumber = cur['licenseNumber']!;
+    }
+    if (cur['avatarUrl'] != null && cur['avatarUrl']!.isNotEmpty) {
+      final photo = cur['avatarUrl']!;
+      shared.avatarUrl = ApiEndpoints.resolveUrl(photo);
+    }
+    if (cur['location'] != null && cur['location']!.isNotEmpty) {
+      shared.practiceLocation = cur['location']!;
+      shared.clinicAffiliation = cur['location']!;
+    }
+    if (cur['bio'] != null && cur['bio']!.isNotEmpty) {
+      shared.bio = cur['bio']!;
     }
     shared.notify();
   }
