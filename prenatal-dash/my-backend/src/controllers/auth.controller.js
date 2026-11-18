@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const axios = require('axios'); // ← NEW (AfroMessage SMS)
 const { query, getClient } = require('../config/db');
-const { initFirebase, admin } = require('../config/firebase');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const { getPregnancyProgress } = require('../services/pregnancyCalculator');
 const { getIO } = require('../config/socket');

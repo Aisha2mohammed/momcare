@@ -79,6 +79,9 @@ const requireAdmin = async (req, res, next) => {
     if (result.rows[0].status === 'suspended') {
       return sendError(res, 403, 'Admin account is deactivated.');
     }
+    if (result.rows[0].status === 'rejected') {
+      return sendError(res, 403, 'Admin account is deactivated.');
+    }
 
     req.user = result.rows[0];
     req.userId = result.rows[0].id;
