@@ -85,20 +85,219 @@ const notificationRules = [
   body('target_group').optional().isIn(['all', 'mothers', 'doctors', 'specific_user', 'user', 'trimester', 'week', 'month']),
 ];
 
+const ISO_DATETIME_WITH_TIMEZONE_RE =
+  /T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+const TIME_OF_DAY_RE = /^([01]\d|2[0-3]):[0-5]\d(?::00)?$/;
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const timeToMinutes = (value) => {
+  if (typeof value !== 'string' || !TIME_OF_DAY_RE.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const dateOnlyToUtc = (value) => {
+  if (typeof value !== 'string' || !DATE_ONLY_RE.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (year < 1000 || year > 9999) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+};
+
 const appointmentRules = [
-  body('doctorId').notEmpty().withMessage('Doctor ID is required').isUUID(),
-  body('slotDatetime').notEmpty().withMessage('Slot datetime is required').isISO8601(),
+  body('doctorId')
+    .notEmpty()
+    .withMessage('Doctor ID is required')
+    .isUUID()
+    .toLowerCase(),
+  body('slotDatetime')
+    .notEmpty()
+    .withMessage('Slot datetime is required')
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage('slotDatetime must be a valid ISO 8601 datetime')
+    .matches(ISO_DATETIME_WITH_TIMEZONE_RE)
+    .withMessage('slotDatetime must include Z or an explicit UTC offset'),
+];
+
+const availabilityDoctorIdRules = [
+  param('id').isUUID().withMessage('Doctor id must be a UUID').toLowerCase(),
+];
+
+const availabilitySlotIdRules = [
+  param('id').isUUID().withMessage('Doctor id must be a UUID').toLowerCase(),
+  param('slotId').isUUID().withMessage('Slot id must be a UUID').toLowerCase(),
+];
+
+const availabilityListRules = [
+  ...availabilityDoctorIdRules,
+  query('includeInactive')
+    .optional({ values: 'falsy' })
+    .isBoolean()
+    .withMessage('includeInactive must be a boolean')
+    .toBoolean(),
+];
+
+const availableSlotsRules = [
+  ...availabilityDoctorIdRules,
+  query('from')
+    .optional({ values: 'undefined' })
+    .isString()
+    .withMessage('from must be a date in YYYY-MM-DD format')
+    .custom((value) => {
+      if (!dateOnlyToUtc(value)) {
+        throw new Error('from must be a valid date in YYYY-MM-DD format');
+      }
+      return true;
+    }),
+  query('to')
+    .optional({ values: 'undefined' })
+    .isString()
+    .withMessage('to must be a date in YYYY-MM-DD format')
+    .custom((value) => {
+      if (!dateOnlyToUtc(value)) {
+        throw new Error('to must be a valid date in YYYY-MM-DD format');
+      }
+      return true;
+    }),
+  query().custom((_, { req }) => {
+    if (req.query.from === undefined || req.query.to === undefined) return true;
+    const from = dateOnlyToUtc(req.query.from);
+    const to = dateOnlyToUtc(req.query.to);
+    if (!from || !to) return true;
+    const spanDays = (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000);
+    if (spanDays < 0) {
+      throw new Error('from must be on or before to');
+    }
+    if (spanDays > 30) {
+      throw new Error('Date range must not exceed 31 local calendar days');
+    }
+    return true;
+  }),
+];
+
+const availabilityCreateRules = [
+  ...availabilityDoctorIdRules,
+  body('dayOfWeek')
+    .isInt({ min: 0, max: 6 })
+    .withMessage('dayOfWeek must be an integer between 0 (Sunday) and 6 (Saturday)')
+    .toInt(),
+  body('startTime')
+    .isString()
+    .withMessage('startTime is required')
+    .matches(TIME_OF_DAY_RE)
+    .withMessage('startTime must be HH:mm or HH:mm:00'),
+  body('endTime')
+    .isString()
+    .withMessage('endTime is required')
+    .matches(TIME_OF_DAY_RE)
+    .withMessage('endTime must be HH:mm or HH:mm:00'),
+  body('slotDurationMinutes')
+    .optional()
+    .isInt({ min: 5, max: 240 })
+    .withMessage('slotDurationMinutes must be an integer between 5 and 240')
+    .toInt(),
+  body('isActive')
+    .optional()
+    .isBoolean()
+    .withMessage('isActive must be a boolean')
+    .toBoolean(),
+  body().custom((_, { req }) => {
+    const { startTime, endTime, slotDurationMinutes } = req.body;
+    const start = timeToMinutes(startTime);
+    const end = timeToMinutes(endTime);
+    if (start === null || end === null) return true;
+    if (start >= end) throw new Error('startTime must be earlier than endTime');
+    const duration = slotDurationMinutes === undefined ? 30 : Number(slotDurationMinutes);
+    if (Number.isInteger(duration) && duration > end - start) {
+      throw new Error('slotDurationMinutes must fit within the availability window');
+    }
+    return true;
+  }),
+];
+
+const AVAILABILITY_UPDATE_FIELDS = [
+  'dayOfWeek',
+  'startTime',
+  'endTime',
+  'slotDurationMinutes',
+  'isActive',
+];
+
+const availabilityUpdateRules = [
+  ...availabilitySlotIdRules,
+  body('dayOfWeek')
+    .optional()
+    .isInt({ min: 0, max: 6 })
+    .withMessage('dayOfWeek must be an integer between 0 (Sunday) and 6 (Saturday)')
+    .toInt(),
+  body('startTime')
+    .optional()
+    .isString()
+    .withMessage('startTime must be HH:mm or HH:mm:00')
+    .matches(TIME_OF_DAY_RE)
+    .withMessage('startTime must be HH:mm or HH:mm:00'),
+  body('endTime')
+    .optional()
+    .isString()
+    .withMessage('endTime must be HH:mm or HH:mm:00')
+    .matches(TIME_OF_DAY_RE)
+    .withMessage('endTime must be HH:mm or HH:mm:00'),
+  body('slotDurationMinutes')
+    .optional()
+    .isInt({ min: 5, max: 240 })
+    .withMessage('slotDurationMinutes must be an integer between 5 and 240')
+    .toInt(),
+  body('isActive')
+    .optional()
+    .isBoolean()
+    .withMessage('isActive must be a boolean')
+    .toBoolean(),
+  body().custom((_, { req }) => {
+    if (!AVAILABILITY_UPDATE_FIELDS.some((field) => req.body[field] !== undefined)) {
+      throw new Error(`At least one of ${AVAILABILITY_UPDATE_FIELDS.join(', ')} is required`);
+    }
+    return true;
+  }),
 ];
 
 const appointmentRespondRules = [
   body('status').isIn(['confirmed', 'rejected']).withMessage('Status must be confirmed or rejected'),
-  body('alternative_time').optional().isISO8601(),
+  // camelCase is the canonical field. snake_case is still accepted for
+  // backward compatibility; both are read by the controller.
+  body('alternativeTimeSuggested')
+    .optional({ values: 'falsy' })
+    .isISO8601()
+    .withMessage('alternativeTimeSuggested must be a valid ISO 8601 date'),
+  body('alternative_time')
+    .optional({ values: 'falsy' })
+    .isISO8601()
+    .withMessage('alternative_time must be a valid ISO 8601 date'),
 ];
 
 const clinicalRecordRules = [
-  body('notes_text').optional(),
-  body('prescription_text').optional(),
-  body('risk_indicator').optional().isIn(['low', 'medium', 'high']),
+  // camelCase is the canonical contract. snake_case aliases remain accepted so
+  // older clients are not silently ignored.
+  body('notesText').optional({ values: 'falsy' }).isString(),
+  body('prescriptionText').optional({ values: 'falsy' }).isString(),
+  body('prescriptionFileUrl').optional({ values: 'falsy' }).isString(),
+  body('riskIndicator')
+    .optional({ values: 'falsy' })
+    .isIn(['low', 'medium', 'high'])
+    .withMessage('riskIndicator must be low, medium or high'),
+  body('notes_text').optional({ values: 'falsy' }).isString(),
+  body('prescription_text').optional({ values: 'falsy' }).isString(),
+  body('prescription_file_url').optional({ values: 'falsy' }).isString(),
+  body('risk_indicator')
+    .optional({ values: 'falsy' })
+    .isIn(['low', 'medium', 'high'])
+    .withMessage('risk_indicator must be low, medium or high'),
 ];
 
 const doctorRegisterRules = [
@@ -173,6 +372,12 @@ module.exports = {
   notificationRules,
   appointmentRules,
   appointmentRespondRules,
+  availabilityDoctorIdRules,
+  availabilitySlotIdRules,
+  availabilityListRules,
+  availableSlotsRules,
+  availabilityCreateRules,
+  availabilityUpdateRules,
   clinicalRecordRules,
   doctorRegisterRules,
   emergencyContactRules,
