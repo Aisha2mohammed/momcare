@@ -6,6 +6,12 @@ const { sendError } = require('../utils/apiResponse');
  */
 const callerIsAdmin = (req) => req.userRole === 'admin' || req.isAdmin === true;
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const canonicalizeUuid = (value) =>
+  typeof value === 'string' && UUID_RE.test(value) ? value.toLowerCase() : value;
+
 /**
  * Ownership guard for routes whose URL identifies the resource owner.
  *
@@ -27,7 +33,9 @@ const requireSelfOrAdmin = (...paramNames) => {
     if (callerIsAdmin(req)) {
       return next();
     }
-    const owns = paramNames.some((name) => req.params[name] === req.userId);
+    const owns = paramNames.some(
+      (name) => canonicalizeUuid(req.params[name]) === canonicalizeUuid(req.userId)
+    );
     if (!owns) {
       return sendError(res, 403, 'Forbidden. You may only access your own resources.');
     }
