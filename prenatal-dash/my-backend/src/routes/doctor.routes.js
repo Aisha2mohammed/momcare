@@ -1,7 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const doctorController = require('../controllers/doctor.controller');
-const { validate, doctorRegisterRules, paginationRules, appointmentRules } = require('../utils/validators');
+const {
+  validate,
+  doctorRegisterRules,
+  paginationRules,
+  appointmentRules,
+  availabilityListRules,
+  availableSlotsRules,
+  availabilityCreateRules,
+  availabilityUpdateRules,
+} = require('../utils/validators');
 const auth = require('../middlewares/auth');
 const { requireRole, requireApprovedDoctor } = require('../middlewares/roleGuard');
 const { requireSelfOrAdmin } = require('../middlewares/ownership');
@@ -27,9 +36,27 @@ router.post(
   doctorController.updateProfilePhoto
 );
 // Any authenticated user (including mothers) may view a doctor's availability slots
-router.get('/:id/availability-slots', auth, doctorController.getAvailabilitySlots);
-router.post('/:id/availability-slots', auth, requireRole('doctor'),requireSelfOrAdmin('id'), doctorController.createAvailabilitySlot);
-router.put('/:id/availability-slots/:slotId', auth, requireRole('doctor'),requireSelfOrAdmin('id'), doctorController.updateAvailabilitySlot);
+router.get('/:id/availability-slots', auth, availabilityListRules, validate, doctorController.getAvailabilitySlots);
+// Bookable slot instants generated from active availability and existing appointments.
+router.get('/:id/available-slots', auth, availableSlotsRules, validate, doctorController.getAvailableSlots);
+router.post(
+  '/:id/availability-slots',
+  auth,
+  requireRole('doctor'),
+  requireSelfOrAdmin('id'),
+  availabilityCreateRules,
+  validate,
+  doctorController.createAvailabilitySlot
+);
+router.put(
+  '/:id/availability-slots/:slotId',
+  auth,
+  requireRole('doctor'),
+  requireSelfOrAdmin('id'),
+  availabilityUpdateRules,
+  validate,
+  doctorController.updateAvailabilitySlot
+);
 router.get('/:id/appointments', auth, requireRole('doctor'), requireSelfOrAdmin('id'), paginationRules, validate, doctorController.getDoctorAppointments);
 router.get('/:id/patients', auth, requireRole('doctor'), requireSelfOrAdmin('id'), requireApprovedDoctor, doctorController.getDoctorPatients);
 router.post('/:id/notify', auth, requireRole('doctor'), requireSelfOrAdmin('id'), requireApprovedDoctor, doctorController.notifyPatients);
