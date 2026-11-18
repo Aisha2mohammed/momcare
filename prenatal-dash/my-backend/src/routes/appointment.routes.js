@@ -7,7 +7,7 @@ const { requireRole, requireApprovedDoctor } = require('../middlewares/roleGuard
 
 router.post('/', auth, requireRole('mother'), appointmentRules, validate, appointmentController.bookAppointment);
 router.get('/:id', auth, appointmentController.getAppointment);
-router.put('/:id/status', auth, appointmentController.updateAppointmentStatus);
+router.put('/:id/status', auth, requireRole('mother', 'doctor'), appointmentController.updateAppointmentStatus);
 router.put('/:id/respond', auth, requireRole('doctor'), appointmentRespondRules, validate, requireApprovedDoctor, appointmentController.respondToAppointment);
 router.post('/:id/clinical-record', auth, requireRole('doctor'), clinicalRecordRules, validate, requireApprovedDoctor, appointmentController.addClinicalRecord);
 
